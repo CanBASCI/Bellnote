@@ -1388,7 +1388,20 @@
       }
     },
     "Term %lld" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Term %lld"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld. dönem"
+          }
+        }
+      }
     },
     "Term %lld min" : {
 
@@ -1618,7 +1631,20 @@
       }
     },
     "Year %lld" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Year %lld"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld. yıl"
+          }
+        }
+      }
     },
     "Yes" : {
       "localizations" : {
