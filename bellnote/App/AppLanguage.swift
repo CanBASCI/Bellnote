@@ -5,6 +5,30 @@ enum AppLanguage: String, CaseIterable, Sendable {
     case english = "en"
     case turkish = "tr"
 
+    static var courseChoices: [AppLanguage] {
+        let preferred = deviceCourseDefault
+        return [preferred] + [english, turkish].filter { $0 != preferred }
+    }
+
+    static var deviceCourseDefault: AppLanguage {
+        Locale.current.identifier.hasPrefix("tr") ? .turkish : .english
+    }
+
+    var speechLocaleIdentifier: String {
+        switch self {
+        case .turkish: "tr_TR"
+        case .english, .system: "en_US"
+        }
+    }
+
+    var title: String {
+        switch self {
+        case .system: "System"
+        case .english: "English"
+        case .turkish: "Turkish"
+        }
+    }
+
     static func resolved(preference: String, system: String) -> String {
         if preference == AppLanguage.english.rawValue || preference == AppLanguage.turkish.rawValue {
             return preference

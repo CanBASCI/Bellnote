@@ -56,20 +56,25 @@ struct CourseEditor: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @State private var name = ""
-    @State private var locale = Locale.current.identifier
+    @State private var language = AppLanguage.deviceCourseDefault
 
     var body: some View {
         NavigationStack {
             Form {
                 TextField("Course", text: $name)
-                TextField("Locale", text: $locale)
+                Picker("Language", selection: $language) {
+                    ForEach(AppLanguage.courseChoices, id: \.self) { item in
+                        Text(LocalizedStringKey(item.title)).tag(item)
+                    }
+                }
+                .pickerStyle(.menu)
             }
             .navigationTitle("Course")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
-                        let course = Course(name: name, localeIdentifier: locale, term: term)
+                        let course = Course(name: name, localeIdentifier: language.speechLocaleIdentifier, term: term)
                         modelContext.insert(course)
                         term.courses.append(course)
                         dismiss()
