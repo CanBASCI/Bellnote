@@ -1,28 +1,96 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
-    "NSCameraUsageDescription" : {
+    "CFBundleDisplayName" : {
+      "comment" : "Bundle display name",
+      "extractionState" : "extracted_with_value",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Takes a board photo or reads a schedule you choose, on this device." } },
-        "tr" : { "stringUnit" : { "state" : "translated", "value" : "Bu aygıtta bir tahta fotoğrafı çeker veya seçtiğiniz programı okur." } }
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Bellnote"
+          }
+        }
+      }
+    },
+    "CFBundleName" : {
+      "comment" : "Bundle name",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "bellnote"
+          }
+        }
+      }
+    },
+    "NSCameraUsageDescription" : {
+      "comment" : "Privacy - Camera Usage Description",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Takes a board photo or reads a schedule you choose, on this device."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bu aygıtta bir tahta fotoğrafı çeker veya seçtiğiniz programı okur."
+          }
+        }
       }
     },
     "NSFaceIDUsageDescription" : {
+      "comment" : "Privacy - Face ID Usage Description",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Unlocks notes stored on this device." } },
-        "tr" : { "stringUnit" : { "state" : "translated", "value" : "Bu aygıtta duran notların kilidini açar." } }
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unlocks notes stored on this device."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bu aygıtta duran notların kilidini açar."
+          }
+        }
       }
     },
     "NSMicrophoneUsageDescription" : {
+      "comment" : "Privacy - Microphone Usage Description",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Records a class you are permitted to record, for personal notes, on this device." } },
-        "tr" : { "stringUnit" : { "state" : "translated", "value" : "Kaydetmenize izin verilen bir dersi, kişisel notlar için, bu aygıtta kaydeder." } }
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Records a class you are permitted to record, for personal notes, on this device."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kaydetmenize izin verilen bir dersi, kişisel notlar için, bu aygıtta kaydeder."
+          }
+        }
       }
     },
     "NSSpeechRecognitionUsageDescription" : {
+      "comment" : "Privacy - Speech Recognition Usage Description",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Turns class audio into notes on this device." } },
-        "tr" : { "stringUnit" : { "state" : "translated", "value" : "Ders sesini bu aygıtta notlara çevirir." } }
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Turns class audio into notes on this device."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ders sesini bu aygıtta notlara çevirir."
+          }
+        }
       }
     }
   },
