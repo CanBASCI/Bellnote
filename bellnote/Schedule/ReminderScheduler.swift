@@ -15,16 +15,14 @@ enum ReminderScheduler {
 
     static func replaceSlot(_ slot: WeeklySlot, courseName: String) {
         let center = UNUserNotificationCenter.current()
-        let prefix = "slot.\(slot.token.uuidString)."
-        center.getPendingNotificationRequests { requests in
-            let ids = requests.map(\.identifier).filter { $0.hasPrefix(prefix) }
-            center.removePendingNotificationRequests(withIdentifiers: ids)
-        }
-        guard ReminderKind(rawValue: slot.reminderKind) != .none else { return }
+        let identifier = "slot.\(slot.token.uuidString).weekly"
+        center.removePendingNotificationRequests(withIdentifiers: [identifier])
+        let kind = ReminderKind(rawValue: slot.reminderKind) ?? ReminderKind.none
+        guard kind != ReminderKind.none else { return }
         let content = UNMutableNotificationContent()
         content.title = courseName
         content.body = String(localized: "Starts \(Self.clock(slot.startMinutes)).")
-        if ReminderKind(rawValue: slot.reminderKind) == .alert {
+        if kind == .alert {
             content.sound = .default
         }
         var components = DateComponents()
@@ -33,7 +31,7 @@ enum ReminderScheduler {
         components.hour = fire / 60
         components.minute = fire % 60
         let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: true)
-        let request = UNNotificationRequest(identifier: prefix + "weekly", content: content, trigger: trigger)
+        let request = UNNotificationRequest(identifier: identifier, content: content, trigger: trigger)
         center.add(request)
     }
 
@@ -41,12 +39,13 @@ enum ReminderScheduler {
         let center = UNUserNotificationCenter.current()
         let id = "exam.\(ObjectIdentifier(sitting).hashValue)"
         center.removePendingNotificationRequests(withIdentifiers: [id])
-        guard let date = sitting.date, ReminderKind(rawValue: sitting.reminderKind) != .none else { return }
+        let kind = ReminderKind(rawValue: sitting.reminderKind) ?? ReminderKind.none
+        guard let date = sitting.date, kind != ReminderKind.none else { return }
         let content = UNMutableNotificationContent()
-        let kind = sitting.kind
+        let examKind = sitting.kind
         content.title = courseName
-        content.body = String(localized: "\(kind) \(date.formatted(date: .abbreviated, time: .omitted))")
-        if ReminderKind(rawValue: sitting.reminderKind) == .alert {
+        content.body = String(localized: "\(examKind) \(date.formatted(date: .abbreviated, time: .omitted))")
+        if kind == .alert {
             content.sound = .default
         }
         let lead = sitting.leadDays

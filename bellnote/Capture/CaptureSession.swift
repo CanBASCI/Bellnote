@@ -11,6 +11,7 @@ nonisolated final class CaptureSession: NSObject, @unchecked Sendable {
     private var recordedFrames: AVAudioFramePosition = 0
     private var writeError: Error?
     private let targetFormat: AVAudioFormat?
+    private var observationTokens: [NotificationCenter.ObservationToken] = []
 
     var onInterruptionEnded: (@Sendable () -> Void)?
 
@@ -63,17 +64,22 @@ nonisolated final class CaptureSession: NSObject, @unchecked Sendable {
         started = true
         lock.unlock()
         input.removeTap(onBus: 0)
-        input.installTap(onBus: 0, bufferSize: 4096, format: inputFormat) { [weak self] buffer, _ in
-            self?.append(buffer)
+        do {
+            try input.installAudioTap(onBus: 0, bufferSize: 4096, format: inputFormat) { [weak self] buffer, _ in
+                self?.append(buffer)
+            }
+            engine.prepare()
+            try engine.start()
+        } catch {
+            input.removeTap(onBus: 0)
+            lock.lock()
+            file = nil
+            self.converter = nil
+            started = false
+            lock.unlock()
+            throw error
         }
-        engine.prepare()
-        try engine.start()
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(handleInterruption(_:)),
-            name: AVAudioSession.interruptionNotification,
-            object: session
-        )
+        observeSession(session)
     }
 
     func pauseCapture() {
@@ -108,12 +114,13 @@ nonisolated final class CaptureSession: NSObject, @unchecked Sendable {
         started = false
         paused = false
         lock.unlock()
-        NotificationCenter.default.removeObserver(self)
+        endObservations()
         if let error { throw error }
         try AVAudioSession.sharedInstance().setActive(false, options: [.notifyOthersOnDeactivation])
     }
 
-    private func append(_ buffer: AVAudioPCMBuffer) {
+    private func append(_ buffer: AVReadOnlyAudioPCMBuffer) {
+        let pcm = AVAudioPCMBuffer(copying: buffer)
         lock.lock()
         let isPaused = paused
         let file = file
@@ -121,8 +128,8 @@ nonisolated final class CaptureSession: NSObject, @unchecked Sendable {
         let format = targetFormat
         lock.unlock()
         guard !isPaused, let file, let converter, let format else { return }
-        let ratio = format.sampleRate / buffer.format.sampleRate
-        let capacity = AVAudioFrameCount(Double(buffer.frameLength) * ratio) + 1
+        let ratio = format.sampleRate / pcm.format.sampleRate
+        let capacity = AVAudioFrameCount(Double(pcm.frameLength) * ratio) + 1
         guard let converted = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: capacity) else {
             store(CaptureError.unsupportedFormat)
             return
@@ -136,7 +143,7 @@ nonisolated final class CaptureSession: NSObject, @unchecked Sendable {
             }
             consumed = true
             status.pointee = .haveData
-            return buffer
+            return pcm
         }
         if let error {
             store(error)
@@ -159,13 +166,29 @@ nonisolated final class CaptureSession: NSObject, @unchecked Sendable {
         lock.unlock()
     }
 
-    @objc private func handleInterruption(_ note: Notification) {
-        guard let value = note.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
-              let type = AVAudioSession.InterruptionType(rawValue: value) else { return }
-        if type == .began {
-            pauseCapture()
-        } else if type == .ended {
-            onInterruptionEnded?()
+    private func observeSession(_ session: AVAudioSession) {
+        let center = NotificationCenter.default
+        let inactive = center.addObserver(of: session, for: .didBecomeInactive) { [weak self] message in
+            guard case .systemInterruption = message.deactivationResult else { return }
+            self?.pauseCapture()
+        }
+        let resume = center.addObserver(of: session, for: .resumptionRecommendation) { [weak self] message in
+            guard message.recommendation == .shouldResume else { return }
+            self?.onInterruptionEnded?()
+        }
+        lock.lock()
+        observationTokens = [inactive, resume]
+        lock.unlock()
+    }
+
+    private func endObservations() {
+        lock.lock()
+        let tokens = observationTokens
+        observationTokens = []
+        lock.unlock()
+        let center = NotificationCenter.default
+        for token in tokens {
+            center.removeObserver(token)
         }
     }
 }
