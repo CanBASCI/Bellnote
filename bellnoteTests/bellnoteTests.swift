@@ -90,12 +90,16 @@ import Testing
     let tight = DeviceBudget(freeDiskBytes: 1_000_000_000, physicalMemoryBytes: 6_000_000_000)
     #expect(ModelLock.taggerLocked(tight))
     #expect(ModelLock.pageLocked(tight))
-    let eight = DeviceBudget(freeDiskBytes: 20_000_000_000, physicalMemoryBytes: ModelLock.eightGigabytes)
-    #expect(!ModelLock.taggerLocked(eight))
-    #expect(!ModelLock.pageLocked(eight))
-    let lowMemory = DeviceBudget(freeDiskBytes: 20_000_000_000, physicalMemoryBytes: ModelLock.eightGigabytes - 1)
-    #expect(!ModelLock.taggerLocked(lowMemory))
-    #expect(ModelLock.pageLocked(lowMemory))
+    #expect(ModelLock.installedGigabytes(3_840_000_000) == 4)
+    #expect(ModelLock.installedGigabytes(5_910_110_208) == 6)
+    #expect(ModelLock.installedGigabytes(8_022_114_304) == 8)
+    #expect(ModelLock.installedGigabytes(12_034_228_224) == 12)
+    let eightGigabytePhone = DeviceBudget(freeDiskBytes: 20_000_000_000, physicalMemoryBytes: 8_022_114_304)
+    #expect(!ModelLock.taggerLocked(eightGigabytePhone))
+    #expect(!ModelLock.pageLocked(eightGigabytePhone))
+    let sixGigabytePhone = DeviceBudget(freeDiskBytes: 20_000_000_000, physicalMemoryBytes: 5_910_110_208)
+    #expect(!ModelLock.taggerLocked(sixGigabytePhone))
+    #expect(ModelLock.pageLocked(sixGigabytePhone))
 }
 
 @Test func suggestionsStopAtThree() {

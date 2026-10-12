@@ -8,14 +8,19 @@ struct DeviceBudget: Sendable, Equatable {
 enum ModelLock {
     static let twoGigabytes: Int64 = 2 * 1_073_741_824
     static let fourGigabytes: Int64 = 4 * 1_073_741_824
-    static let eightGigabytes: UInt64 = 8 * 1_073_741_824
+
+    /// `physicalMemory` is usable RAM. On every iPhone it sits below the installed size, inside the previous gibibyte.
+    static func installedGigabytes(_ reportedBytes: UInt64) -> Int {
+        let gibibytes = Double(reportedBytes) / Double(1_073_741_824)
+        return Int(gibibytes.rounded(.up))
+    }
 
     static func taggerLocked(_ budget: DeviceBudget) -> Bool {
         budget.freeDiskBytes < twoGigabytes
     }
 
     static func pageLocked(_ budget: DeviceBudget) -> Bool {
-        budget.freeDiskBytes < fourGigabytes || budget.physicalMemoryBytes < eightGigabytes
+        budget.freeDiskBytes < fourGigabytes || installedGigabytes(budget.physicalMemoryBytes) < 8
     }
 }
 
