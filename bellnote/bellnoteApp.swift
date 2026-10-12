@@ -1,32 +1,51 @@
-//
-//  bellnoteApp.swift
-//  bellnote
-//
-//  Created by Can Basci on 13.10.2026.
-//
-
-import SwiftUI
+import BackgroundTasks
 import SwiftData
+import SwiftUI
 
 @main
 struct bellnoteApp: App {
-    var sharedModelContainer: ModelContainer = {
-        let schema = Schema([
-            Item.self,
-        ])
-        let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
+    @State private var session = AppSession()
+    private let container: ModelContainer?
 
+    init() {
         do {
-            return try ModelContainer(for: schema, configurations: [modelConfiguration])
+            container = try AppSchema.container()
         } catch {
-            fatalError("Could not create ModelContainer: \(error)")
+            container = nil
         }
-    }()
+        BGTaskScheduler.shared.register(forTaskWithIdentifier: "app.bellnote.refresh", using: nil) { task in
+            task.setTaskCompleted(success: false)
+        }
+    }
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            Group {
+                if let container {
+                    RootView()
+                        .modelContainer(container)
+                        .environment(session)
+                        .environment(\.locale, session.locale)
+                } else {
+                    ContentUnavailableView {
+                        Text("Bellnote")
+                    } description: {
+                        Text("Notes could not be opened.")
+                    }
+                }
+            }
         }
-        .modelContainer(sharedModelContainer)
+    }
+}
+
+struct RootView: View {
+    @Environment(AppSession.self) private var session
+
+    var body: some View {
+        if session.unlocked {
+            TermHomeView()
+        } else {
+            LockGate()
+        }
     }
 }

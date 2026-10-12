@@ -1,0 +1,30 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "NSCameraUsageDescription" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Takes a board photo or reads a schedule you choose, on this device." } },
+        "tr" : { "stringUnit" : { "state" : "translated", "value" : "Bu aygıtta bir tahta fotoğrafı çeker veya seçtiğiniz programı okur." } }
+      }
+    },
+    "NSFaceIDUsageDescription" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Unlocks notes stored on this device." } },
+        "tr" : { "stringUnit" : { "state" : "translated", "value" : "Bu aygıtta duran notların kilidini açar." } }
+      }
+    },
+    "NSMicrophoneUsageDescription" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Records a class you are permitted to record, for personal notes, on this device." } },
+        "tr" : { "stringUnit" : { "state" : "translated", "value" : "Kaydetmenize izin verilen bir dersi, kişisel notlar için, bu aygıtta kaydeder." } }
+      }
+    },
+    "NSSpeechRecognitionUsageDescription" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Turns class audio into notes on this device." } },
+        "tr" : { "stringUnit" : { "state" : "translated", "value" : "Ders sesini bu aygıtta notlara çevirir." } }
+      }
+    }
+  },
+  "version" : "1.0"
+}
