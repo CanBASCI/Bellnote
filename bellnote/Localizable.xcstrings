@@ -1238,6 +1238,23 @@
         }
       }
     },
+    "Last week" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Last week"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Geçen hafta"
+          }
+        }
+      }
+    },
     "Latest notes" : {
       "localizations" : {
         "en" : {
@@ -1776,6 +1793,23 @@
         }
       }
     },
+    "Not processed yet" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not processed yet"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Henüz işlenmedi"
+          }
+        }
+      }
+    },
     "Not set" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2195,6 +2229,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Yine de işle"
+          }
+        }
+      }
+    },
+    "Process the recording to get the raw text, AI correction and assignments." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Process the recording to get the raw text, AI correction and assignments."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ham metin, yapay zekâ düzeltme ve ödevler için kaydı işle."
           }
         }
       }
@@ -3263,6 +3314,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Bu model bu aygıtta kilitli."
+          }
+        }
+      }
+    },
+    "This week" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This week"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bu hafta"
           }
         }
       }

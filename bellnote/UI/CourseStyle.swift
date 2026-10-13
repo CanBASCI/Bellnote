@@ -147,7 +147,7 @@ struct AssignmentRow: View {
         }
         .onAppear { assignment.fillDueIfMissing() }
         // Delete is the list's own swipe from the right. Cancelled is the swipe from the left.
-        .swipeActions(edge: .leading, allowsFullSwipe: false) {
+        .swipeActions(edge: .leading, allowsFullSwipe: true) {
             Button(
                 assignment.cancelled ? "Restore" : "Cancelled",
                 systemImage: assignment.cancelled ? "arrow.uturn.backward" : "xmark.circle"

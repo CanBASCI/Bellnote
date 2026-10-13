@@ -57,24 +57,32 @@ struct LectureNote: View {
                         .font(.title2.weight(.semibold))
                 }
             }
-            Section {
-                Picker("", selection: $tab) {
-                    Text("AI correction").tag(LectureTab.correction)
-                    Text("Raw").tag(LectureTab.raw)
-                    Text("Assignments").tag(LectureTab.assignments)
+            if lecture.isRecordedOnly && workingStage == nil {
+                // Nothing to show in any tab until the recording is processed.
+                Section {
+                    NotProcessedView { start() }
+                        .listRowBackground(Color.clear)
                 }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .listRowBackground(Color.clear)
-                .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
-            }
-            switch tab {
-            case .correction:
-                correctionSections
-            case .raw:
-                rawSections
-            case .assignments:
-                assignmentSections
+            } else {
+                Section {
+                    Picker("", selection: $tab) {
+                        Text("AI correction").tag(LectureTab.correction)
+                        Text("Raw").tag(LectureTab.raw)
+                        Text("Assignments").tag(LectureTab.assignments)
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
+                }
+                switch tab {
+                case .correction:
+                    correctionSections
+                case .raw:
+                    rawSections
+                case .assignments:
+                    assignmentSections
+                }
             }
         }
         .listStyle(.insetGrouped)
@@ -85,7 +93,8 @@ struct LectureNote: View {
             }
         }
         .toolbar {
-            if lecture.audioRelativePath != nil {
+            // A recording that was never processed has its own Process button in the middle.
+            if lecture.audioRelativePath != nil, !(lecture.isRecordedOnly && workingStage == nil) {
                 ToolbarItem(placement: .primaryAction) {
                     let again = lecture.state == LectureState.ready.rawValue
                     Button(
@@ -104,8 +113,14 @@ struct LectureNote: View {
             }
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            if audio.duration > 0 {
-                playback
+            // Pinned like the player, so the buttons stay put while the page scrolls.
+            VStack(spacing: 8) {
+                if tab == .correction, hasCorrection, let course = lecture.course {
+                    studyBar(course)
+                }
+                if audio.duration > 0 {
+                    playback
+                }
             }
         }
         .task(id: lecture.persistentModelID) {
@@ -170,35 +185,6 @@ struct LectureNote: View {
                     .font(.body)
                     .lineSpacing(4)
                     .textSelection(.enabled)
-            }
-        }
-        if hasCorrection, let course = lecture.course {
-            Section {
-                GlassEffectContainer(spacing: 8) {
-                    HStack(spacing: 8) {
-                        Button("Ask", systemImage: "sparkles") {
-                            studyMode = .ask
-                            showStudy = true
-                        }
-                        Button(quizTitle(course), systemImage: "checklist") {
-                            studyMode = .quiz
-                            showStudy = true
-                        }
-                        Button(reader.isSpeaking ? "Stop" : "Listen", systemImage: reader.isSpeaking ? "stop.fill" : "speaker.wave.2.fill") {
-                            if reader.isSpeaking {
-                                reader.stop()
-                            } else {
-                                listen(course)
-                            }
-                        }
-                    }
-                    .buttonStyle(.glass)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-                }
-                .frame(maxWidth: .infinity)
-                .listRowBackground(Color.clear)
-                .listRowInsets(EdgeInsets())
             }
         }
     }
@@ -266,6 +252,35 @@ struct LectureNote: View {
         guard let course = lecture.course else { return [] }
         let ids = Set(lecture.blocks.map(\.token))
         return course.assignments.filter { ids.contains($0.sourceBlockID) }
+    }
+
+    /// Ask, Quiz and Listen, pinned just above the player.
+    private func studyBar(_ course: Course) -> some View {
+        GlassEffectContainer(spacing: 8) {
+            HStack(spacing: 8) {
+                Button("Ask", systemImage: "sparkles") {
+                    studyMode = .ask
+                    showStudy = true
+                }
+                Button(quizTitle(course), systemImage: "checklist") {
+                    studyMode = .quiz
+                    showStudy = true
+                }
+                Button(reader.isSpeaking ? "Stop" : "Listen", systemImage: reader.isSpeaking ? "stop.fill" : "speaker.wave.2.fill") {
+                    if reader.isSpeaking {
+                        reader.stop()
+                    } else {
+                        listen(course)
+                    }
+                }
+            }
+            .buttonStyle(.glass)
+            .lineLimit(1)
+            .minimumScaleFactor(0.8)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 16)
+        .padding(.bottom, audio.duration > 0 ? 0 : 8)
     }
 
     private var playback: some View {

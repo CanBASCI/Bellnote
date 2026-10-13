@@ -68,20 +68,24 @@ struct CoursePage: View {
                 .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
             }
-            Section("Lectures") {
-                if lectures.isEmpty {
+            if lectures.isEmpty {
+                Section("Lectures") {
                     Text("No lectures yet.")
                         .foregroundStyle(.secondary)
                 }
-                ForEach(lectures) { lecture in
-                    NavigationLink {
-                        LecturePage(lecture: lecture)
-                    } label: {
-                        lectureRow(lecture)
+            }
+            ForEach(lectureWeeks, id: \.start) { week in
+                Section(weekTitle(week.start)) {
+                    ForEach(week.lectures) { lecture in
+                        NavigationLink {
+                            LecturePage(lecture: lecture)
+                        } label: {
+                            lectureRow(lecture)
+                        }
                     }
-                }
-                .onDelete { offsets in
-                    if let index = offsets.first { askDelete(lectures[index]) }
+                    .onDelete { offsets in
+                        if let index = offsets.first { askDelete(week.lectures[index]) }
+                    }
                 }
             }
             if !course.assignments.isEmpty {
@@ -208,6 +212,32 @@ struct CoursePage: View {
 
     private var lectures: [Lecture] {
         course.lectures.sorted { $0.startedAt > $1.startedAt }
+    }
+
+    /// Recordings grouped by calendar week, newest week first, newest recording first inside a week.
+    private var lectureWeeks: [(start: Date, lectures: [Lecture])] {
+        let calendar = Calendar.current
+        let groups = Dictionary(grouping: lectures) { lecture in
+            calendar.dateInterval(of: .weekOfYear, for: lecture.startedAt)?.start ?? lecture.startedAt
+        }
+        return groups
+            .map { (start: $0.key, lectures: $0.value) }
+            .sorted { $0.start > $1.start }
+    }
+
+    private func weekTitle(_ start: Date) -> String {
+        let calendar = Calendar.current
+        let now = Date()
+        if let current = calendar.dateInterval(of: .weekOfYear, for: now)?.start {
+            if start == current { return String(localized: "This week") }
+            if let previous = calendar.date(byAdding: .weekOfYear, value: -1, to: current), start == previous {
+                return String(localized: "Last week")
+            }
+        }
+        let end = calendar.date(byAdding: .day, value: 6, to: start) ?? start
+        let first = start.formatted(.dateTime.day().month(.abbreviated))
+        let last = end.formatted(.dateTime.day().month(.abbreviated))
+        return "\(first) – \(last)"
     }
 
     private func statTile(value: Int, title: LocalizedStringKey) -> some View {
