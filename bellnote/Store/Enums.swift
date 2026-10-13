@@ -66,6 +66,19 @@ enum PipelineStage: String, Codable, Sendable, CaseIterable {
         case .failed: String(localized: "Failed")
         }
     }
+
+    /// One or two sentences that say what the app does in this stage.
+    var info: String {
+        switch self {
+        case .idle, .audio: String(localized: "The app checks that the recording opens and is complete.")
+        case .speakers: String(localized: "The app finds out who speaks when. This happens on your phone.")
+        case .transcript: String(localized: "Whisper turns the speech into text. The ring follows how much of the recording it has read.")
+        case .tags: String(localized: "The model marks definitions, lists, examples and assignments in the text.")
+        case .page: String(localized: "The AI correction is written from the transcript, with correct spelling and punctuation.")
+        case .links, .ready: String(localized: "The notes are linked to earlier lectures of this course.")
+        case .failed: ""
+        }
+    }
 }
 
 enum SpeakerRole: String, Codable, Sendable {

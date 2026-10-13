@@ -116,13 +116,42 @@ enum WhisperASR {
                 throw error
             }
             await kit.unloadModels()
-            log.info("Whisper prepare done seconds=\(Int(Date().timeIntervalSince(started)))")
+            let seconds = Int(Date().timeIntervalSince(started))
+            rememberPrepare(seconds: seconds)
+            log.info("Whisper prepare done seconds=\(seconds)")
         } catch {
             log.error("Whisper prepare failed message=\(error.localizedDescription, privacy: .public)")
         }
     }
 
-    static func transcribe(url: URL, locale: Locale, runs: [SpeechRun]) async throws -> [TranscriptLine] {
+    private static let prepareSecondsKey = "whisperPrepareSeconds"
+
+    /// A real Core ML compile takes a while, a cached one does not. Only the long one is a useful
+    /// guide for the next bar, so only that is kept.
+    private static func rememberPrepare(seconds: Int) {
+        guard seconds >= 20 else { return }
+        UserDefaults.standard.set(seconds, forKey: prepareSecondsKey)
+    }
+
+    /// How long the last real compile took. Core ML gives no progress, so this is a guide only.
+    private static func expectedPrepareSeconds() -> Int {
+        let stored = UserDefaults.standard.integer(forKey: prepareSecondsKey)
+        return stored > 0 ? stored : 180
+    }
+
+    /// Where Whisper is inside the transcript stage.
+    enum Step: Sendable {
+        case preparing(elapsed: Int, expected: Int)
+        case loading
+        case writing(Double)
+    }
+
+    static func transcribe(
+        url: URL,
+        locale: Locale,
+        runs: [SpeechRun],
+        onStep: @escaping @MainActor @Sendable (Step) -> Void
+    ) async throws -> [TranscriptLine] {
         guard isInstalled() else { throw TranscriptError.whisperMissing }
         let disk = snapshot()
         log.info(
@@ -147,8 +176,25 @@ enum WhisperASR {
         }
         defer { heartbeat.cancel() }
         do {
+            let expected = expectedPrepareSeconds()
+            await onStep(.preparing(elapsed: 0, expected: expected))
+            // Core ML reports nothing while it compiles. A clock keeps the bar alive.
+            let ticker = Task {
+                var seconds = 0
+                while !Task.isCancelled {
+                    try? await Task.sleep(for: .seconds(1))
+                    guard !Task.isCancelled else { return }
+                    seconds += 1
+                    await onStep(.preparing(elapsed: seconds, expected: expected))
+                }
+            }
+            defer { ticker.cancel() }
             try await kit.prewarmModels()
-            log.info("Whisper prepare done seconds=\(Int(Date().timeIntervalSince(started)))")
+            ticker.cancel()
+            let prepared = Int(Date().timeIntervalSince(started))
+            rememberPrepare(seconds: prepared)
+            log.info("Whisper prepare done seconds=\(prepared)")
+            await onStep(.loading)
             try await kit.loadModels()
             log.info("Whisper loaded seconds=\(Int(Date().timeIntervalSince(started))) footprintMB=\(MemoryProbe.footprintMB()) tokenizer=\(kit.tokenizer != nil)")
         } catch {
@@ -157,7 +203,7 @@ enum WhisperASR {
         }
         let lines: [TranscriptLine]
         do {
-            lines = try await write(url: url, locale: locale, runs: runs, kit: kit)
+            lines = try await write(url: url, locale: locale, runs: runs, kit: kit, onStep: onStep)
         } catch {
             await kit.unloadModels()
             log.info("Whisper unloaded footprintMB=\(MemoryProbe.footprintMB())")
@@ -175,14 +221,29 @@ enum WhisperASR {
         url: URL,
         locale: Locale,
         runs: [SpeechRun],
-        kit: WhisperKit
+        kit: WhisperKit,
+        onStep: @escaping @MainActor @Sendable (Step) -> Void
     ) async throws -> [TranscriptLine] {
         let begun = Date()
         log.info("Whisper whole recording begin runs=\(runs.count)")
+        await onStep(.writing(0))
+        // WhisperKit counts the audio it has read. The bar follows that count.
+        let counter = kit.progress
+        let watcher = Task {
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(500))
+                guard !Task.isCancelled else { return }
+                await onStep(.writing(counter.fractionCompleted))
+            }
+        }
+        defer { watcher.cancel() }
         let results: [TranscriptionResult]
         do {
+            var samples = try AudioProcessor.loadAudioAsFloatArray(fromPath: url.path)
+            let gain = louder(&samples)
+            log.info("Whisper audio samples=\(samples.count) gain=\(String(format: "%.2f", gain))")
             results = try await kit.transcribe(
-                audioPath: url.path,
+                audioArray: samples,
                 decodeOptions: options(for: locale, words: !runs.isEmpty)
             )
         } catch {
@@ -192,6 +253,10 @@ enum WhisperASR {
         let segments = results.flatMap(\.segments).filter { segment in
             if isRunaway(segment.text) {
                 log.warning("Whisper dropped a repeating segment start=\(segment.start)")
+                return false
+            }
+            if isInvented(segment.text) {
+                log.warning("Whisper dropped an invented caption start=\(segment.start) text=\(segment.text, privacy: .public)")
                 return false
             }
             return true
@@ -233,8 +298,33 @@ enum WhisperASR {
         return lines
     }
 
+    /// A quiet room recording is raised so its loudest point is near full scale. A louder one is
+    /// left alone. The raise is capped, so silence is not blown up into noise.
+    private static func louder(_ samples: inout [Float]) -> Float {
+        var peak: Float = 0
+        for sample in samples { peak = max(peak, abs(sample)) }
+        guard peak > 0 else { return 1 }
+        let gain = min(8, 0.9 / peak)
+        guard gain > 1 else { return 1 }
+        for index in samples.indices { samples[index] *= gain }
+        return gain
+    }
+
+    /// Whisper sometimes writes a caption credit over a silent start. It is not speech.
+    static func isInvented(_ text: String) -> Bool {
+        let folded = text
+            .trimmingCharacters(in: .whitespacesAndNewlines.union(.punctuationCharacters))
+            .lowercased(with: Locale(identifier: "tr"))
+        let known = [
+            "altyazı m.k.", "altyazı m.k", "altyazı", "izlediğiniz için teşekkürler",
+            "abone ol", "thanks for watching", "thank you for watching", "subtitles by"
+        ]
+        return known.contains { folded.hasPrefix($0) && folded.count <= $0.count + 6 }
+    }
+
     /// The course language is named, so the model never has to guess it. Greedy decoding keeps
-    /// the text steady. The default thresholds drop silent windows and repeating answers.
+    /// the text steady. The confidence thresholds are off: on a far, quiet room they sent every
+    /// window through the fallbacks until the answer was empty. The repeat check stays on.
     private static func options(for locale: Locale, words: Bool) -> DecodingOptions {
         let code = locale.language.languageCode?.identifier
         return DecodingOptions(
@@ -247,7 +337,9 @@ enum WhisperASR {
             skipSpecialTokens: true,
             withoutTimestamps: false,
             wordTimestamps: words,
-            suppressBlank: true
+            suppressBlank: true,
+            logProbThreshold: nil,
+            firstTokenLogProbThreshold: nil
         )
     }
 

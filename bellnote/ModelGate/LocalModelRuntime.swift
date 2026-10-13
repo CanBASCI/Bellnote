@@ -67,10 +67,11 @@ actor LocalModelRuntime {
     func tag(window: String, locale: Locale) async throws -> WindowTag {
         beginCall()
         defer { endCall() }
-        Self.log.info("Tag begin characters=\(window.count) locale=\(locale.identifier, privacy: .public)")
+        let role = try composeRole()
+        Self.log.info("Tag begin characters=\(window.count) locale=\(locale.identifier, privacy: .public) role=\(role.rawValue, privacy: .public)")
         do {
-            try await ensure(.tagger)
-            let session = try makeSession(role: .tagger, instructions: tagInstructions)
+            try await ensure(role)
+            let session = try makeSession(role: role, instructions: tagInstructions)
             let language = locale.localizedString(forIdentifier: locale.identifier) ?? locale.identifier
             let response = try await session.respond(
                 to: "Lecture language: \(language). Copy the sentence in this language. Do not translate.\n\n\(window)",
@@ -254,12 +255,18 @@ actor LocalModelRuntime {
         probe(role).isReady
     }
 
+    /// True when at least one text model (2B or 4B) is on the device.
+    func hasTextModel() -> Bool {
+        isInstalled(.tagger) || isInstalled(.page)
+    }
+
     func cancel(lecture id: UUID) async {
         await gate.cancel(lecture: id)
         resident = nil
     }
 
-    /// The installed model the user picked. A missing model is never downloaded from here.
+    /// The installed model the user picked. Tags, page, correction and Ask all use it.
+    /// A missing model is never downloaded from here.
     private func composeRole() throws -> ModelRole {
         let preferred = AppPreferences.pageModel()
         if isInstalled(preferred) { return preferred }

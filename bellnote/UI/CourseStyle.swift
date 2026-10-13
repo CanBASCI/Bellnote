@@ -1,3 +1,4 @@
+import SwiftData
 import SwiftUI
 
 /// Small shared pieces of the Bellnote look. Only semantic colors are used,
@@ -77,6 +78,37 @@ struct StatusChip: View {
     }
 }
 
+/// Asks before an assignment that the list's own delete swipe picked is removed.
+private struct AssignmentDeleteDialog: ViewModifier {
+    @Binding var pending: Assignment?
+    @Environment(\.modelContext) private var modelContext
+
+    func body(content: Content) -> some View {
+        content.confirmationDialog(
+            "Delete this assignment?",
+            isPresented: Binding(
+                get: { pending != nil },
+                set: { if !$0 { pending = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("Delete", role: .destructive) {
+                if let assignment = pending { modelContext.delete(assignment) }
+                pending = nil
+            }
+            Button("Cancel", role: .cancel) { pending = nil }
+        } message: {
+            Text("It is removed from the list. The recording stays. A new run of the recording can add it again.")
+        }
+    }
+}
+
+extension View {
+    func confirmAssignmentDelete(_ pending: Binding<Assignment?>) -> some View {
+        modifier(AssignmentDeleteDialog(pending: pending))
+    }
+}
+
 /// A recording and the second to play from, used to open a lecture from a task.
 struct AssignmentTarget: Hashable {
     var lecture: Lecture
@@ -94,11 +126,16 @@ struct AssignmentRow: View {
             Button {
                 assignment.done.toggle()
             } label: {
-                Image(systemName: assignment.done ? "checkmark.circle.fill" : "circle")
-                    .font(.title3)
-                    .foregroundStyle(assignment.done ? Color.green : Color.secondary)
+                Image(
+                    systemName: assignment.cancelled
+                        ? "xmark.circle"
+                        : (assignment.done ? "checkmark.circle.fill" : "circle")
+                )
+                .font(.title3)
+                .foregroundStyle(assignment.done && !assignment.cancelled ? Color.green : Color.secondary)
             }
             .buttonStyle(.plain)
+            .disabled(assignment.cancelled)
             .accessibilityLabel(Text("Done"))
             .accessibilityAddTraits(assignment.done ? .isSelected : [])
             if let onOpen {
@@ -109,15 +146,27 @@ struct AssignmentRow: View {
             }
         }
         .onAppear { assignment.fillDueIfMissing() }
+        // Delete is the list's own swipe from the right. Cancelled is the swipe from the left.
+        .swipeActions(edge: .leading, allowsFullSwipe: false) {
+            Button(
+                assignment.cancelled ? "Restore" : "Cancelled",
+                systemImage: assignment.cancelled ? "arrow.uturn.backward" : "xmark.circle"
+            ) {
+                assignment.cancelled.toggle()
+            }
+            .tint(.orange)
+        }
     }
 
     private var details: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(assignment.text)
-                .strikethrough(assignment.done)
-                .foregroundStyle(assignment.done ? .secondary : .primary)
+                .strikethrough(assignment.done || assignment.cancelled)
+                .foregroundStyle(assignment.done || assignment.cancelled ? .secondary : .primary)
                 .multilineTextAlignment(.leading)
-            if let due = assignment.due {
+            if assignment.cancelled {
+                StatusChip(title: String(localized: "Cancelled"), tint: .orange)
+            } else if let due = assignment.due {
                 StatusChip(title: AssignmentRow.dueTitle(due), tint: .accentColor)
             } else {
                 Text("No date was spoken.")

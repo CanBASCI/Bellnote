@@ -28,6 +28,8 @@ struct CoursePage: View {
     @State private var showInventory = false
     @State private var assignmentTarget: AssignmentTarget?
     @State private var pendingDelete: Lecture?
+    @State private var pendingItem: InventoryItem?
+    @State private var pendingAssignment: Assignment?
     @State private var deleteNotice: String?
 
     var body: some View {
@@ -59,7 +61,7 @@ struct CoursePage: View {
             Section {
                 HStack(spacing: 10) {
                     statTile(value: lectures.count, title: "Recordings")
-                    statTile(value: course.assignments.filter { !$0.done }.count, title: "Assignments")
+                    statTile(value: course.assignments.filter { !$0.done && !$0.cancelled }.count, title: "Assignments")
                     statTile(value: course.sittings.count, title: "Exams")
                 }
                 .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
@@ -77,33 +79,39 @@ struct CoursePage: View {
                     } label: {
                         lectureRow(lecture)
                     }
-                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                        Button("Delete", systemImage: "trash", role: .destructive) {
-                            askDelete(lecture)
-                        }
-                    }
+                }
+                .onDelete { offsets in
+                    if let index = offsets.first { askDelete(lectures[index]) }
                 }
             }
             if !course.assignments.isEmpty {
                 Section("Assignments") {
-                    ForEach(course.assignments.sorted { ($0.due ?? .distantFuture) < ($1.due ?? .distantFuture) }) { assignment in
+                    let sorted = course.assignments.sorted { ($0.due ?? .distantFuture) < ($1.due ?? .distantFuture) }
+                    ForEach(sorted) { assignment in
                         AssignmentRow(assignment: assignment) { second in
                             guard let lecture = assignment.sourceLecture else { return }
                             assignmentTarget = AssignmentTarget(lecture: lecture, second: second)
                         }
                     }
+                    .onDelete { offsets in
+                        pendingAssignment = offsets.first.map { sorted[$0] }
+                    }
                 }
             }
-            Section("Inventory", isExpanded: $showInventory) {
-                if course.inventory.isEmpty {
-                    Text("Nothing named in a lecture yet.")
-                }
-                ForEach(course.inventory) { item in
-                    Text(item.title)
+            // Nothing fills the inventory yet, so the section shows only when a row exists.
+            if !course.inventory.isEmpty {
+                Section("Inventory", isExpanded: $showInventory) {
+                    ForEach(course.inventory) { item in
+                        Text(item.title)
+                    }
+                    .onDelete { offsets in
+                        pendingItem = offsets.first.map { course.inventory[$0] }
+                    }
                 }
             }
         }
         .listStyle(.insetGrouped)
+        .confirmAssignmentDelete($pendingAssignment)
         .navigationDestination(item: $assignmentTarget) { target in
             LecturePage(lecture: target.lecture, startSecond: target.second)
         }
@@ -142,6 +150,22 @@ struct CoursePage: View {
             Button("Cancel", role: .cancel) { pendingDelete = nil }
         } message: {
             Text("The audio, the notes and the assignments from this recording will be deleted. This cannot be undone.")
+        }
+        .confirmationDialog(
+            "Delete this item?",
+            isPresented: Binding(
+                get: { pendingItem != nil },
+                set: { if !$0 { pendingItem = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("Delete", role: .destructive) {
+                if let item = pendingItem { modelContext.delete(item) }
+                pendingItem = nil
+            }
+            Button("Cancel", role: .cancel) { pendingItem = nil }
+        } message: {
+            Text("It is removed from the list. The recording stays.")
         }
         .alert(
             deleteNotice ?? "",

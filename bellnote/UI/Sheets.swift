@@ -93,11 +93,12 @@ struct PendingSheet: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @State private var running = false
+    @State private var askNoModel = false
     @State private var fluidGate = FluidAudioGate()
 
     /// The stage of the lecture that runs now, from anywhere in the app.
-    private var workingStage: PipelineStage? {
-        lectures.compactMap { PipelineActivity.shared.stage(for: $0) }.first
+    private var workingStage: PipelineActivity.Step? {
+        lectures.compactMap { PipelineActivity.shared.step(for: $0) }.first
     }
 
     var body: some View {
@@ -140,13 +141,22 @@ struct PendingSheet: View {
                 ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Process") {
-                        fluidGate.request { await process() }
+                        Task {
+                            if await LocalModelRuntime.shared.hasTextModel() {
+                                fluidGate.request { await process() }
+                            } else {
+                                askNoModel = true
+                            }
+                        }
                     }
                     .disabled(lectures.isEmpty || running || workingStage != nil)
                 }
             }
         }
         .fluidAudioGate(fluidGate)
+        .noModelNotice(isPresented: $askNoModel) {
+            fluidGate.request { await process() }
+        }
         .presentationDetents([.medium, .large])
     }
 
@@ -160,31 +170,6 @@ struct PendingSheet: View {
                 pageModel: AppPreferences.pageModel()
             )
         }
-    }
-}
-
-struct AssignmentSheet: View {
-    @Bindable var course: Course
-    @Environment(\.dismiss) private var dismiss
-    @State private var target: AssignmentTarget?
-
-    var body: some View {
-        NavigationStack {
-            List(course.assignments.sorted { ($0.due ?? .distantFuture) < ($1.due ?? .distantFuture) }) { assignment in
-                AssignmentRow(assignment: assignment) { second in
-                    guard let lecture = assignment.sourceLecture else { return }
-                    target = AssignmentTarget(lecture: lecture, second: second)
-                }
-            }
-            .navigationDestination(item: $target) { target in
-                LecturePage(lecture: target.lecture, startSecond: target.second)
-            }
-            .navigationTitle("Assignments")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } }
-            }
-        }
-        .presentationDetents([.medium, .large])
     }
 }
 
@@ -261,7 +246,7 @@ struct ModelsPage: View {
                 modelRow(.tagger, title: Self.modelTitle(.tagger), bytes: ModelCatalog.taggerBytes, locked: ModelLock.taggerLocked(budget))
                 modelRow(.page, title: Self.modelTitle(.page), bytes: ModelCatalog.pageBytes, locked: ModelLock.pageLocked(budget))
                 if !installedTextModels.isEmpty {
-                    Picker("AI correction model", selection: Binding(
+                    Picker("AI model", selection: Binding(
                         get: { session.pageModel },
                         set: { session.setPageModel($0) }
                     )) {
@@ -270,7 +255,7 @@ struct ModelsPage: View {
                         }
                     }
                     .pickerStyle(.menu)
-                    Text("AI correction and Ask use this model.")
+                    Text("Tags, AI correction and Ask use this model.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -1023,6 +1008,7 @@ struct ProgramPage: View {
     @Environment(\.modelContext) private var modelContext
     @State private var showEditor = false
     @State private var day = Calendar.current.component(.weekday, from: .now)
+    @State private var pendingSlot: WeeklySlot?
 
     private let hourHeight: CGFloat = 56
 
@@ -1058,6 +1044,22 @@ struct ProgramPage: View {
         }
         .sheet(isPresented: $showEditor) {
             SlotEditor(term: term, weekday: day)
+        }
+        .confirmationDialog(
+            "Delete this time from the timetable?",
+            isPresented: Binding(
+                get: { pendingSlot != nil },
+                set: { if !$0 { pendingSlot = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("Delete", role: .destructive) {
+                if let slot = pendingSlot { modelContext.delete(slot) }
+                pendingSlot = nil
+            }
+            Button("Cancel", role: .cancel) { pendingSlot = nil }
+        } message: {
+            Text("The recordings of this course stay.")
         }
     }
 
@@ -1143,7 +1145,7 @@ struct ProgramPage: View {
         .frame(height: blockHeight(slot), alignment: .top)
         .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         .contextMenu {
-            Button("Delete", role: .destructive) { modelContext.delete(slot) }
+            Button("Delete", role: .destructive) { pendingSlot = slot }
         }
     }
 

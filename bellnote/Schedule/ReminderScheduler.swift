@@ -9,6 +9,7 @@ enum ReminderScheduler {
         do {
             return try await center.requestAuthorization(options: [.alert, .sound, .badge])
         } catch {
+            Logger(subsystem: "app.bellnote", category: "notify").error("Notification permission failed: \(error.localizedDescription, privacy: .public)")
             return false
         }
     }

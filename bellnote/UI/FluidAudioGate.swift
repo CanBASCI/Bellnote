@@ -1,3 +1,4 @@
+import OSLog
 import SwiftUI
 
 @MainActor
@@ -49,6 +50,7 @@ final class FluidAudioGate {
                 await pending()
             }
         } catch {
+            Logger(subsystem: "app.bellnote", category: "model").error("Speaker model download failed: \(error.localizedDescription, privacy: .public)")
             downloadFailed = true
         }
     }

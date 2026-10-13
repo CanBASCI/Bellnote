@@ -104,34 +104,19 @@
         }
       }
     },
-    "AI correction and Ask use this model." : {
+    "AI model" : {
+      "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "AI correction and Ask use this model."
+            "value" : "AI model"
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "AI düzeltme ve Sor bu modeli kullanır."
-          }
-        }
-      }
-    },
-    "AI correction model" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "AI correction model"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "AI düzeltme modeli"
+            "value" : "Yapay zekâ modeli"
           }
         }
       }
@@ -181,6 +166,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ders ekle"
+          }
+        }
+      }
+    },
+    "All recordings, notes, assignments and exams of this course will be deleted. This cannot be undone." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All recordings, notes, assignments and exams of this course will be deleted. This cannot be undone."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bu dersin tüm kayıtları, notları, ödevleri ve sınavları silinecek. Bu geri alınamaz."
           }
         }
       }
@@ -390,6 +391,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Vazgeç"
+          }
+        }
+      }
+    },
+    "Cancelled" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cancelled"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "İptal edildi"
           }
         }
       }
@@ -620,6 +637,54 @@
         }
       }
     },
+    "Delete this assignment?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete this assignment?"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bu ödev silinsin mi?"
+          }
+        }
+      }
+    },
+    "Delete this course?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete this course?"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bu ders silinsin mi?"
+          }
+        }
+      }
+    },
+    "Delete this item?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete this item?"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bu satır silinsin mi?"
+          }
+        }
+      }
+    },
     "Delete this recording?" : {
       "localizations" : {
         "en" : {
@@ -632,6 +697,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Bu kayıt silinsin mi?"
+          }
+        }
+      }
+    },
+    "Delete this time from the timetable?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete this time from the timetable?"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bu saat takvimden silinsin mi?"
           }
         }
       }
@@ -1109,6 +1190,38 @@
         }
       }
     },
+    "It is removed from the list. The recording stays." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "It is removed from the list. The recording stays."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Listeden kaldırılır. Kayıt silinmez."
+          }
+        }
+      }
+    },
+    "It is removed from the list. The recording stays. A new run of the recording can add it again." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "It is removed from the list. The recording stays. A new run of the recording can add it again."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Listeden kaldırılır. Kayıt silinmez. Kaydı yeniden işlersen ödev tekrar eklenebilir."
+          }
+        }
+      }
+    },
     "Language" : {
       "localizations" : {
         "en" : {
@@ -1268,6 +1381,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Dinle bu sesi kullanır."
+          }
+        }
+      }
+    },
+    "Loading Whisper" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Loading Whisper"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Whisper yükleniyor"
           }
         }
       }
@@ -1499,6 +1628,40 @@
         }
       }
     },
+    "No AI model installed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No AI model installed"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yapay zekâ modeli kurulu değil"
+          }
+        }
+      }
+    },
+    "No AI model is installed. Download one in Settings, Models, then process again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No AI model is installed. Download one in Settings, Models, then process again."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yapay zekâ modeli kurulu değil. Ayarlar'da Modeller'den bir tane indirip yeniden işle."
+          }
+        }
+      }
+    },
     "No assignments yet." : {
       "localizations" : {
         "en" : {
@@ -1698,6 +1861,7 @@
       }
     },
     "Nothing named in a lecture yet." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1905,6 +2069,22 @@
         }
       }
     },
+    "Preparing audio analysis" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Preparing audio analysis"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ses analizi hazırlanıyor"
+          }
+        }
+      }
+    },
     "Preparing…" : {
       "localizations" : {
         "en" : {
@@ -1998,6 +2178,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Tümünü işle"
+          }
+        }
+      }
+    },
+    "Process anyway" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Process anyway"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yine de işle"
           }
         }
       }
@@ -2238,6 +2435,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Kayıtlar"
+          }
+        }
+      }
+    },
+    "Restore" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restore"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Geri al"
           }
         }
       }
@@ -2647,6 +2860,23 @@
         }
       }
     },
+    "Tags, AI correction and Ask use this model." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tags, AI correction and Ask use this model."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Etiketleme, yapay zekâ düzeltme ve Ask bu modeli kullanır."
+          }
+        }
+      }
+    },
     "Term" : {
       "localizations" : {
         "en" : {
@@ -2679,6 +2909,54 @@
         }
       }
     },
+    "The AI correction is written from the transcript, with correct spelling and punctuation." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The AI correction is written from the transcript, with correct spelling and punctuation."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI düzeltme, transkriptten doğru yazım ve noktalamayla yazılıyor."
+          }
+        }
+      }
+    },
+    "The app checks that the recording opens and is complete." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The app checks that the recording opens and is complete."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Uygulama kaydın açıldığını ve eksiksiz olduğunu kontrol ediyor."
+          }
+        }
+      }
+    },
+    "The app finds out who speaks when. This happens on your phone." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The app finds out who speaks when. This happens on your phone."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Uygulama kimin ne zaman konuştuğunu buluyor. Bu işlem telefonunda yapılıyor."
+          }
+        }
+      }
+    },
     "The audio, the notes and the assignments from this recording will be deleted. This cannot be undone." : {
       "localizations" : {
         "en" : {
@@ -2691,6 +2969,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Bu kaydın sesi, notları ve ödevleri silinecek. Bu geri alınamaz."
+          }
+        }
+      }
+    },
+    "The course could not be deleted." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The course could not be deleted."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ders silinemedi."
           }
         }
       }
@@ -2759,6 +3053,38 @@
         }
       }
     },
+    "The model marks definitions, lists, examples and assignments in the text." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The model marks definitions, lists, examples and assignments in the text."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Model metindeki tanımları, listeleri, örnekleri ve ödevleri işaretliyor."
+          }
+        }
+      }
+    },
+    "The notes are linked to earlier lectures of this course." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The notes are linked to earlier lectures of this course."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notlar bu dersin önceki kayıtlarına bağlanıyor."
+          }
+        }
+      }
+    },
     "The recording could not be closed." : {
       "localizations" : {
         "en" : {
@@ -2808,6 +3134,22 @@
         }
       }
     },
+    "The recordings of this course stay." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The recordings of this course stay."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bu dersin kayıtları silinmez."
+          }
+        }
+      }
+    },
     "The speech asset is not installed." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2821,6 +3163,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Konuşma modeli yüklü değil."
+          }
+        }
+      }
+    },
+    "The text is written, then processing waits for a model. AI correction, tags and assignments need one. Download it in Settings, Models." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The text is written, then processing waits for a model. AI correction, tags and assignments need one. Download it in Settings, Models."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Metin yazılır, sonra işlem model bekler. Yapay zekâ düzeltme, etiket ve ödevler için model gerekir. Ayarlar'da Modeller'den indirebilirsin."
           }
         }
       }
@@ -3085,6 +3444,22 @@
         }
       }
     },
+    "Wait until the recordings of this course have been processed, then delete it." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wait until the recordings of this course have been processed, then delete it."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bu dersin kayıtlarının işlenmesi bitsin, sonra silebilirsin."
+          }
+        }
+      }
+    },
     "Wait until this recording has been processed, then delete it." : {
       "localizations" : {
         "en" : {
@@ -3178,6 +3553,54 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Whisper yazıya dökemedi."
+          }
+        }
+      }
+    },
+    "Whisper is being loaded into memory." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Whisper is being loaded into memory."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Whisper belleğe yükleniyor."
+          }
+        }
+      }
+    },
+    "Whisper is being set up for this phone. The first time takes a few minutes, later runs are quick. The ring is a guide from the last time, not a measurement." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Whisper is being set up for this phone. The first time takes a few minutes, later runs are quick. The ring is a guide from the last time, not a measurement."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Whisper bu telefon için hazırlanıyor. İlk seferde birkaç dakika sürer, sonrakiler hızlıdır. Halka, geçen seferin süresine göre bir tahmindir, ölçüm değildir."
+          }
+        }
+      }
+    },
+    "Whisper turns the speech into text. The ring follows how much of the recording it has read." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Whisper turns the speech into text. The ring follows how much of the recording it has read."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Whisper konuşmayı metne çeviriyor. Halka, kaydın ne kadarının okunduğunu gösteriyor."
           }
         }
       }

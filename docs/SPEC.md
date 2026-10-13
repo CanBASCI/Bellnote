@@ -112,7 +112,7 @@ Inventory is filled from lecture blocks, not from a catalog. A spoken book, chap
 
 Files the lecturer sent, by mail or chat, are added by the student to that course. The system share sheet or document picker copies the file into the course folder. The app does not read WhatsApp or Mail by itself. The copy is the one the course opens. Kinds include PDF, slide, image, and other. A file can be tied to an inventory row, an assignment, or a lecture minute. Removing it removes the copy in the app, not the original in Files. Nothing is uploaded. Voice can list them: “what files are on this course.”
 
-A PDF the student added can be asked about. Text is extracted on device with PDFKit. A scanned page is read with Vision, on device. Qwen 4B answers only from that text, and cites the page. If the page has no text, it says so. It does not mix in lecture notes unless the student asks “from the notes and this file.” The file is not uploaded. Quiz filters can include one chosen file, still without facts from outside it.
+A PDF the student added can be asked about. Text is extracted on device with PDFKit. A scanned page is read with Vision, on device. The picked text model answers only from that text, and cites the page. If the page has no text, it says so. It does not mix in lecture notes unless the student asks “from the notes and this file.” The file is not uploaded. Quiz filters can include one chosen file, still without facts from outside it.
 
 “Summarize this file” and “where does this topic sit” never send the whole PDF to the model. Extract text per page on device. Rank pages by topic overlap with the question or the lecture block. Read only the top pages, cite those page numbers, and say when no page matches. The student can confirm a pair, and that pair is reused. Nearby pages are not attached.
 
@@ -132,25 +132,24 @@ A board photo is taken by the student, during the recording, from a system camer
 - Text models: `mlx-swift-lm` / `MLXFoundationModels`. Requires the iOS 27 SDK. `MLXLanguageModel` conforms to `FoundationModels.LanguageModel` and is passed to `LanguageModelSession`. Guided output via `@Generable`.
 - Do not enable Private Cloud Compute or third-party tools on any session.
 - Do not use AFM 3 Core Advanced. It needs more memory than an 8 GB phone has. Skip it rather than gating the app to a named device.
-- Window tagger: Qwen 3.5 2B. Do not use `SystemLanguageModel` for tags. Apple Speech is the transcript only.
-- Page, summary, quiz, spoken script: Qwen 3.5 4B 4-bit only. Thinking off. Unload 2B before loading 4B.
+- Text model: Qwen 3.5 2B or Qwen 3.5 4B, 4-bit. The student downloads one or both and picks one in Settings. That one model does every text job: window tags, AI correction, page, summary, quiz, spoken script, and Ask. If the picked model is not installed but the other one is, use the installed one. If neither is installed, tell the student and do not download. Do not use `SystemLanguageModel` for tags. Apple Speech is the transcript only. Thinking off.
 - Optional transcript: Whisper large-v3 turbo through WhisperKit, on device. Chosen by the student in Settings, only after the student downloads it. It reads the whole recording and each word goes to the speaker whose FluidAudio run covers it. Not downloaded up front.
 - TTS: `AVSpeechSynthesizer` with the course locale. No extra TTS model in v1.
 - Speech in: course-locale dictation through `SpeechAnalyzer`, on device, for questions and quiz answers.
 - Processing stays in the foreground. A background task may be asked, but do not promise it finishes. If the system suspends it, persist the last finished stage and resume on next open. A ready notification is sent only after the page is saved.
-- Memory: unload the tagger before loading the 4B page model. Do not keep both resident. If a device cannot load 4B, stay on 2B and say so in the localized model screen. Do not name the device.
+- Memory: only the picked text model is loaded. Never keep both resident. If a device cannot load 4B, the student can still use 2B for every job and the localized model screen says so. Do not name the device.
 
 Default downloads, not bundled:
 
-- `mlx-community/Qwen3.5-2B-MLX-4bit` (~1.5 GB). Window tags.
-- `mlx-community/Qwen3.5-4B-MLX-4bit` (~2.9 GB). Page, summary, quiz, spoken answer.
+- `mlx-community/Qwen3.5-2B-MLX-4bit` (~1.5 GB). Any text job. Smaller and faster.
+- `mlx-community/Qwen3.5-4B-MLX-4bit` (~2.9 GB). Any text job. Larger and more accurate.
 - `argmaxinc/whisperkit-coreml`, folder `openai_whisper-large-v3-v20240930_turbo_632MB`, with the tokenizer files of `openai/whisper-large-v3` (~0.65 GB in all). Only when the student taps Download. Core ML prepares it for the chip right after the download, because that takes minutes the first time.
 
 The app downloads these from the public Hugging Face `mlx-community` repos. No student account, no developer token, no signup screen. The student never sees the URL. The model screen groups the rows: AI models (2B, 4B), speech to text (Whisper), audio (FluidAudio, Supertonic). Each row shows the parameter size, the file size, and the job. Partial downloads resume. Deleting a model does not delete notes. SpeechAnalyzer assets come from `AssetInventory`, not from Hugging Face.
 
-Before download, read physical memory and free disk. Do not name the device. Lock 2B if free space is under 2 GB. Lock 4B if free space is under 4 GB, or if physical memory is under 8 GB, and say why. On 8 GB and above, both rows are available, with a note that 4B loads only after 2B is unloaded. After install, run a short timed sample and show the measured page speed. If that sample is too slow, leave 4B installed but default the page path to 2B.
+Before download, read physical memory and free disk. Do not name the device. Lock 2B if free space is under 2 GB. Lock 4B if free space is under 4 GB, or if physical memory is under 8 GB, and say why. On 8 GB and above, both rows are available. The Settings model picker lists only installed text models and drives every text job. After install, run a short timed sample and show the measured page speed. If that sample is too slow, leave 4B installed but default the picker to 2B.
 
-Never keep both loaded. Finish 2B windows, unload, then load 4B.
+Never keep both loaded. If the student changes the picked model, unload the old one before loading the new one.
 
 ## 3. Localization
 
@@ -166,7 +165,7 @@ Never keep both loaded. Finish 2B windows, unload, then load 4B.
 2. Home shows courses. A slot that is active now is pinned with the course name. Tapping it opens that course, it does not start the microphone. If the student taps record while a slot is current, or within five minutes before it, ask “Start this recording for {course}?” Confirm uses that course. Exam starts the recording as an oral exam for that course and opens a sitting of kind other, titled by the student, defaulting to oral exam. If the exam is only the opening minutes and the class continues, the student sets two handles on the recording, start minute and end minute. That span becomes the sitting. The remainder stays a lecture. They can also stop at the end of the exam and start a second recording for the class. Other opens the course picker. New name creates a lecture under a name they type, in the open term. If two slots overlap, list both and do not pick one. A scheduled exam sitting still does not offer this prompt. The oral-exam choice is only on the class-time prompt, because the lecturer may start one without notice. Never start the microphone from the timetable alone.
 3. Record only after two unchecked attestations: “I am allowed to record this class” and “The lecturer or school permitted recording.” No “don’t ask again.” Later lectures in that course show a one-line confirm. On confirm, write an attestation on that lecture: the two statements, the time, the app version, and whether Face ID succeeded. The student cannot start if either box is unchecked. The attestation is kept with the lecture and shown in its details. It is the student’s own confirmation, not proof that the lecturer consented. Deleting the lecture deletes the attestation. It is not uploaded.
 4. Controls: pause, resume, stop. Recording continues if the screen locks or the student switches apps. It uses background audio. It does not continue if the app is force-quit. A Live Activity shows the recording on the Lock Screen under the clock and in the Dynamic Island, with elapsed recorded time and pause or stop. A message banner does not stop capture. A phone call, alarm, or other audio interruption pauses and keeps the file. When it ends, ask to resume. Do not resume by itself. Stop asks “End this lecture?” No leaves it paused. Yes closes the file and marks it unprocessed. Recording does not stop itself at one hour or at the slot’s end. A block class can run two hours with no break. The slot end does not close the file. Do not start transcription or models on that tap. A short break is not long enough, and the battery may be low.
-5. Process now with no model downloaded still starts the transcript if the system speech asset is installed. It stops at the first step that needs a missing model, names that model, and opens Settings on that model’s download row. Do not open the top of Settings. Download, then return to the lecture and resume the last finished stage. Unprocessed lectures also appear in a Pending list on the term home, newest first, with course name, date, and recorded length. Processing one does not block recording the next course. The student can select several pending lectures and tap Process all. They run as a queue, in the order selected, one at a time. The next starts only after the previous page is saved or has failed. Do not load two transcripts or two models at once. A failure skips to the next and leaves the failed card marked. Cancel stops the current one and leaves the rest pending. Start automatically only when the phone is charging, idle, and the app is open. On low battery, do not start. If the student leaves during recording, processing, or a model download, confirm before the screen goes. Recording: continue in the background, or stop and keep the file. Say that force-quit ends it. Processing: keep the app open, or leave and resume the last finished stage later. Do not say it will finish in the background. Download: continue in the background, or cancel the file. Do not block a leave with no choice. If the phone becomes hot, or the student wants everything stopped, a Stop control is on the recording screen, the Live Activity, the processing card, and the download row. Stop ends the microphone, cancels the queue, and cancels the download. The file and any finished stage stay. If the system kills the app for heat, the same rule holds: resume later from the last finished stage, do not restart from the beginning, and do not delete the recording. A one-hour lecture is on the order of 15–30 minutes to process. Treat that as a guide, not a promise. It depends on the phone, the transcript, and whether 4B loads. When a lecture finishes processing, send a local notification: course name, start time, and that the note is ready. No note text. Tapping it opens that lecture, not the day’s other sessions. This uses the same notification permission. If it was denied, the card still changes to ready and no alert is sent. Several recordings of the same course on the same day are separate lectures, distinguished by start time and recorded length. A break that ends the recording starts a new lecture. A pause does not.
+5. Process now with no model downloaded still starts the transcript if the system speech asset is installed. When no text model is installed, ask first ("No AI model installed": process anyway or cancel), so the student is not surprised after minutes of transcript work. The transcript is saved before the tags stage. If no text model is installed there, stop with a message that says to download one, keep the transcript, and resume at the tags stage on the next run. It stops at the first step that needs a missing model, names that model, and opens Settings on that model’s download row. Do not open the top of Settings. Download, then return to the lecture and resume the last finished stage. Unprocessed lectures also appear in a Pending list on the term home, newest first, with course name, date, and recorded length. Processing one does not block recording the next course. The student can select several pending lectures and tap Process all. They run as a queue, in the order selected, one at a time. The next starts only after the previous page is saved or has failed. Do not load two transcripts or two models at once. A failure skips to the next and leaves the failed card marked. Cancel stops the current one and leaves the rest pending. Start automatically only when the phone is charging, idle, and the app is open. On low battery, do not start. If the student leaves during recording, processing, or a model download, confirm before the screen goes. Recording: continue in the background, or stop and keep the file. Say that force-quit ends it. Processing: keep the app open, or leave and resume the last finished stage later. Do not say it will finish in the background. Download: continue in the background, or cancel the file. Do not block a leave with no choice. If the phone becomes hot, or the student wants everything stopped, a Stop control is on the recording screen, the Live Activity, the processing card, and the download row. Stop ends the microphone, cancels the queue, and cancels the download. The file and any finished stage stay. If the system kills the app for heat, the same rule holds: resume later from the last finished stage, do not restart from the beginning, and do not delete the recording. A one-hour lecture is on the order of 15–30 minutes to process. Treat that as a guide, not a promise. It depends on the phone, the transcript, and whether 4B loads. When a lecture finishes processing, send a local notification: course name, start time, and that the note is ready. No note text. Tapping it opens that lecture, not the day’s other sessions. This uses the same notification permission. If it was denied, the card still changes to ready and no alert is sent. Several recordings of the same course on the same day are separate lectures, distinguished by start time and recorded length. A break that ends the recording starts a new lecture. A pause does not.
 6. Permissions are asked at the moment of use. Microphone on the first record. Camera on the first board or timetable photo. Notifications on the first reminder choice. Face ID on first launch, because the lock is on by default. A denial disables only that action.
 7. Optional tap “I didn’t get this” stores a second offset. No naming during capture.
 8. While processing, the card shows the stage: audio, speakers, transcript, tags, page, links.
@@ -181,8 +180,8 @@ One file, three reads, never concurrent with model load.
 1. Speech activity. Paused gaps are already absent. Remaining ranges are speech.
 2. v1 speaker pass: the longest speech run is the narrator candidate. Short overlapping whispers are `room` and are not transcribed. A near, short turn that starts with an address to the lecturer is `question`. Do not build front-row and back-row print matching in v1. FluidAudio may supply the runs. If it fails, one narrator and room is enough.
 3. `SpeechAnalyzer` transcribes narrator and question ranges with timestamps. If the quality gate fails, the student can pick the Whisper transcript in Settings.
-4. Tag each window with Qwen 2B. Invalid struct: retry once. Still invalid: keep raw text, do not link.
-5. Unload the tagger. Load Qwen 4B. Compose the page from tags only, not from raw audio.
+4. Tag each window with the picked text model. Invalid struct: retry once. Still invalid: keep raw text, do not link. If no text model is installed, log it once, skip the remaining windows, and keep the raw text.
+5. Compose the page from tags only, not from raw audio, with the same picked model.
 6. `Linker.bind` runs on reference and exam-scope tags.
 7. Do not rely on `BGProcessingTask` to finish a lecture. Rebind when the app is open. If a link is still pending, the card says so.
 
@@ -248,13 +247,13 @@ Single app target.
 - `Separate` — FluidAudio wrapper, role rules, lecturer print set.
 - `Transcribe` — `SpeechAnalyzer`, asset install, quality gate, optional Whisper.
 - `Extract` — window tags, one retry.
-- `Compose` — 4B page, summary, quiz items, spoken script. Input is always tags.
+- `Compose` — picked text model page, summary, quiz items, spoken script. Input is always tags.
 - `Bind` — topic, time, aliases. No model.
 - `Store` — SwiftData plus files under `Documents/Courses/{id}/`.
 - `Review` — drill, flashcards, score.
 - `Speak` — `AVSpeechSynthesizer`, paragraph steps.
 - `Suggest` — at most three rows, each with a source.
-- `ModelGate` — actor. Serial load. 2B released before 4B loads. Cancel on lecture delete.
+- `ModelGate` — actor. Serial load. The old text model is released before another loads. Cancel on lecture delete.
 
 ## 10. SwiftData
 
@@ -344,9 +343,9 @@ No “this will be on the exam” unless the lecturer said it. No cross-course s
 
 The note is the source. Voice is only how the student asks and how the app reads the answer.
 
-Ask. A system microphone button on the course page. The student speaks in the course language: “what did the lecturer assign”, “explain the last lecture”, “read the emphasis from notes between 1 October and 20 October.” `SpeechAnalyzer` writes the question on device. Swift selects blocks in that course, optionally filtered by topic and date range. Qwen 4B writes the answer only from those blocks. `AVSpeechSynthesizer` reads it. Each sentence can open the source minute. If the range has no notes, the voice says so. It does not switch courses.
+Ask. A system microphone button on the course page. The student speaks in the course language: “what did the lecturer assign”, “explain the last lecture”, “read the emphasis from notes between 1 October and 20 October.” `SpeechAnalyzer` writes the question on device. Swift selects blocks in that course, optionally filtered by topic and date range. The picked text model writes the answer only from those blocks. `AVSpeechSynthesizer` reads it. Each sentence can open the source minute. If the range has no notes, the voice says so. It does not switch courses.
 
-Quiz. The student says “quiz me on these topics” or “quiz me on notes between these dates.” Swift builds the set: emphasis first, then missing and previously missed, inside the filter. 4B writes questions from those blocks only. The student answers by voice. The answer is transcribed, then scored against the block text.
+Quiz. The student says “quiz me on these topics” or “quiz me on notes between these dates.” Swift builds the set: emphasis first, then missing and previously missed, inside the filter. The picked text model writes questions from those blocks only. The student answers by voice. The answer is transcribed, then scored against the block text.
 
 - Covered: correct. Read the source sentence.
 - Incomplete: partial. Read what was missing, then the stored sentence. Do not add a fact that is not in the note.
@@ -359,7 +358,7 @@ Playback of a note, a list, or an emphasis strip uses the same synthesizer, para
 
 ## 13b. Study actions
 
-Every action below uses the same gate. Swift selects blocks in the open course. Optional filters are topic, date range, lecture, kind, and emphasis. Qwen 4B speaks only from that selection. An empty selection is spoken as empty. No second course, no outside fact, no “this will be on the exam” unless a block is `examScope`.
+Every action below uses the same gate. Swift selects blocks in the open course. Optional filters are topic, date range, lecture, kind, and emphasis. The picked text model speaks only from that selection. An empty selection is spoken as empty. No second course, no outside fact, no “this will be on the exam” unless a block is `examScope`.
 
 Read:
 
@@ -446,7 +445,7 @@ The checkboxes are an attestation, not consent from the lecturer. Microphone pur
 1. Course, slot, recorder, pause/resume/stop, consent, m4a on disk. No model.
 2. SpeechAnalyzer transcript with timestamps, airplane mode.
 3. FluidAudio roles and the one-time lecturer question.
-4. Model download gate, 2B tags, 4B page.
+4. Model download gate, one picked text model for tags and page.
 5. Linker, assignments, emphasis strip.
 6. Ask, spoken playback, drill.
 7. Background resume, audio delete prompt, string catalog Turkish.

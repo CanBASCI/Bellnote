@@ -1,3 +1,4 @@
+import OSLog
 import SwiftData
 import SwiftUI
 
@@ -75,6 +76,8 @@ struct TodayPage: View {
     @State private var recordCourse: Course?
     @State private var showConsent = false
     @State private var activeLecture: Lecture?
+    @State private var pendingCourse: Course?
+    @State private var deleteNotice: String?
 
     var body: some View {
         List {
@@ -90,9 +93,7 @@ struct TodayPage: View {
                     }
                 }
                 .onDelete { offsets in
-                    for index in offsets {
-                        deleteCourse(orderedCourses[index])
-                    }
+                    if let index = offsets.first { askDelete(orderedCourses[index]) }
                 }
             }
             if !examRows.isEmpty {
@@ -136,6 +137,31 @@ struct TodayPage: View {
         }
         .sheet(item: $activeLecture) { lecture in
             RecorderSheet(lecture: lecture)
+        }
+        .confirmationDialog(
+            "Delete this course?",
+            isPresented: Binding(
+                get: { pendingCourse != nil },
+                set: { if !$0 { pendingCourse = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("Delete", role: .destructive) {
+                if let course = pendingCourse { deleteCourse(course) }
+                pendingCourse = nil
+            }
+            Button("Cancel", role: .cancel) { pendingCourse = nil }
+        } message: {
+            Text("All recordings, notes, assignments and exams of this course will be deleted. This cannot be undone.")
+        }
+        .alert(
+            deleteNotice ?? "",
+            isPresented: Binding(
+                get: { deleteNotice != nil },
+                set: { if !$0 { deleteNotice = nil } }
+            )
+        ) {
+            Button("OK", role: .cancel) {}
         }
     }
 
@@ -299,12 +325,24 @@ struct TodayPage: View {
         return symbols[day - 1]
     }
 
+    private func askDelete(_ course: Course) {
+        guard course.lectures.allSatisfy(LectureRemoval.canDelete) else {
+            deleteNotice = String(localized: "Wait until the recordings of this course have been processed, then delete it.")
+            return
+        }
+        pendingCourse = course
+    }
+
     private func deleteCourse(_ course: Course) {
         do {
             try Vault.removeCourseDirectory(id: course.token)
             modelContext.delete(course)
+            if session.focusCourseToken == course.token { session.focusCourseToken = nil }
         } catch {
-            session.focusCourseToken = nil
+            Logger(subsystem: "app.bellnote", category: "delete").error(
+                "Course delete failed: \(error.localizedDescription, privacy: .public)"
+            )
+            deleteNotice = String(localized: "The course could not be deleted.")
         }
     }
 }

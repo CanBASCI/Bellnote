@@ -74,6 +74,13 @@ import Testing
     #expect(plainParts.day == 12 && plainParts.hour == 10 && plainParts.minute == 7)
 }
 
+@Test func captionCreditsAreNotSpeech() {
+    #expect(WhisperASR.isInvented(" Altyazı M.K."))
+    #expect(WhisperASR.isInvented("Abone ol!"))
+    #expect(!WhisperASR.isInvented("Altyazı dediğiniz şey ekranın altındaki yazıdır."))
+    #expect(!WhisperASR.isInvented("Mutluluk nedir ben size anlattım mı arkadaşlar"))
+}
+
 @Test func missedStaysMissedAndCancelledDoesNotCount() {
     let day = Date(timeIntervalSince1970: 1_700_000_000)
     let sessions = [

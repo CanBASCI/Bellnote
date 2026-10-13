@@ -68,7 +68,12 @@ enum LecturePipeline {
                 log.info("Transcript blocks=\(lecture.blocks.count)")
             }
             if stage == .transcript {
-                log.info("Stage tags model=\(ModelCatalog.taggerRepo, privacy: .public)")
+                // The transcript is saved. Stopping here keeps it, and a later run resumes at the tags.
+                guard await LocalModelRuntime.shared.hasTextModel() else {
+                    log.error("Tags stopped: no text model is installed, the transcript is kept")
+                    throw LocalModelError.notInstalled
+                }
+                log.info("Stage tags model=\(ModelCatalog.repo(for: pageModel), privacy: .public)")
                 await report(.tags)
                 try await finishTags(lecture, course: course)
                 stage = .tags
@@ -119,8 +124,12 @@ enum LecturePipeline {
         } catch let error as LocalModelError {
             lecture.state = LectureState.failed.rawValue
             lecture.stage = stage.rawValue
-            lecture.neededModel = (stage == .transcript || stage == .tags) ? ModelRole.tagger.rawValue : pageModel.rawValue
-            lecture.failureMessageKey = error == .locked ? "This model is locked on this device." : "A model is not available."
+            lecture.neededModel = pageModel.rawValue
+            switch error {
+            case .locked: lecture.failureMessageKey = "This model is locked on this device."
+            case .notInstalled: lecture.failureMessageKey = "No AI model is installed. Download one in Settings, Models, then process again."
+            case .loadFailed: lecture.failureMessageKey = "A model is not available."
+            }
             log.error("Local model failed stage=\(stage.rawValue, privacy: .public) error=\(String(describing: error), privacy: .public)")
         } catch {
             lecture.state = LectureState.failed.rawValue
@@ -130,7 +139,7 @@ enum LecturePipeline {
                 lecture.neededModel = nil
                 log.error("Apple Speech failed (not a local model) stage=\(stage.rawValue, privacy: .public) code=\(nsError.code) message=\(error.localizedDescription, privacy: .public)")
             } else {
-                lecture.neededModel = (stage == .page || stage == .links) ? pageModel.rawValue : ModelRole.tagger.rawValue
+                lecture.neededModel = pageModel.rawValue
                 log.error("Process failed stage=\(stage.rawValue, privacy: .public) type=\(String(describing: type(of: error)), privacy: .public) domain=\(nsError.domain, privacy: .public) code=\(nsError.code) message=\(error.localizedDescription, privacy: .public) detail=\(String(describing: error), privacy: .public)")
             }
             lecture.failureMessageKey = error.localizedDescription
@@ -161,7 +170,11 @@ enum LecturePipeline {
         lecture.neededModel = nil
         lecture.stage = PipelineStage.idle.rawValue
         lecture.state = LectureState.paused.rawValue
-        try? context.save()
+        do {
+            try context.save()
+        } catch {
+            log.error("Discard save failed message=\(error.localizedDescription, privacy: .public)")
+        }
     }
 
     private static func finishSpeakers(_ lecture: Lecture) async throws {
@@ -169,11 +182,21 @@ enum LecturePipeline {
     }
 
     private static func finishTranscript(_ lecture: Lecture, course: Course) async throws {
+        let activity = PipelineActivity.shared
         guard let path = lecture.audioRelativePath else { throw TranscriptError.unreadable }
         let engine = SpeechEngine(rawValue: UserDefaults.standard.string(forKey: AppPreferences.speechEngineKey) ?? "") ?? .apple
         log.info("Transcript engine=\(engine.rawValue, privacy: .public)")
         let url = try Vault.documents().appendingPathComponent(path)
         let locale = Locale(identifier: course.localeIdentifier)
+        // Telling the speakers apart comes first, so the bar must not say the text is being written.
+        activity.setDetail(
+            .init(
+                fraction: PipelineStage.transcript.fraction,
+                title: PipelineStage.speakers.title,
+                info: PipelineStage.speakers.info
+            ),
+            for: lecture
+        )
         let runs: [SpeechRun]
         do {
             runs = try await SpeakerPass.runs(url: url)
@@ -188,7 +211,9 @@ enum LecturePipeline {
             guard WhisperASR.isInstalled() else { throw TranscriptError.whisperMissing }
             log.info("Whisper ASR writing")
             do {
-                lines = try await WhisperASR.transcribe(url: url, locale: locale, runs: runs)
+                lines = try await WhisperASR.transcribe(url: url, locale: locale, runs: runs) { step in
+                    activity.setDetail(whisperStep(step), for: lecture)
+                }
             } catch let error as TranscriptError {
                 throw error
             } catch {
@@ -212,15 +237,55 @@ enum LecturePipeline {
         }
     }
 
+    /// The bar inside the transcript stage: getting ready, loading, then writing.
+    private static func whisperStep(_ step: WhisperASR.Step) -> PipelineActivity.Step {
+        let base = PipelineStage.transcript.fraction
+        let span = PipelineStage.tags.fraction - base
+        switch step {
+        case .preparing(let elapsed, let expected):
+            // Core ML gives no progress while it compiles. The bar follows the time the last
+            // compile took and never reaches the end before the work is done.
+            let guess = min(0.95, Double(elapsed) / Double(max(expected, 1)))
+            let note = String(localized: "Whisper is being set up for this phone. The first time takes a few minutes, later runs are quick. The ring is a guide from the last time, not a measurement.")
+            return .init(
+                fraction: base + span * (0.1 + 0.55 * guess),
+                title: String(localized: "Preparing audio analysis"),
+                info: "\(note) \(MediaClock.short(elapsed))"
+            )
+        case .loading:
+            return .init(
+                fraction: base + span * 0.75,
+                title: String(localized: "Loading Whisper"),
+                info: String(localized: "Whisper is being loaded into memory.")
+            )
+        case .writing(let done):
+            let clamped = min(max(done, 0), 1)
+            return .init(
+                fraction: base + span * (0.8 + 0.2 * clamped),
+                title: PipelineStage.transcript.title,
+                info: PipelineStage.transcript.info
+            )
+        }
+    }
+
     private static func finishTags(_ lecture: Lecture, course: Course) async throws {
         let source = lecture.blocks.sorted { $0.second < $1.second }
         var tagged: [Block] = []
         let locale = Locale(identifier: course.localeIdentifier)
+        var modelMissing = false
         for block in source where block.second >= lecture.processedThroughSecond {
             let tag: WindowTag
             do {
+                // Without an installed model every window would fail the same way.
+                guard !modelMissing else { throw LocalModelError.notInstalled }
                 tag = try await LocalModelRuntime.shared.tag(window: block.text, locale: locale)
             } catch {
+                if error as? LocalModelError == .notInstalled, !modelMissing {
+                    modelMissing = true
+                    log.error("Tagging skipped: no text model is installed, the raw words are kept")
+                } else if !modelMissing {
+                    log.error("Tag failed for one window, the raw words are kept second=\(block.second) message=\(error.localizedDescription, privacy: .public)")
+                }
                 block.kind = BlockKind.other.rawValue
                 tagged.append(block)
                 lecture.processedThroughSecond = block.second

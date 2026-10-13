@@ -355,6 +355,8 @@ final class Assignment {
     var text: String
     var due: Date?
     var done: Bool
+    /// The lecturer took the task back, for example in a mail. Only the student sets this.
+    var cancelled: Bool = false
     var sourceBlockID: UUID
     var sourceSecond: Int
     var course: Course?

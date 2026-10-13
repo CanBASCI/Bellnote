@@ -1,4 +1,5 @@
 import LocalAuthentication
+import OSLog
 import SwiftUI
 
 struct LockGate: View {
@@ -38,6 +39,7 @@ struct LockGate: View {
                 localizedReason: String(localized: "Unlock Bellnote")
             )
         } catch {
+            Logger(subsystem: "app.bellnote", category: "lock").error("Unlock failed: \(error.localizedDescription, privacy: .public)")
             message = String(localized: "Unlock was not completed.")
         }
     }

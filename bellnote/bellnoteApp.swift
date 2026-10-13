@@ -1,3 +1,4 @@
+import OSLog
 import SwiftData
 import SwiftUI
 
@@ -10,6 +11,7 @@ struct bellnoteApp: App {
         do {
             container = try AppSchema.container()
         } catch {
+            Logger(subsystem: "app.bellnote", category: "store").error("Store could not open: \(error.localizedDescription, privacy: .public)")
             container = nil
         }
     }

@@ -35,26 +35,22 @@ struct LectureNote: View {
     @State private var reader = SpeechReader()
     @State private var showStudy = false
     @State private var studyMode: StudyMode = .ask
-    @State private var showAssignments = false
     @State private var fluidGate = FluidAudioGate()
     private var workingStage: PipelineStage? { PipelineActivity.shared.stage(for: lecture) }
+    private var workingStep: PipelineActivity.Step? { PipelineActivity.shared.step(for: lecture) }
     @State private var askReprocess = false
+    @State private var askNoModel = false
     @State private var namingSpeaker: Int?
     @State private var choosingSpeaker = false
     @State private var typingSpeaker = false
     @State private var typedSpeakerName = ""
     @State private var tab: LectureTab = .correction
+    /// Speakers chosen in the Raw tab. Empty means everyone.
+    @State private var chosenSpeakers: Set<Int> = []
+    @State private var pendingAssignment: Assignment?
 
     var body: some View {
         List {
-            if let workingStage {
-                Section {
-                    ProgressView(value: workingStage.fraction)
-                    Text(workingStage.title)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-            }
             if showsDate {
                 Section {
                     Text(lecture.startedAt.formatted(date: .abbreviated, time: .omitted))
@@ -82,6 +78,12 @@ struct LectureNote: View {
             }
         }
         .listStyle(.insetGrouped)
+        .overlay {
+            // While the lecture is processed, the ring takes the screen. The notes come back when it ends.
+            if let workingStep {
+                ProcessingCircle(step: workingStep)
+            }
+        }
         .toolbar {
             if lecture.audioRelativePath != nil {
                 ToolbarItem(placement: .primaryAction) {
@@ -93,7 +95,7 @@ struct LectureNote: View {
                         if again {
                             askReprocess = true
                         } else {
-                            fluidGate.request { await process() }
+                            start()
                         }
                     }
                     .labelStyle(.iconOnly)
@@ -124,12 +126,11 @@ struct LectureNote: View {
                 StudySheet(course: course, mode: studyMode)
             }
         }
-        .sheet(isPresented: $showAssignments) {
-            if let course = lecture.course {
-                AssignmentSheet(course: course)
-            }
-        }
         .fluidAudioGate(fluidGate)
+        .noModelNotice(isPresented: $askNoModel) {
+            fluidGate.request { await process() }
+        }
+        .confirmAssignmentDelete($pendingAssignment)
         .confirmationDialog("Who is this?", isPresented: $choosingSpeaker, titleVisibility: .visible) {
             if let name = lecturerName {
                 Button {
@@ -151,7 +152,7 @@ struct LectureNote: View {
         }
         .confirmationDialog("Process again?", isPresented: $askReprocess, titleVisibility: .visible) {
             Button("Process again", role: .destructive) {
-                fluidGate.request { await process() }
+                start()
             }
             Button("Cancel", role: .cancel) {}
         } message: {
@@ -161,13 +162,17 @@ struct LectureNote: View {
 
     @ViewBuilder
     private var correctionSections: some View {
-        Section {
-            Text(CorrectionText.attributed(bodyText))
-                .font(.body)
-                .lineSpacing(4)
-                .textSelection(.enabled)
+        // No correction yet: nothing to read, ask about or listen to. A running lecture shows only
+        // the bar. A stopped one with no correction says so.
+        if hasCorrection || workingStage == nil {
+            Section {
+                Text(CorrectionText.attributed(bodyText))
+                    .font(.body)
+                    .lineSpacing(4)
+                    .textSelection(.enabled)
+            }
         }
-        if let course = lecture.course {
+        if hasCorrection, let course = lecture.course {
             Section {
                 GlassEffectContainer(spacing: 8) {
                     HStack(spacing: 8) {
@@ -201,20 +206,25 @@ struct LectureNote: View {
     /// Exactly what Apple dictation returned, one block per speaker turn.
     @ViewBuilder
     private var rawSections: some View {
+        let filter = activeSpeakers
         let blocks = lecture.blocks
             .filter { !$0.text.isEmpty }
+            .filter { filter.isEmpty || filter.contains($0.speaker) }
             .sorted { $0.second < $1.second }
-        if blocks.isEmpty && lecture.flaggedSeconds.isEmpty {
+        if lecture.blocks.isEmpty && lecture.flaggedSeconds.isEmpty {
             Section {
                 Text("No lectures yet.")
                     .foregroundStyle(.secondary)
             }
         } else {
+            if speakerClusters.count > 1 {
+                Section { speakerTags }
+            }
             Section {
                 ForEach(blocks) { block in
                     chapterLabel(block)
                 }
-                ForEach(Array(orphanFlags.enumerated()), id: \.offset) { _, second in
+                ForEach(Array((filter.isEmpty ? orphanFlags : []).enumerated()), id: \.offset) { _, second in
                     Button {
                         audio.seek(to: second, play: true)
                     } label: {
@@ -245,10 +255,8 @@ struct LectureNote: View {
                     audio.seek(to: second, play: true)
                 }
             }
-        }
-        if let course = lecture.course, course.assignments.count > own.count {
-            Section {
-                Button("Assignments") { showAssignments = true }
+            .onDelete { offsets in
+                pendingAssignment = offsets.first.map { own[$0] }
             }
         }
     }
@@ -286,6 +294,10 @@ struct LectureNote: View {
         .glassEffect(.regular, in: .capsule)
         .padding(.horizontal, 16)
         .padding(.bottom, 8)
+    }
+
+    private var hasCorrection: Bool {
+        !lecture.summary.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     private var bodyText: String {
@@ -351,6 +363,46 @@ struct LectureNote: View {
         .padding(.vertical, 2)
     }
 
+    /// The speakers of this recording, in the order the numbers were given.
+    private var speakerClusters: [Int] {
+        Array(Set(lecture.blocks.filter { !$0.text.isEmpty && $0.speaker > 0 }.map(\.speaker))).sorted()
+    }
+
+    /// The chosen speakers that this recording still has. After a new run an old choice can vanish.
+    private var activeSpeakers: Set<Int> {
+        chosenSpeakers.intersection(speakerClusters)
+    }
+
+    /// One tag per speaker above the list. A tag shows the name the student gave. No tag chosen
+    /// shows every speaker.
+    private var speakerTags: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            GlassEffectContainer(spacing: 8) {
+                HStack(spacing: 8) {
+                    ForEach(speakerClusters, id: \.self) { cluster in
+                        let chosen = chosenSpeakers.contains(cluster)
+                        Button {
+                            if chosen {
+                                chosenSpeakers.remove(cluster)
+                            } else {
+                                chosenSpeakers.insert(cluster)
+                            }
+                        } label: {
+                            Text(verbatim: speakerTitle(cluster))
+                                .lineLimit(1)
+                        }
+                        .buttonStyle(.glass)
+                        .tint(chosen ? Color.accentColor : nil)
+                        .accessibilityAddTraits(chosen ? .isSelected : [])
+                    }
+                }
+                .padding(.horizontal, 16)
+            }
+        }
+        .listRowInsets(EdgeInsets())
+        .listRowBackground(Color.clear)
+    }
+
     private var lecturerName: String? {
         let name = lecture.course?.lecturer?.displayName ?? ""
         return name.isEmpty ? nil : name
@@ -374,7 +426,11 @@ struct LectureNote: View {
     private func assignSpeaker(_ name: String) {
         guard let cluster = namingSpeaker else { return }
         lecture.setSpeakerName(name, cluster: cluster)
-        try? lecture.modelContext?.save()
+        do {
+            try lecture.modelContext?.save()
+        } catch {
+            Logger(subsystem: "app.bellnote", category: "speaker").error("Speaker name save failed: \(error.localizedDescription, privacy: .public)")
+        }
         namingSpeaker = nil
     }
 
@@ -395,7 +451,7 @@ struct LectureNote: View {
     }
 
     private func openCount(_ course: Course) -> Int {
-        course.assignments.filter { !$0.done }.count
+        course.assignments.filter { !$0.done && !$0.cancelled }.count
     }
 
     private func listen(_ course: Course) {
@@ -406,6 +462,17 @@ struct LectureNote: View {
             "Listen tap characters=\(text.count) locale=\(course.localeIdentifier, privacy: .public) speaking=\(reader.isSpeaking)"
         )
         reader.read(text, locale: Locale(identifier: course.localeIdentifier))
+    }
+
+    /// Warns first when no text model is installed, so minutes of transcript work are not a surprise.
+    private func start() {
+        Task {
+            if await LocalModelRuntime.shared.hasTextModel() {
+                fluidGate.request { await process() }
+            } else {
+                askNoModel = true
+            }
+        }
     }
 
     private func process() async {
