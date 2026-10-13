@@ -18,13 +18,12 @@ struct NotProcessedView: View {
                 .multilineTextAlignment(.center)
             // Same look as Ask, Quiz and Listen.
             GlassEffectContainer(spacing: 8) {
-                Button("Process", systemImage: "waveform.badge.magnifyingglass", action: start)
+                StudyButton(title: Text("Process"), systemImage: "waveform.badge.magnifyingglass", fillsWidth: false, action: start)
                     .buttonStyle(.glass)
                     .lineLimit(1)
             }
             .padding(.top, 6)
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 40)
+        .padding(24)
     }
 }

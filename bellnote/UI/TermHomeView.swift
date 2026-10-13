@@ -3,6 +3,7 @@ import SwiftData
 import SwiftUI
 
 struct TermHomeView: View {
+    @Environment(AppSession.self) private var session
     @Query(sort: \Term.createdAt) private var terms: [Term]
     @Query(sort: \Lecture.startedAt, order: .reverse) private var lectures: [Lecture]
 
@@ -37,6 +38,11 @@ struct TermHomeView: View {
                     .tabItem { Label("Settings", systemImage: "gearshape") }
                 }
                 .tabBarMinimizeBehavior(.onScrollDown)
+                .tabViewBottomAccessory(isEnabled: session.player != nil) {
+                    if let player = session.player {
+                        PlayerAccessory(audio: player)
+                    }
+                }
             } else {
                 NavigationStack {
                     ContentUnavailableView {

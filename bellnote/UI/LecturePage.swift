@@ -31,6 +31,7 @@ struct LectureNote: View {
     var showsDate: Bool
     var startSecond: Int?
 
+    @Environment(AppSession.self) private var session
     @State private var audio = LectureAudio()
     @State private var reader = SpeechReader()
     @State private var showStudy = false
@@ -58,11 +59,9 @@ struct LectureNote: View {
                 }
             }
             if lecture.isRecordedOnly && workingStage == nil {
-                // Nothing to show in any tab until the recording is processed.
-                Section {
-                    NotProcessedView { start() }
-                        .listRowBackground(Color.clear)
-                }
+                // Nothing to show in any tab until the recording is processed. The overlay below
+                // centres the message on the page.
+                EmptyView()
             } else {
                 Section {
                     Picker("", selection: $tab) {
@@ -90,6 +89,10 @@ struct LectureNote: View {
             // While the lecture is processed, the ring takes the screen. The notes come back when it ends.
             if let workingStep {
                 ProcessingCircle(step: workingStep)
+            } else if lecture.isRecordedOnly {
+                NotProcessedView { start() }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(Color(.systemGroupedBackground))
             }
         }
         .toolbar {
@@ -113,14 +116,9 @@ struct LectureNote: View {
             }
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            // Pinned like the player, so the buttons stay put while the page scrolls.
-            VStack(spacing: 8) {
-                if tab == .correction, hasCorrection, let course = lecture.course {
-                    studyBar(course)
-                }
-                if audio.duration > 0 {
-                    playback
-                }
+            // Pinned, so the buttons stay put while the page scrolls. The player is in the tab bar's accessory.
+            if tab == .correction, hasCorrection, let course = lecture.course {
+                studyBar(course)
             }
         }
         .task(id: lecture.persistentModelID) {
@@ -129,7 +127,13 @@ struct LectureNote: View {
                 audio.seek(to: startSecond, play: true)
             }
         }
-        .onDisappear { audio.stop() }
+        .onChange(of: audio.duration) { _, duration in
+            if duration > 0 { session.player = audio }
+        }
+        .onDisappear {
+            audio.stop()
+            if session.player === audio { session.player = nil }
+        }
         .task(id: audio.isPlaying) {
             while !Task.isCancelled, audio.isPlaying {
                 try? await Task.sleep(for: .milliseconds(400))
@@ -254,7 +258,7 @@ struct LectureNote: View {
         return course.assignments.filter { ids.contains($0.sourceBlockID) }
     }
 
-    /// Ask, Quiz and Listen, pinned just above the player.
+    /// Ask, Quiz and Listen, pinned at the bottom of the page.
     private func studyBar(_ course: Course) -> some View {
         GlassEffectContainer(spacing: 8) {
             HStack(spacing: 8) {
@@ -278,22 +282,13 @@ struct LectureNote: View {
                 }
             }
             .buttonStyle(.glass)
+            .font(.footnote.weight(.medium))
+            .controlSize(.regular)
             .lineLimit(1)
-            .minimumScaleFactor(0.8)
         }
-        .frame(maxWidth: .infinity)
-        .padding(.horizontal, 16)
-        .padding(.bottom, audio.duration > 0 ? 0 : 8)
-    }
-
-    private var playback: some View {
-        PlayerBar(
-            isPlaying: audio.isPlaying,
-            current: audio.currentSecond,
-            duration: audio.duration,
-            toggle: { audio.toggle() },
-            seek: { audio.seek(to: $0, play: audio.isPlaying) }
-        )
+        // 21 pt from each edge, the same as the tab bar and the player accessory below.
+        .padding(.horizontal, 21)
+        .padding(.bottom, 8)
     }
 
     private var hasCorrection: Bool {

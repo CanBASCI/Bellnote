@@ -12,6 +12,8 @@ final class AppSession {
     var focusLectureID: PersistentIdentifier?
     var showModelDownload = false
     var focusedModel: ModelRole?
+    /// The recording that is open now. The tab bar's bottom accessory shows its player.
+    var player: LectureAudio?
     var resumeAfterInterruption = false
     var pageModel: ModelRole
     var speechEngine: SpeechEngine

@@ -35,30 +35,6 @@ struct CoursePage: View {
     var body: some View {
         List {
             Section {
-                HStack(alignment: .firstTextBaseline, spacing: 12) {
-                    Text(course.name)
-                        .font(.largeTitle.bold())
-                        .foregroundStyle(.primary)
-                        .lineLimit(2)
-                        .minimumScaleFactor(0.8)
-                    Spacer(minLength: 8)
-                    Button {
-                        showLecturer = true
-                    } label: {
-                        Text(lecturerName)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .multilineTextAlignment(.trailing)
-                            .lineLimit(2)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(Text("Lecturer"))
-                }
-                .listRowInsets(EdgeInsets(top: 8, leading: 20, bottom: 4, trailing: 20))
-                .listRowBackground(Color.clear)
-                .listRowSeparator(.hidden)
-            }
-            Section {
                 HStack(spacing: 10) {
                     statTile(value: lectures.count, title: "Recordings")
                     statTile(value: course.assignments.filter { !$0.done && !$0.cancelled }.count, title: "Assignments")
@@ -119,9 +95,13 @@ struct CoursePage: View {
         .navigationDestination(item: $assignmentTarget) { target in
             LecturePage(lecture: target.lecture, startSecond: target.second)
         }
-        .navigationTitle("")
-        .navigationBarTitleDisplayMode(.inline)
+        .navigationTitle(course.name)
+        .navigationSubtitle(lecturerName)
         .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button("Lecturer", systemImage: "person.crop.circle") { showLecturer = true }
+                    .labelStyle(.iconOnly)
+            }
             ToolbarItem(placement: .primaryAction) {
                 Button("Record", systemImage: "record.circle") { showConsent = true }
             }
