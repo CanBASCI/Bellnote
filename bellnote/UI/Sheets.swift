@@ -157,7 +157,7 @@ struct PendingSheet: View {
             await LecturePipeline.advance(
                 lecture: lecture,
                 context: modelContext,
-                preferTaggerForPage: UserDefaults.standard.bool(forKey: AppPreferences.pagePrefersTaggerKey)
+                pageModel: AppPreferences.pageModel()
             ) { stage in
                 workingStage = stage
             }
@@ -265,12 +265,29 @@ struct ModelsPage: View {
 
     var body: some View {
         List {
-            modelRow(.tagger, title: "2B", bytes: ModelCatalog.taggerBytes, locked: ModelLock.taggerLocked(budget))
-            modelRow(.page, title: "4B", bytes: ModelCatalog.pageBytes, locked: ModelLock.pageLocked(budget))
-            modelRow(.asr, title: "Qwen ASR", bytes: ModelCatalog.asrBytes, locked: false)
-            supertonicRow()
-            fluidAudioRow()
-            Section {
+            Section("AI models") {
+                modelRow(.tagger, title: Self.modelTitle(.tagger), bytes: ModelCatalog.taggerBytes, locked: ModelLock.taggerLocked(budget))
+                modelRow(.page, title: Self.modelTitle(.page), bytes: ModelCatalog.pageBytes, locked: ModelLock.pageLocked(budget))
+                modelRow(.gemmaSmall, title: Self.modelTitle(.gemmaSmall), bytes: ModelCatalog.gemmaSmallBytes, locked: ModelLock.gemmaSmallLocked(budget))
+                modelRow(.gemmaLarge, title: Self.modelTitle(.gemmaLarge), bytes: ModelCatalog.gemmaLargeBytes, locked: ModelLock.gemmaLargeLocked(budget))
+                if !installedTextModels.isEmpty {
+                    Picker("AI correction model", selection: Binding(
+                        get: { session.pageModel },
+                        set: { session.setPageModel($0) }
+                    )) {
+                        ForEach(installedTextModels, id: \.self) { role in
+                            Text(Self.modelTitle(role)).tag(role)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    Text("AI correction and Ask use this model.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            Section("Speech to text") {
+                modelRow(.asr, title: Self.modelTitle(.asr), bytes: ModelCatalog.asrBytes, locked: false)
+                modelRow(.whisper, title: Self.modelTitle(.whisper), bytes: ModelCatalog.whisperBytes, locked: ModelLock.whisperLocked(budget))
                 Picker("Transcript", selection: Binding(
                     get: { session.speechEngine },
                     set: { session.setSpeechEngine($0) }
@@ -279,15 +296,21 @@ struct ModelsPage: View {
                     if installed[.asr] == true {
                         Text("Qwen ASR").tag(SpeechEngine.qwen)
                     }
+                    if gemmaInstalled {
+                        Text("Gemma").tag(SpeechEngine.gemma)
+                    }
+                    if installed[.whisper] == true {
+                        Text("Whisper").tag(SpeechEngine.whisper)
+                    }
                 }
-                .pickerStyle(.segmented)
-                Text(session.speechEngine == .qwen
-                    ? "Qwen ASR writes the words."
-                    : "Apple Dictation writes the words.")
+                .pickerStyle(.menu)
+                Text(transcriptHint)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-            Section {
+            Section("Audio") {
+                fluidAudioRow()
+                supertonicRow()
                 Picker("Read aloud", selection: Binding(
                     get: { session.readAloud },
                     set: { session.setReadAloud($0) }
@@ -297,7 +320,7 @@ struct ModelsPage: View {
                         Text("Supertonic").tag(ReadAloud.supertonic)
                     }
                 }
-                .pickerStyle(.segmented)
+                .pickerStyle(.menu)
                 Text(session.readAloud == .supertonic
                     ? "Supertonic reads the notes."
                     : "Apple Dictation reads the notes.")
@@ -323,25 +346,6 @@ struct ModelsPage: View {
                                 .tag(index)
                         }
                     }
-                }
-            }
-            if installed[.tagger] == true || installed[.page] == true {
-                Section {
-                    Picker("Page model", selection: Binding(
-                        get: { session.preferTaggerForPage },
-                        set: { session.setPreferTaggerForPage($0) }
-                    )) {
-                        if installed[.tagger] == true {
-                            Text("2B").tag(true)
-                        }
-                        if installed[.page] == true {
-                            Text("4B").tag(false)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    Text("Ask and the page use this downloaded model.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
                 }
             }
         }
@@ -381,11 +385,17 @@ struct ModelsPage: View {
     private var deletePromptTitle: String {
         switch pendingDelete {
         case .mlx(.page):
-            String(localized: "Delete 4B?")
+            String(localized: "Delete Qwen 3.5 4B?")
         case .mlx(.asr):
             String(localized: "Delete Qwen ASR?")
+        case .mlx(.whisper):
+            String(localized: "Delete Whisper?")
+        case .mlx(.gemmaSmall):
+            String(localized: "Delete Gemma 4 E2B?")
+        case .mlx(.gemmaLarge):
+            String(localized: "Delete Gemma 4 E4B?")
         case .mlx:
-            String(localized: "Delete 2B?")
+            String(localized: "Delete Qwen 3.5 2B?")
         case .fluidAudio:
             String(localized: "Delete FluidAudio?")
         case .supertonic:
@@ -402,6 +412,7 @@ struct ModelsPage: View {
         let anyDownload = downloading != nil || downloadingFluid || downloadingSupertonic
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .center, spacing: 12) {
+                rowIcon("person.2.wave.2")
                 VStack(alignment: .leading, spacing: 4) {
                     Text("FluidAudio")
                     Text(bytes.formatted(.byteCount(style: .file)))
@@ -476,6 +487,7 @@ struct ModelsPage: View {
         let anyDownload = downloading != nil || downloadingFluid || downloadingSupertonic
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .center, spacing: 12) {
+                rowIcon("speaker.wave.2.fill")
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Supertonic")
                     Text(bytes.formatted(.byteCount(style: .file)))
@@ -575,6 +587,7 @@ struct ModelsPage: View {
         let ready = installed[role] == true
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .center, spacing: 12) {
+                rowIcon(Self.symbol(role))
                 VStack(alignment: .leading, spacing: 4) {
                     Text(title)
                     Text(bytes.formatted(.byteCount(style: .file)))
@@ -585,7 +598,7 @@ struct ModelsPage: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     } else if locked, !ready {
-                        Text(role == .tagger ? "Needs 2 GB free." : "Needs 4 GB free and 8 GB of memory.")
+                        Text(Self.lockedHint(role))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     } else if ready, downloading != role {
@@ -651,12 +664,6 @@ struct ModelsPage: View {
         do {
             try await LocalModelRuntime.shared.delete(role)
             status[role] = nil
-            if role == .page, !session.preferTaggerForPage {
-                session.setPreferTaggerForPage(true)
-            }
-            if role == .tagger, session.preferTaggerForPage {
-                session.setPreferTaggerForPage(false)
-            }
             if role == .asr, session.speechEngine == .qwen {
                 session.setSpeechEngine(.apple)
             }
@@ -681,12 +688,21 @@ struct ModelsPage: View {
         Self.log.info("Models page open")
         let tagger = await LocalModelRuntime.shared.probe(.tagger)
         let page = await LocalModelRuntime.shared.probe(.page)
+        let gemmaSmall = await LocalModelRuntime.shared.probe(.gemmaSmall)
+        let gemmaLarge = await LocalModelRuntime.shared.probe(.gemmaLarge)
         let asr = await LocalModelRuntime.shared.probe(.asr)
+        let whisper = await LocalModelRuntime.shared.probe(.whisper)
+        installed[.whisper] = whisper.isReady
+        leftover[.whisper] = whisper.directoryExists && !whisper.isReady
         installed[.tagger] = tagger.isReady
         installed[.page] = page.isReady
+        installed[.gemmaSmall] = gemmaSmall.isReady
+        installed[.gemmaLarge] = gemmaLarge.isReady
         installed[.asr] = asr.isReady
         leftover[.tagger] = tagger.directoryExists && !tagger.isReady
         leftover[.page] = page.directoryExists && !page.isReady
+        leftover[.gemmaSmall] = gemmaSmall.directoryExists && !gemmaSmall.isReady
+        leftover[.gemmaLarge] = gemmaLarge.directoryExists && !gemmaLarge.isReady
         leftover[.asr] = asr.directoryExists && !asr.isReady
         fluidInstalled = SpeakerPass.modelsAreInstalled()
         supertonicInstalled = SupertonicSpeech.isInstalled
@@ -697,10 +713,71 @@ struct ModelsPage: View {
         if session.speechEngine == .qwen, !asr.isReady {
             session.setSpeechEngine(.apple)
         }
-        if tagger.isReady, !page.isReady {
-            session.setPreferTaggerForPage(true)
-        } else if page.isReady, !tagger.isReady {
-            session.setPreferTaggerForPage(false)
+        if session.speechEngine == .gemma, !gemmaInstalled {
+            session.setSpeechEngine(.apple)
+        }
+        if session.speechEngine == .whisper, !whisper.isReady {
+            session.setSpeechEngine(.apple)
+        }
+        if installed[session.pageModel] != true, let first = installedTextModels.first {
+            session.setPageModel(first)
+        }
+    }
+
+    private var gemmaInstalled: Bool {
+        installed[.gemmaSmall] == true || installed[.gemmaLarge] == true
+    }
+
+    private var transcriptHint: LocalizedStringKey {
+        switch session.speechEngine {
+        case .apple: "Apple Dictation writes the words."
+        case .qwen: "Qwen ASR writes the words."
+        case .gemma: "Gemma writes the words."
+        case .whisper: "Whisper writes the words."
+        }
+    }
+
+    private static let textModelOrder: [ModelRole] = [.page, .tagger, .gemmaSmall, .gemmaLarge]
+
+    private var installedTextModels: [ModelRole] {
+        Self.textModelOrder.filter { installed[$0] == true }
+    }
+
+    /// Text models write the AI correction, answer Ask and find homework. Speech models hear audio.
+    private static func symbol(_ role: ModelRole) -> String {
+        switch role {
+        case .tagger, .page, .gemmaSmall, .gemmaLarge: "sparkles"
+        case .asr, .whisper: "mic.fill"
+        }
+    }
+
+    private func rowIcon(_ symbol: String) -> some View {
+        Image(systemName: symbol)
+            .font(.title3)
+            .foregroundStyle(.tint)
+            .frame(width: 28)
+            .accessibilityHidden(true)
+    }
+
+    private static func modelTitle(_ role: ModelRole) -> String {
+        switch role {
+        case .tagger: "Qwen 3.5 2B"
+        case .page: "Qwen 3.5 4B"
+        case .asr: "Qwen ASR"
+        case .gemmaSmall: "Gemma 4 E2B"
+        case .gemmaLarge: "Gemma 4 E4B"
+        case .whisper: "Whisper"
+        }
+    }
+
+    private static func lockedHint(_ role: ModelRole) -> String {
+        switch role {
+        case .tagger: String(localized: "Needs 2 GB free.")
+        case .page: String(localized: "Needs 4 GB free and 8 GB of memory.")
+        case .gemmaSmall: String(localized: "Needs 5 GB free and 8 GB of memory.")
+        case .gemmaLarge: String(localized: "Needs 7 GB free and 8 GB of memory.")
+        case .whisper: String(localized: "Needs 2 GB free.")
+        case .asr: ""
         }
     }
 }

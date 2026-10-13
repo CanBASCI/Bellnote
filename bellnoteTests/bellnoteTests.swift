@@ -102,6 +102,58 @@ import Testing
     #expect(ModelLock.pageLocked(sixGigabytePhone))
 }
 
+@Test func gemmaRowsLockOnDiskAndMemory() {
+    let eightGigabytePhone = DeviceBudget(freeDiskBytes: 20_000_000_000, physicalMemoryBytes: 8_022_114_304)
+    #expect(!ModelLock.gemmaSmallLocked(eightGigabytePhone))
+    #expect(!ModelLock.gemmaLargeLocked(eightGigabytePhone))
+    let sixGigabytePhone = DeviceBudget(freeDiskBytes: 20_000_000_000, physicalMemoryBytes: 5_910_110_208)
+    #expect(ModelLock.gemmaSmallLocked(sixGigabytePhone))
+    #expect(ModelLock.gemmaLargeLocked(sixGigabytePhone))
+    let sixGigabytesFree = DeviceBudget(freeDiskBytes: 6 * 1_073_741_824, physicalMemoryBytes: 8_022_114_304)
+    #expect(!ModelLock.gemmaSmallLocked(sixGigabytesFree))
+    #expect(ModelLock.gemmaLargeLocked(sixGigabytesFree))
+    #expect(ModelLock.locked(.asr, sixGigabytePhone) == false)
+}
+
+@Test func whisperLocksOnDiskOnly() {
+    let smallPhone = DeviceBudget(freeDiskBytes: 20_000_000_000, physicalMemoryBytes: 5_910_110_208)
+    #expect(!ModelLock.whisperLocked(smallPhone))
+    #expect(ModelLock.locked(.whisper, DeviceBudget(freeDiskBytes: 1_000_000_000, physicalMemoryBytes: 8_022_114_304)))
+    #expect(!ModelRole.whisper.isTextModel)
+}
+
+@Test func coreMLFoldersCountAsWeights() throws {
+    let manager = FileManager.default
+    let root = manager.temporaryDirectory.appendingPathComponent("whisper-\(UUID().uuidString)", isDirectory: true)
+    defer { try? manager.removeItem(at: root) }
+    try manager.createDirectory(at: root, withIntermediateDirectories: true)
+    try Data("{}".utf8).write(to: root.appendingPathComponent("config.json"))
+    for name in ["AudioEncoder", "MelSpectrogram"] {
+        let folder = root.appendingPathComponent("\(name).mlmodelc", isDirectory: true)
+        try manager.createDirectory(at: folder, withIntermediateDirectories: true)
+        try Data("x".utf8).write(to: folder.appendingPathComponent("model.mil"))
+    }
+    #expect(!HubWeights.snapshot(at: root, id: "test").isReady)
+    let last = root.appendingPathComponent("TextDecoder.mlmodelc", isDirectory: true)
+    try manager.createDirectory(at: last, withIntermediateDirectories: true)
+    try Data("x".utf8).write(to: last.appendingPathComponent("model.mil"))
+    #expect(HubWeights.snapshot(at: root, id: "test").isReady)
+}
+
+@Test func pageModelFallsBackToTheOlderSwitch() {
+    let suite = "bellnote.pageModel.test"
+    let defaults = UserDefaults(suiteName: suite) ?? .standard
+    defaults.removePersistentDomain(forName: suite)
+    #expect(AppPreferences.pageModel(defaults) == .page)
+    defaults.set(true, forKey: AppPreferences.pagePrefersTaggerKey)
+    #expect(AppPreferences.pageModel(defaults) == .tagger)
+    defaults.set(ModelRole.gemmaSmall.rawValue, forKey: AppPreferences.pageModelKey)
+    #expect(AppPreferences.pageModel(defaults) == .gemmaSmall)
+    defaults.set(ModelRole.asr.rawValue, forKey: AppPreferences.pageModelKey)
+    #expect(AppPreferences.pageModel(defaults) == .tagger)
+    defaults.removePersistentDomain(forName: suite)
+}
+
 @Test func suggestionsStopAtThree() {
     let ids = (0..<5).map { _ in UUID() }
     let rows = Suggestions.make(

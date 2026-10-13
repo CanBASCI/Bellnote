@@ -16,6 +16,10 @@ enum TranscriptError: Error, Equatable {
     case unreadable
     case qwenMissing
     case qwenNotWriting
+    case gemmaMissing
+    case gemmaNotWriting
+    case whisperMissing
+    case whisperNotWriting
 }
 
 enum LectureTranscriber {
@@ -33,12 +37,39 @@ enum LectureTranscriber {
             log.info("Apple dictation lines=\(spoken.count) speakers=0")
             return spoken
         }
+        return try await transcribeTurns(
+            url: url,
+            runs: runs,
+            windowSeconds: windowSeconds,
+            engine: "Apple dictation"
+        ) { clip in
+            let spoken = try await transcribeFile(url: clip, locale: locale, keeping: [])
+            return spoken.map(\.text).joined(separator: " ")
+        }
+    }
+
+    /// True when speaker separation found at least one turn worth transcribing.
+    static func hasTurns(_ runs: [SpeechRun]) -> Bool {
+        !appleTurns(runs).isEmpty
+    }
+
+    /// Cuts every speaker turn into short windows, writes each window with `write`,
+    /// and joins the pieces back into one line per turn. Speakers are numbered by order
+    /// of appearance, only counting those who have text.
+    /// Apple dictation silently drops most of a long clip (57 s returned 12 s of text),
+    /// so every turn is sent in short windows.
+    static func transcribeTurns(
+        url: URL,
+        runs: [SpeechRun],
+        windowSeconds: Int,
+        engine: String,
+        write: (URL) async throws -> String
+    ) async throws -> [TranscriptLine] {
+        let turns = appleTurns(runs)
         let longest = RoleRules.longestCluster(runs) ?? 1
-        log.info("Apple dictation turns=\(turns.count) speakers=\(Set(turns.map(\.cluster)).count)")
+        log.info("\(engine, privacy: .public) turns=\(turns.count) speakers=\(Set(turns.map(\.cluster)).count)")
         var lines: [TranscriptLine] = []
         for turn in turns {
-            // Apple dictation silently drops most of a long clip (57 s returned 12 s of text),
-            // so every turn is sent in short windows and the pieces are joined back.
             var pieces: [String] = []
             var windowStart = turn.start
             while windowStart < turn.end {
@@ -48,23 +79,22 @@ enum LectureTranscriber {
                 do {
                     let clip = try clipAudio(url, from: windowStart, through: windowEnd)
                     defer { try? FileManager.default.removeItem(at: clip) }
-                    let spoken = try await transcribeFile(url: clip, locale: locale, keeping: [])
-                    let piece = spoken.map(\.text).joined(separator: " ")
+                    let piece = try await write(clip)
                         .trimmingCharacters(in: .whitespacesAndNewlines)
                     log.info(
-                        "Apple dictation window speaker=\(turn.cluster) from=\(windowStart) to=\(windowEnd) words=\(piece.split(whereSeparator: \.isWhitespace).count)"
+                        "\(engine, privacy: .public) window speaker=\(turn.cluster) from=\(windowStart) to=\(windowEnd) words=\(piece.split(whereSeparator: \.isWhitespace).count)"
                     )
                     if !piece.isEmpty { pieces.append(piece) }
                 } catch {
                     log.error(
-                        "Apple dictation window failed speaker=\(turn.cluster) from=\(windowStart) message=\(error.localizedDescription, privacy: .public)"
+                        "\(engine, privacy: .public) window failed speaker=\(turn.cluster) from=\(windowStart) message=\(error.localizedDescription, privacy: .public)"
                     )
                 }
             }
             let text = pieces.joined(separator: " ")
             let words = text.split(whereSeparator: \.isWhitespace).count
             log.info(
-                "Apple dictation speaker=\(turn.cluster) start=\(turn.start) seconds=\(turn.end - turn.start) words=\(words) text=\(text, privacy: .public)"
+                "\(engine, privacy: .public) speaker=\(turn.cluster) start=\(turn.start) seconds=\(turn.end - turn.start) words=\(words) text=\(text, privacy: .public)"
             )
             guard !text.isEmpty else { continue }
             lines.append(TranscriptLine(
@@ -75,14 +105,13 @@ enum LectureTranscriber {
             ))
         }
         guard !lines.isEmpty else { throw TranscriptError.qualityFailed }
-        // Number only the speakers that actually have text, in order of appearance.
         var numbers: [Int: Int] = [:]
         let numbered = lines.map { line -> TranscriptLine in
             let number = numbers[line.speaker] ?? numbers.count + 1
             numbers[line.speaker] = number
             return TranscriptLine(second: line.second, text: line.text, role: line.role, speaker: number)
         }
-        log.info("Apple dictation lines=\(numbered.count) speakers=\(numbers.count)")
+        log.info("\(engine, privacy: .public) lines=\(numbered.count) speakers=\(numbers.count)")
         return numbered
     }
 
@@ -458,7 +487,7 @@ enum LectureTranscriber {
         }
     }
 
-    private static func clipAudio(_ url: URL, from start: Int, through end: Int) throws -> URL {
+    static func clipAudio(_ url: URL, from start: Int, through end: Int) throws -> URL {
         let source = try AVAudioFile(forReading: url)
         let format = source.processingFormat
         guard format.sampleRate > 0 else { throw TranscriptError.unreadable }

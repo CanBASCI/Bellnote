@@ -1,22 +1,6 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
-    "Recorded" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Recorded"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Kaydedildi"
-          }
-        }
-      }
-    },
     "" : {
 
     },
@@ -92,12 +76,6 @@
         }
       }
     },
-    "2B" : {
-
-    },
-    "4B" : {
-
-    },
     "A model is not available." : {
       "localizations" : {
         "en" : {
@@ -159,6 +137,54 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "AI düzeltme"
+          }
+        }
+      }
+    },
+    "AI correction and Ask use this model." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI correction and Ask use this model."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI düzeltme ve Sor bu modeli kullanır."
+          }
+        }
+      }
+    },
+    "AI correction model" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI correction model"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI düzeltme modeli"
+          }
+        }
+      }
+    },
+    "AI models" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI models"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI modelleri"
           }
         }
       }
@@ -292,22 +318,6 @@
         }
       }
     },
-    "Ask and the page use this downloaded model." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ask and the page use this downloaded model."
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sor ve ders sayfası bu indirilen modeli kullanır."
-          }
-        }
-      }
-    },
     "Assignments" : {
       "localizations" : {
         "en" : {
@@ -320,6 +330,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ödevler"
+          }
+        }
+      }
+    },
+    "Audio" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Audio"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ses"
           }
         }
       }
@@ -518,38 +544,6 @@
         }
       }
     },
-    "Delete 2B?" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Delete 2B?"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "2B silinsin mi?"
-          }
-        }
-      }
-    },
-    "Delete 4B?" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Delete 4B?"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "4B silinsin mi?"
-          }
-        }
-      }
-    },
     "Delete FluidAudio?" : {
       "localizations" : {
         "en" : {
@@ -562,6 +556,70 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "FluidAudio silinsin mi?"
+          }
+        }
+      }
+    },
+    "Delete Gemma 4 E2B?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete Gemma 4 E2B?"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gemma 4 E2B silinsin mi?"
+          }
+        }
+      }
+    },
+    "Delete Gemma 4 E4B?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete Gemma 4 E4B?"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gemma 4 E4B silinsin mi?"
+          }
+        }
+      }
+    },
+    "Delete Qwen 3.5 2B?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete Qwen 3.5 2B?"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Qwen 3.5 2B silinsin mi?"
+          }
+        }
+      }
+    },
+    "Delete Qwen 3.5 4B?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete Qwen 3.5 4B?"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Qwen 3.5 4B silinsin mi?"
           }
         }
       }
@@ -594,6 +652,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Supertonic silinsin mi?"
+          }
+        }
+      }
+    },
+    "Delete Whisper?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete Whisper?"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Whisper silinsin mi?"
           }
         }
       }
@@ -895,6 +969,55 @@
     },
     "FluidAudio" : {
 
+    },
+    "Gemma" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gemma"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gemma"
+          }
+        }
+      }
+    },
+    "Gemma could not write the transcript." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gemma could not write the transcript."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gemma yazıya dökemedi."
+          }
+        }
+      }
+    },
+    "Gemma writes the words." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gemma writes the words."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sözleri Gemma yazar."
+          }
+        }
+      }
     },
     "Given name" : {
       "localizations" : {
@@ -1385,6 +1508,38 @@
         }
       }
     },
+    "Needs 5 GB free and 8 GB of memory." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Needs 5 GB free and 8 GB of memory."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "5 GB boş alan ve 8 GB bellek gerekir."
+          }
+        }
+      }
+    },
+    "Needs 7 GB free and 8 GB of memory." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Needs 7 GB free and 8 GB of memory."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "7 GB boş alan ve 8 GB bellek gerekir."
+          }
+        }
+      }
+    },
     "New course" : {
       "localizations" : {
         "en" : {
@@ -1777,22 +1932,6 @@
         }
       }
     },
-    "Page model" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Page model"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sayfa modeli"
-          }
-        }
-      }
-    },
     "Pause" : {
       "localizations" : {
         "en" : {
@@ -2179,6 +2318,22 @@
         }
       }
     },
+    "Recorded" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recorded"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kaydedildi"
+          }
+        }
+      }
+    },
     "Recording" : {
       "localizations" : {
         "en" : {
@@ -2449,6 +2604,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Konuşmacı ayrımı için FluidAudio modellerinin bu cihazda yüklü olması gerekir. Şimdi indirilsin mi?"
+          }
+        }
+      }
+    },
+    "Speech to text" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Speech to text"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sesten yazıya"
           }
         }
       }
@@ -3084,6 +3255,55 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Sınavda neler var?"
+          }
+        }
+      }
+    },
+    "Whisper" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Whisper"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Whisper"
+          }
+        }
+      }
+    },
+    "Whisper could not write the transcript." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Whisper could not write the transcript."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Whisper yazıya dökemedi."
+          }
+        }
+      }
+    },
+    "Whisper writes the words." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Whisper writes the words."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sözleri Whisper yazar."
           }
         }
       }

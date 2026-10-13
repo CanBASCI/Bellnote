@@ -50,8 +50,20 @@ enum AppPreferences {
     static let lockEnabledKey = "lockEnabled"
     static let lecturerAskedKey = "lecturerAsked."
     static let pagePrefersTaggerKey = "pagePrefersTagger"
+    static let pageModelKey = "pageModel"
     static let speechEngineKey = "speechEngine"
     static let readAloudKey = "readAloud"
     static let supertonicVoiceKey = "supertonicVoice"
     static let measuredPageSecondsKey = "measuredPageSeconds"
+
+    /// The text model the student picked for the page and Ask.
+    /// Falls back to the older 2B/4B switch when no pick was stored yet.
+    static func pageModel(_ defaults: UserDefaults = .standard) -> ModelRole {
+        if let raw = defaults.string(forKey: pageModelKey),
+           let role = ModelRole(rawValue: raw),
+           role.isTextModel {
+            return role
+        }
+        return defaults.bool(forKey: pagePrefersTaggerKey) ? .tagger : .page
+    }
 }

@@ -9,7 +9,7 @@ enum LecturePipeline {
     static func advance(
         lecture: Lecture,
         context: ModelContext,
-        preferTaggerForPage: Bool,
+        pageModel: ModelRole,
         onProgress: ((PipelineStage) -> Void)? = nil
     ) async {
         func report(_ working: PipelineStage) async {
@@ -68,7 +68,7 @@ enum LecturePipeline {
                 log.info("Tags blocks=\(lecture.blocks.count)")
             }
             if stage == .tags {
-                log.info("Stage page preferTagger=\(preferTaggerForPage) model=\(preferTaggerForPage ? ModelCatalog.taggerRepo : ModelCatalog.pageRepo, privacy: .public)")
+                log.info("Stage page model=\(ModelCatalog.repo(for: pageModel), privacy: .public)")
                 await report(.page)
                 await finishPage(lecture, course: course, context: context)
                 stage = .page
@@ -105,12 +105,24 @@ enum LecturePipeline {
             case .qwenNotWriting:
                 lecture.failureMessageKey = "Qwen ASR cannot write yet."
                 lecture.neededModel = nil
+            case .gemmaMissing:
+                lecture.failureMessageKey = "A model is not available."
+                lecture.neededModel = ModelRole.gemmaSmall.rawValue
+            case .gemmaNotWriting:
+                lecture.failureMessageKey = "Gemma could not write the transcript."
+                lecture.neededModel = nil
+            case .whisperMissing:
+                lecture.failureMessageKey = "A model is not available."
+                lecture.neededModel = ModelRole.whisper.rawValue
+            case .whisperNotWriting:
+                lecture.failureMessageKey = "Whisper could not write the transcript."
+                lecture.neededModel = nil
             }
             log.error("Transcript failed stage=\(stage.rawValue, privacy: .public) error=\(String(describing: error), privacy: .public)")
         } catch let error as LocalModelError {
             lecture.state = LectureState.failed.rawValue
             lecture.stage = stage.rawValue
-            lecture.neededModel = (stage == .transcript || stage == .tags) ? ModelRole.tagger.rawValue : ModelRole.page.rawValue
+            lecture.neededModel = (stage == .transcript || stage == .tags) ? ModelRole.tagger.rawValue : pageModel.rawValue
             lecture.failureMessageKey = error == .locked ? "This model is locked on this device." : "A model is not available."
             log.error("Local model failed stage=\(stage.rawValue, privacy: .public) error=\(String(describing: error), privacy: .public)")
         } catch {
@@ -119,9 +131,9 @@ enum LecturePipeline {
             let nsError = error as NSError
             if nsError.domain == "SFSpeechErrorDomain" {
                 lecture.neededModel = nil
-                log.error("Apple Speech failed (not the 2B/4B model) stage=\(stage.rawValue, privacy: .public) code=\(nsError.code) message=\(error.localizedDescription, privacy: .public)")
+                log.error("Apple Speech failed (not a local model) stage=\(stage.rawValue, privacy: .public) code=\(nsError.code) message=\(error.localizedDescription, privacy: .public)")
             } else {
-                lecture.neededModel = (stage == .page || stage == .links) ? ModelRole.page.rawValue : ModelRole.tagger.rawValue
+                lecture.neededModel = (stage == .page || stage == .links) ? pageModel.rawValue : ModelRole.tagger.rawValue
                 log.error("Process failed stage=\(stage.rawValue, privacy: .public) type=\(String(describing: type(of: error)), privacy: .public) domain=\(nsError.domain, privacy: .public) code=\(nsError.code) message=\(error.localizedDescription, privacy: .public) detail=\(String(describing: error), privacy: .public)")
             }
             lecture.failureMessageKey = error.localizedDescription
@@ -176,7 +188,29 @@ enum LecturePipeline {
         }
         SpeakerPass.release()
         let lines: [TranscriptLine]
-        if engine == .qwen {
+        if engine == .whisper {
+            guard WhisperASR.isInstalled() else { throw TranscriptError.whisperMissing }
+            log.info("Whisper ASR writing")
+            do {
+                lines = try await WhisperASR.transcribe(url: url, locale: locale, runs: runs)
+            } catch let error as TranscriptError {
+                throw error
+            } catch {
+                log.error("Whisper ASR failed message=\(error.localizedDescription, privacy: .public)")
+                throw TranscriptError.whisperNotWriting
+            }
+        } else if engine == .gemma {
+            guard GemmaASR.installedRole() != nil else { throw TranscriptError.gemmaMissing }
+            log.info("Gemma ASR writing")
+            do {
+                lines = try await GemmaASR.transcribe(url: url, locale: locale, runs: runs)
+            } catch let error as TranscriptError {
+                throw error
+            } catch {
+                log.error("Gemma ASR failed message=\(error.localizedDescription, privacy: .public)")
+                throw TranscriptError.gemmaNotWriting
+            }
+        } else if engine == .qwen {
             guard qwenReady else { throw TranscriptError.qwenMissing }
             log.info("Qwen ASR writing")
             do {

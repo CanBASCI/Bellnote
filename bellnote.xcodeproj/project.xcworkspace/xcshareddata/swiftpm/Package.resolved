@@ -1,6 +1,15 @@
 {
-  "originHash" : "707602196441d5de3e39f82d13cd7f8a41ccd2d5f007e8b406a28ed8bf70e3b7",
+  "originHash" : "2b86a670be08db62ce69dbe61730416b98c94e0b43fc05a751e047221ea7d851",
   "pins" : [
+    {
+      "identity" : "argmax-oss-swift",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/argmaxinc/argmax-oss-swift",
+      "state" : {
+        "revision" : "1bbc57cb7fe6410248a685b1c5a3c6d56adc2ed4",
+        "version" : "1.1.1"
+      }
+    },
     {
       "identity" : "eventsource",
       "kind" : "remoteSourceControl",
@@ -17,6 +26,15 @@
       "state" : {
         "revision" : "503b4bd1bbf7220882de39fe8ae6716aae4132da",
         "version" : "0.17.7"
+      }
+    },
+    {
+      "identity" : "gemma-4-swift-mlx",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/VincentGourbin/gemma-4-swift-mlx",
+      "state" : {
+        "revision" : "bf215538e8a1a2a9b136b0423342365310709604",
+        "version" : "1.9.0"
       }
     },
     {
@@ -52,6 +70,15 @@
       "location" : "https://github.com/k2-fsa/sherpa-onnx",
       "state" : {
         "revision" : "6e7ea3e409f90aaf1541c87f21a013c4f20b9680"
+      }
+    },
+    {
+      "identity" : "swift-argument-parser",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/apple/swift-argument-parser",
+      "state" : {
+        "revision" : "6a52f3251125d74daf04fcbd5e6f08a75d074382",
+        "version" : "1.8.2"
       }
     },
     {
@@ -97,6 +124,15 @@
       "state" : {
         "revision" : "4588064a20f3fc093c95f2f7d3359999bf30cae5",
         "version" : "2.5.1"
+      }
+    },
+    {
+      "identity" : "swift-mlx-profiler",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/VincentGourbin/swift-mlx-profiler",
+      "state" : {
+        "revision" : "bfe71d834b02e19ec685122e260059bc1e9204dc",
+        "version" : "1.5.1"
       }
     },
     {

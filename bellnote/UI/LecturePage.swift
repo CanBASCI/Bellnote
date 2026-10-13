@@ -411,7 +411,7 @@ struct LectureNote: View {
         await LecturePipeline.advance(
             lecture: lecture,
             context: context,
-            preferTaggerForPage: UserDefaults.standard.bool(forKey: AppPreferences.pagePrefersTaggerKey)
+            pageModel: AppPreferences.pageModel()
         ) { stage in
             workingStage = stage
         }

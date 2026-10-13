@@ -146,11 +146,19 @@ enum ModelRole: String, Codable, Sendable, CaseIterable {
     case tagger
     case page
     case asr
+    case gemmaSmall
+    case gemmaLarge
+    case whisper
+
+    /// Models that write text through `LanguageModelSession`. The speech models are not.
+    var isTextModel: Bool { self != .asr && self != .whisper }
 }
 
 enum SpeechEngine: String, Codable, Sendable {
     case apple
     case qwen
+    case gemma
+    case whisper
 }
 
 enum ReadAloud: String, Codable, Sendable {

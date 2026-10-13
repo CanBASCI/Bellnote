@@ -13,7 +13,7 @@ final class AppSession {
     var showModelDownload = false
     var focusedModel: ModelRole?
     var resumeAfterInterruption = false
-    var preferTaggerForPage: Bool
+    var pageModel: ModelRole
     var speechEngine: SpeechEngine
     var readAloud: ReadAloud
     var supertonicVoice: Int
@@ -29,7 +29,7 @@ final class AppSession {
         languageCode = AppLanguage.resolved(preference: stored, system: Locale.current.identifier)
         let storedAppearance = defaults.string(forKey: AppPreferences.appearanceKey) ?? AppAppearance.system.rawValue
         appearance = AppAppearance(rawValue: storedAppearance) ?? .system
-        preferTaggerForPage = defaults.bool(forKey: AppPreferences.pagePrefersTaggerKey)
+        pageModel = AppPreferences.pageModel(defaults)
         speechEngine = SpeechEngine(rawValue: defaults.string(forKey: AppPreferences.speechEngineKey) ?? "") ?? .apple
         readAloud = ReadAloud(rawValue: defaults.string(forKey: AppPreferences.readAloudKey) ?? "") ?? .apple
         supertonicVoice = SupertonicVoice.clamped(defaults.integer(forKey: AppPreferences.supertonicVoiceKey))
@@ -45,9 +45,10 @@ final class AppSession {
         languageCode = AppLanguage.resolved(preference: language.rawValue, system: Locale.current.identifier)
     }
 
-    func setPreferTaggerForPage(_ preferTagger: Bool) {
-        UserDefaults.standard.set(preferTagger, forKey: AppPreferences.pagePrefersTaggerKey)
-        preferTaggerForPage = preferTagger
+    func setPageModel(_ role: ModelRole) {
+        guard role.isTextModel else { return }
+        UserDefaults.standard.set(role.rawValue, forKey: AppPreferences.pageModelKey)
+        pageModel = role
     }
 
     func setSpeechEngine(_ engine: SpeechEngine) {

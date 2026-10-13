@@ -167,16 +167,15 @@ actor LocalModelRuntime {
     }
 
     private func repoID(_ role: ModelRole) -> String {
-        switch role {
-        case .tagger: ModelCatalog.taggerRepo
-        case .page: ModelCatalog.pageRepo
-        case .asr: ModelCatalog.asrRepo
-        }
+        ModelCatalog.repo(for: role)
     }
 
     func probe(_ role: ModelRole) -> HubWeights.Snapshot {
         let repo = repoID(role)
-        let snapshot = HubWeights.snapshot(for: repo)
+        var snapshot = HubWeights.snapshot(for: repo)
+        if role == .whisper {
+            snapshot = WhisperASR.snapshot()
+        }
         Self.log.info(
             "Probe role=\(role.rawValue, privacy: .public) repo=\(snapshot.repo, privacy: .public) path=\(snapshot.path, privacy: .public) directory=\(snapshot.directoryExists) config=\(snapshot.hasConfig) safetensors=\(snapshot.safetensorsCount) files=\(snapshot.fileCount) bytes=\(snapshot.bytes) names=\(snapshot.fileNames.joined(separator: ","), privacy: .public)"
         )
@@ -187,10 +186,14 @@ actor LocalModelRuntime {
         _ role: ModelRole,
         onProgress: (@Sendable (Double) -> Void)? = nil
     ) async throws {
-        guard role == .tagger || role == .page || role == .asr else { throw LocalModelError.notInstalled }
         let repo = repoID(role)
         Self.log.info("Download tapped role=\(role.rawValue, privacy: .public) repo=\(repo, privacy: .public)")
         _ = probe(role)
+        if role == .whisper {
+            try await WhisperASR.download(onProgress: onProgress)
+            _ = probe(role)
+            return
+        }
         if role == .asr {
             let downloader = HubSnapshotDownloader()
             _ = try await downloader.download(
@@ -225,13 +228,16 @@ actor LocalModelRuntime {
     }
 
     func delete(_ role: ModelRole) async throws {
-        guard role == .tagger || role == .page || role == .asr else { throw LocalModelError.notInstalled }
         let repo = repoID(role)
         Self.log.info("Delete tapped role=\(role.rawValue, privacy: .public) repo=\(repo, privacy: .public)")
         if resident == role {
             await evictResident()
         }
-        try HubWeights.remove(repo)
+        if role == .whisper {
+            try WhisperASR.remove()
+        } else {
+            try HubWeights.remove(repo)
+        }
         _ = probe(role)
         Self.log.info("Delete finished role=\(role.rawValue, privacy: .public)")
     }
@@ -247,13 +253,11 @@ actor LocalModelRuntime {
 
     /// The installed model the user picked. A missing model is never downloaded from here.
     private func composeRole() throws -> ModelRole {
-        let preferTagger = UserDefaults.standard.bool(forKey: AppPreferences.pagePrefersTaggerKey)
-        let taggerReady = isInstalled(.tagger)
-        let pageReady = isInstalled(.page)
-        if preferTagger, taggerReady { return .tagger }
-        if !preferTagger, pageReady { return .page }
-        if taggerReady { return .tagger }
-        if pageReady { return .page }
+        let preferred = AppPreferences.pageModel()
+        if isInstalled(preferred) { return preferred }
+        for role in [ModelRole.tagger, .page, .gemmaSmall, .gemmaLarge] where isInstalled(role) {
+            return role
+        }
         throw LocalModelError.notInstalled
     }
 
@@ -276,9 +280,9 @@ actor LocalModelRuntime {
         switch role {
         case .tagger:
             await gate.loadTagger()
-        case .page:
+        case .page, .gemmaSmall, .gemmaLarge:
             await gate.loadPage()
-        case .asr:
+        case .asr, .whisper:
             throw LocalModelError.notInstalled
         }
         resident = role
@@ -296,11 +300,11 @@ actor LocalModelRuntime {
         _ role: ModelRole,
         onProgress: (@Sendable (Double) -> Void)? = nil
     ) throws -> MLXLanguageModel {
-        guard role == .tagger || role == .page else { throw LocalModelError.notInstalled }
-        let repo = role == .tagger ? ModelCatalog.taggerRepo : ModelCatalog.pageRepo
+        guard role.isTextModel else { throw LocalModelError.notInstalled }
+        let repo = ModelCatalog.repo(for: role)
         let disk = HubWeights.snapshot(for: repo)
         Self.log.info("Make model role=\(role.rawValue, privacy: .public) repo=\(disk.repo, privacy: .public) path=\(disk.path, privacy: .public) bytes=\(disk.bytes) config=\(disk.hasConfig) safetensors=\(disk.safetensorsCount)")
-        let configuration = ModelConfiguration(id: repo)
+        let configuration = ModelConfiguration(id: repo, extraEOSTokens: ModelCatalog.extraEOSTokens(for: role))
         let model = MLXLanguageModel(
             configuration: configuration,
             capabilities: [.guidedGeneration],
@@ -485,9 +489,11 @@ enum HubWeights {
         var fileCount: Int
         var bytes: Int64
         var fileNames: [String]
+        /// Core ML model folders (`*.mlmodelc`), the weights format of Whisper.
+        var coreMLCount = 0
 
         var isReady: Bool {
-            directoryExists && hasConfig && safetensorsCount > 0
+            directoryExists && hasConfig && (safetensorsCount > 0 || coreMLCount >= 3)
         }
     }
 
@@ -535,7 +541,11 @@ enum HubWeights {
     }
 
     static func snapshot(for id: String) -> Snapshot {
-        let url = directory(for: id)
+        snapshot(at: directory(for: id), id: id)
+    }
+
+    /// Looks at a model folder that is not in the Hub cache.
+    static func snapshot(at url: URL, id: String) -> Snapshot {
         let manager = FileManager.default
         let directoryExists = manager.fileExists(atPath: url.path)
         let hasConfig = manager.fileExists(atPath: url.appendingPathComponent("config.json").path)
@@ -554,12 +564,14 @@ enum HubWeights {
         var names: [String] = []
         var total: Int64 = 0
         var safetensors = 0
+        var coreML = 0
         if let enumerator = manager.enumerator(
             at: url,
             includingPropertiesForKeys: [.isRegularFileKey, .isSymbolicLinkKey, .fileSizeKey],
             options: [.skipsHiddenFiles]
         ) {
             for case let file as URL in enumerator {
+                if file.pathExtension == "mlmodelc" { coreML += 1 }
                 let target = file.resolvingSymlinksInPath()
                 guard
                     let values = try? target.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey]),
@@ -580,7 +592,8 @@ enum HubWeights {
             safetensorsCount: safetensors,
             fileCount: names.count,
             bytes: total,
-            fileNames: Array(names.prefix(20))
+            fileNames: Array(names.prefix(20)),
+            coreMLCount: coreML
         )
     }
 
