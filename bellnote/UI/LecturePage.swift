@@ -164,7 +164,9 @@ struct LectureNote: View {
     private var bodyText: String {
         let summary = lecture.summary.trimmingCharacters(in: .whitespacesAndNewlines)
         if !summary.isEmpty { return summary }
-        if let failure = lecture.failureMessageKey, !failure.isEmpty { return failure }
+        if let failure = lecture.failureMessageKey, !failure.isEmpty {
+            return failure
+        }
         return String(localized: "No summary yet.")
     }
 

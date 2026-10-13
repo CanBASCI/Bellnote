@@ -1,3 +1,4 @@
+import OSLog
 import SwiftData
 import SwiftUI
 
@@ -107,7 +108,7 @@ struct PendingSheet: View {
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                         if let failure = lecture.failureMessageKey, !failure.isEmpty {
-                            Text(LocalizedStringKey(failure))
+                            Text(failure)
                                 .font(.footnote)
                                 .foregroundStyle(.secondary)
                         }
@@ -215,6 +216,7 @@ struct SettingsPage: View {
 }
 
 struct ModelsPage: View {
+    private static let log = Logger(subsystem: "app.bellnote", category: "models-ui")
     @State private var budget = DeviceBudget(freeDiskBytes: 0, physicalMemoryBytes: 0)
     @State private var downloading: ModelRole?
     @State private var status: [ModelRole: String] = [:]
@@ -225,7 +227,10 @@ struct ModelsPage: View {
             modelRow(.page, title: "4B", bytes: ModelCatalog.pageBytes, locked: ModelLock.pageLocked(budget))
         }
         .navigationTitle("Models")
-        .task { refreshBudget() }
+        .task {
+            refreshBudget()
+            await logInstalledModels()
+        }
     }
 
     @ViewBuilder
@@ -247,16 +252,21 @@ struct ModelsPage: View {
                 }
             } else {
                 Button("Download") {
+                    Self.log.info("UI download tap role=\(role.rawValue, privacy: .public) title=\(title, privacy: .public)")
                     downloading = role
                     status[role] = nil
                     Task {
                         do {
                             try await LocalModelRuntime.shared.download(role)
                             status[role] = String(localized: "Download finished.")
+                            Self.log.info("UI download ok role=\(role.rawValue, privacy: .public)")
                         } catch {
+                            let nsError = error as NSError
                             status[role] = String(localized: "A model is not available.")
+                            Self.log.error("UI download failed role=\(role.rawValue, privacy: .public) domain=\(nsError.domain, privacy: .public) code=\(nsError.code) message=\(error.localizedDescription, privacy: .public)")
                         }
                         downloading = nil
+                        _ = await LocalModelRuntime.shared.probe(role)
                     }
                 }
                 .buttonStyle(.borderless)
@@ -275,6 +285,13 @@ struct ModelsPage: View {
         let values = try? home.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey])
         let free = values?.volumeAvailableCapacityForImportantUsage ?? 0
         budget = DeviceBudget(freeDiskBytes: free, physicalMemoryBytes: ProcessInfo.processInfo.physicalMemory)
+        Self.log.info("Budget freeDisk=\(free) physicalMemory=\(ProcessInfo.processInfo.physicalMemory) taggerLocked=\(ModelLock.taggerLocked(budget)) pageLocked=\(ModelLock.pageLocked(budget))")
+    }
+
+    private func logInstalledModels() async {
+        Self.log.info("Models page open")
+        _ = await LocalModelRuntime.shared.probe(.tagger)
+        _ = await LocalModelRuntime.shared.probe(.page)
     }
 }
 

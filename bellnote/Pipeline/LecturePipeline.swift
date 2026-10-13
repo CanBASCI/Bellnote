@@ -1,8 +1,11 @@
 import Foundation
+import OSLog
 import SwiftData
 
 @MainActor
 enum LecturePipeline {
+    private static let log = Logger(subsystem: "app.bellnote", category: "pipeline")
+
     static func advance(
         lecture: Lecture,
         context: ModelContext,
@@ -11,50 +14,62 @@ enum LecturePipeline {
         guard let course = lecture.course else {
             lecture.state = LectureState.failed.rawValue
             lecture.failureMessageKey = "Missing course."
+            log.error("Process stopped: missing course.")
             return
         }
         lecture.state = LectureState.processing.rawValue
         lecture.failureMessageKey = nil
         var stage = PipelineStage(rawValue: lecture.stage) ?? .idle
         if stage == .failed { stage = .idle }
+        log.info("Process start course=\(course.name, privacy: .public) stage=\(stage.rawValue, privacy: .public) audio=\(lecture.audioRelativePath ?? "none", privacy: .public)")
         do {
             if stage == .idle || stage == .audio {
+                log.info("Stage audio")
                 try await finishAudio(lecture)
                 stage = .audio
                 lecture.stage = stage.rawValue
                 try context.save()
             }
             if stage == .audio {
+                log.info("Stage speakers")
                 try await finishSpeakers(lecture)
                 stage = .speakers
                 lecture.stage = stage.rawValue
                 try context.save()
             }
             if stage == .speakers {
+                log.info("Stage transcript")
                 try await finishTranscript(lecture, course: course)
                 stage = .transcript
                 lecture.stage = stage.rawValue
                 try context.save()
+                log.info("Transcript blocks=\(lecture.blocks.count)")
             }
             if stage == .transcript {
+                log.info("Stage tags model=\(ModelCatalog.taggerRepo, privacy: .public)")
                 try await finishTags(lecture, course: course)
                 stage = .tags
                 lecture.stage = stage.rawValue
                 try context.save()
+                log.info("Tags blocks=\(lecture.blocks.count)")
             }
             if stage == .tags {
+                log.info("Stage page preferTagger=\(preferTaggerForPage) model=\(preferTaggerForPage ? ModelCatalog.taggerRepo : ModelCatalog.pageRepo, privacy: .public)")
                 try await finishPage(lecture, preferTagger: preferTaggerForPage)
                 stage = .page
                 lecture.stage = stage.rawValue
                 try context.save()
+                log.info("Page summary characters=\(lecture.summary.count)")
             }
             if stage == .page {
+                log.info("Stage links")
                 finishLinks(lecture, course: course, context: context)
                 stage = .links
                 lecture.stage = PipelineStage.ready.rawValue
                 lecture.state = LectureState.ready.rawValue
                 try context.save()
                 await ReminderScheduler.notifyReady(course: course.name, startedAt: lecture.startedAt)
+                log.info("Process ready")
             }
         } catch let error as TranscriptError {
             lecture.state = LectureState.failed.rawValue
@@ -68,15 +83,20 @@ enum LecturePipeline {
             case .unreadable:
                 lecture.failureMessageKey = "The recording could not be read."
             }
+            log.error("Transcript failed stage=\(stage.rawValue, privacy: .public) error=\(String(describing: error), privacy: .public)")
         } catch let error as LocalModelError {
             lecture.state = LectureState.failed.rawValue
             lecture.stage = stage.rawValue
             lecture.neededModel = (stage == .transcript || stage == .tags) ? ModelRole.tagger.rawValue : ModelRole.page.rawValue
             lecture.failureMessageKey = error == .locked ? "This model is locked on this device." : "A model is not available."
+            log.error("Local model failed stage=\(stage.rawValue, privacy: .public) error=\(String(describing: error), privacy: .public)")
         } catch {
             lecture.state = LectureState.failed.rawValue
             lecture.stage = stage.rawValue
+            lecture.neededModel = (stage == .page || stage == .links) ? ModelRole.page.rawValue : ModelRole.tagger.rawValue
             lecture.failureMessageKey = error.localizedDescription
+            let nsError = error as NSError
+            log.error("Process failed stage=\(stage.rawValue, privacy: .public) type=\(String(describing: type(of: error)), privacy: .public) domain=\(nsError.domain, privacy: .public) code=\(nsError.code) message=\(error.localizedDescription, privacy: .public) detail=\(String(describing: error), privacy: .public)")
         }
     }
 

@@ -23,6 +23,7 @@ struct CoursePage: View {
 
     @State private var showConsent = false
     @State private var activeLecture: Lecture?
+    @State private var showLecturer = false
     @State private var showInventory = false
 
     var body: some View {
@@ -46,9 +47,26 @@ struct CoursePage: View {
                 }
             }
             Section("Lecturer") {
-                if let contact = course.lecturer {
-                    LecturerFields(contact: contact)
+                Button {
+                    showLecturer = true
+                } label: {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(lecturerName)
+                                .foregroundStyle(.primary)
+                            if let detail = lecturerDetail {
+                                Text(detail)
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        Spacer(minLength: 0)
+                        Text("Edit")
+                            .font(.subheadline)
+                            .foregroundStyle(.tint)
+                    }
                 }
+                .buttonStyle(.plain)
             }
             Section("Inventory", isExpanded: $showInventory) {
                 if course.inventory.isEmpty {
@@ -74,7 +92,28 @@ struct CoursePage: View {
         .sheet(item: $activeLecture) { lecture in
             RecorderSheet(lecture: lecture)
         }
+        .sheet(isPresented: $showLecturer) {
+            if let contact = course.lecturer {
+                LecturerEditor(contact: contact)
+            }
+        }
         .onAppear(perform: ensureLecturer)
+    }
+
+    private var lecturerName: String {
+        guard let contact = course.lecturer else { return String(localized: "Not set") }
+        let parts = [contact.title, contact.givenName, contact.familyName]
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        return parts.isEmpty ? String(localized: "Not set") : parts.joined(separator: " ")
+    }
+
+    private var lecturerDetail: String? {
+        guard let contact = course.lecturer else { return nil }
+        let parts = [contact.email, contact.phone]
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 
     private var lectures: [Lecture] {
@@ -90,15 +129,28 @@ struct CoursePage: View {
     }
 }
 
-struct LecturerFields: View {
+struct LecturerEditor: View {
     @Bindable var contact: LecturerContact
+    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        TextField("Title", text: $contact.title)
-        TextField("Given name", text: $contact.givenName)
-        TextField("Family name", text: $contact.familyName)
-        TextField("Phone", text: $contact.phone)
-        TextField("Email", text: $contact.email)
-        TextField("Other contact", text: $contact.extra)
+        NavigationStack {
+            Form {
+                TextField("Title", text: $contact.title)
+                TextField("Given name", text: $contact.givenName)
+                TextField("Family name", text: $contact.familyName)
+                TextField("Phone", text: $contact.phone)
+                TextField("Email", text: $contact.email)
+                TextField("Other contact", text: $contact.extra)
+            }
+            .navigationTitle("Lecturer")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
     }
 }
