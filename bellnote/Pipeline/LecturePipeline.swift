@@ -26,6 +26,10 @@ enum LecturePipeline {
         lecture.failureMessageKey = nil
         var stage = PipelineStage(rawValue: lecture.stage) ?? .idle
         if stage == .failed { stage = .idle }
+        if stage == .ready {
+            discardProcessedNotes(lecture, context: context)
+            stage = .idle
+        }
         log.info("Process start course=\(course.name, privacy: .public) stage=\(stage.rawValue, privacy: .public) audio=\(lecture.audioRelativePath ?? "none", privacy: .public)")
         do {
             if stage == .idle || stage == .audio {
@@ -120,6 +124,26 @@ enum LecturePipeline {
         guard let path = lecture.audioRelativePath else { throw TranscriptError.unreadable }
         let url = try Vault.documents().appendingPathComponent(path)
         guard FileManager.default.fileExists(atPath: url.path) else { throw TranscriptError.unreadable }
+    }
+
+    static func discardProcessedNotes(_ lecture: Lecture, context: ModelContext) {
+        let blockIDs = Set(lecture.blocks.map(\.token))
+        if let course = lecture.course {
+            for assignment in course.assignments where blockIDs.contains(assignment.sourceBlockID) {
+                context.delete(assignment)
+            }
+        }
+        for block in lecture.blocks {
+            context.delete(block)
+        }
+        lecture.blocks.removeAll()
+        lecture.summary = ""
+        lecture.processedThroughSecond = 0
+        lecture.failureMessageKey = nil
+        lecture.neededModel = nil
+        lecture.stage = PipelineStage.idle.rawValue
+        lecture.state = LectureState.paused.rawValue
+        try? context.save()
     }
 
     private static func finishSpeakers(_ lecture: Lecture) async throws {

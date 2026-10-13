@@ -22,6 +22,7 @@ struct LectureNote: View {
     @State private var showAssignments = false
     @State private var fluidGate = FluidAudioGate()
     @State private var workingStage: PipelineStage?
+    @State private var askReprocess = false
 
     var body: some View {
         List {
@@ -32,10 +33,14 @@ struct LectureNote: View {
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
-            } else if lecture.state != LectureState.ready.rawValue && lecture.audioRelativePath != nil {
+            } else if lecture.audioRelativePath != nil {
                 Section {
-                    Button("Process") {
-                        fluidGate.request { await process() }
+                    Button(lecture.state == LectureState.ready.rawValue ? "Process again" : "Process") {
+                        if lecture.state == LectureState.ready.rawValue {
+                            askReprocess = true
+                        } else {
+                            fluidGate.request { await process() }
+                        }
                     }
                 }
             }
@@ -144,6 +149,14 @@ struct LectureNote: View {
             }
         }
         .fluidAudioGate(fluidGate)
+        .confirmationDialog("Process again?", isPresented: $askReprocess, titleVisibility: .visible) {
+            Button("Process again", role: .destructive) {
+                fluidGate.request { await process() }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("The written notes will be deleted. The recording stays.")
+        }
     }
 
     private var playback: some View {
@@ -241,7 +254,11 @@ struct LectureNote: View {
 
     private func process() async {
         guard let context = lecture.modelContext else { return }
-        workingStage = PipelineStage(rawValue: lecture.stage)?.next ?? .audio
+        let restart = lecture.state == LectureState.ready.rawValue
+        if restart {
+            LecturePipeline.discardProcessedNotes(lecture, context: context)
+        }
+        workingStage = restart ? .audio : (PipelineStage(rawValue: lecture.stage)?.next ?? .audio)
         defer { workingStage = nil }
         await LecturePipeline.advance(
             lecture: lecture,

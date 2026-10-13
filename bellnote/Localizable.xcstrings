@@ -1530,6 +1530,54 @@
         }
       }
     },
+    "Process again?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Process again?"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tekrar işlensin mi?"
+          }
+        }
+      }
+    },
+    "The written notes will be deleted. The recording stays." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The written notes will be deleted. The recording stays."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yazılan metin silinir. Ses kaydı durur."
+          }
+        }
+      }
+    },
+    "Process again" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Process again"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tekrar işle"
+          }
+        }
+      }
+    },
     "Process" : {
       "localizations" : {
         "en" : {

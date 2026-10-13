@@ -199,13 +199,13 @@ actor LocalModelRuntime {
     private var tagInstructions: String {
         """
         Tag one lecture window. Use only words from the window. \
-        kind is one of definition, list, example, emphasis, reference, assignment, examScope, decision, other. \
-        If items are unintelligible, keep the row and set missing true. Do not invent facts.
-        """
-    }
         speakerRole is one of narrator, question, room, unknown, lecturer. \
         kind is one of definition, list, example, emphasis, reference, assignment, examScope, decision, other. \
         topics has at most five short names. text is one short sentence from the window. \
+        If items are unintelligible, keep the row and set missing true. Do not invent facts.
+        """
+    }
+
     private var pageInstructions: String {
         """
         Write from the tagged notes only. Do not add facts that are not in the notes. \
