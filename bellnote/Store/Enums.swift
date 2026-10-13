@@ -147,3 +147,8 @@ enum ModelRole: String, Codable, Sendable, CaseIterable {
     case page
     case asr
 }
+
+enum SpeechEngine: String, Codable, Sendable {
+    case apple
+    case qwen
+}

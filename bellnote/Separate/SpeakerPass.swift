@@ -39,7 +39,8 @@ enum SpeakerPass {
         log.info("Diarize begin path=\(url.lastPathComponent, privacy: .public)")
         let result = try await store.process(url)
         let runs = speechRuns(from: result.segments)
-        log.info("Diarize ok segments=\(result.segments.count) runs=\(runs.count)")
+        let spans = runs.map { "\($0.cluster):\($0.start)-\($0.end)" }.joined(separator: " ")
+        log.info("Diarize ok segments=\(result.segments.count) runs=\(runs.count) spans=\(spans, privacy: .public)")
         if runs.isEmpty {
             return try fallbackSingleNarrator(url: url)
         }
@@ -69,7 +70,7 @@ enum SpeakerPass {
             guard end > start else { continue }
             let cluster = clusterByID[segment.speakerId] ?? 1
             let overlap = segments.enumerated().contains { otherIndex, other in
-                guard otherIndex != index else { return false }
+                guard otherIndex != index, other.speakerId != segment.speakerId else { return false }
                 return segment.startTimeSeconds < other.endTimeSeconds
                     && other.startTimeSeconds < segment.endTimeSeconds
             }
@@ -109,9 +110,23 @@ enum SpeakerPass {
 
 /// FluidAudio's offline manager is not Sendable; serialize access in one box.
 private final class DiarizerBox: @unchecked Sendable {
-    private var diarizer = OfflineDiarizerManager()
+    private var diarizer: OfflineDiarizerManager
     private let lock = NSLock()
     private var prepared = false
+
+    /// Keep voices the first pass already separated. The default mix weight
+    /// collapses a short second and third speaker into the longest one.
+    private static var lectureConfig: OfflineDiarizerConfig {
+        var config = OfflineDiarizerConfig.default
+        config.clustering.threshold = 0.45
+        config.clustering.warmStartFa = 0.3
+        config.clustering.warmStartFb = 0.5
+        return config
+    }
+
+    init() {
+        diarizer = OfflineDiarizerManager(config: DiarizerBox.lectureConfig)
+    }
 
     private static func diarizerRepoPath() -> URL {
         OfflineDiarizerModels.defaultModelsDirectory()
@@ -140,7 +155,7 @@ private final class DiarizerBox: @unchecked Sendable {
         ModelHub.clearCache(for: .diarizer, directory: OfflineDiarizerModels.defaultModelsDirectory())
         lock.withLock {
             prepared = false
-            diarizer = OfflineDiarizerManager()
+            diarizer = OfflineDiarizerManager(config: Self.lectureConfig)
         }
     }
 

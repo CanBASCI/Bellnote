@@ -50,5 +50,6 @@ enum AppPreferences {
     static let lockEnabledKey = "lockEnabled"
     static let lecturerAskedKey = "lecturerAsked."
     static let pagePrefersTaggerKey = "pagePrefersTagger"
+    static let speechEngineKey = "speechEngine"
     static let measuredPageSecondsKey = "measuredPageSeconds"
 }

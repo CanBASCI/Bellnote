@@ -152,6 +152,9 @@ enum LecturePipeline {
 
     private static func finishTranscript(_ lecture: Lecture, course: Course) async throws {
         guard let path = lecture.audioRelativePath else { throw TranscriptError.unreadable }
+        let engine = SpeechEngine(rawValue: UserDefaults.standard.string(forKey: AppPreferences.speechEngineKey) ?? "") ?? .apple
+        let qwenReady = await LocalModelRuntime.shared.probe(.asr).isReady
+        log.info("Transcript engine=\(engine.rawValue, privacy: .public) qwenReady=\(qwenReady)")
         let url = try Vault.documents().appendingPathComponent(path)
         let locale = Locale(identifier: course.localeIdentifier)
         let runs: [SpeechRun]

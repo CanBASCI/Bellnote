@@ -60,9 +60,19 @@ enum LectureTranscriber {
 
     private static func speakerTurns(_ runs: [SpeechRun]) -> [SpeechRun] {
         let longest = RoleRules.longestCluster(runs) ?? 1
-        return runs
+        let kept = runs
             .filter { RoleRules.label($0, longestCluster: longest) != .room }
             .sorted { $0.start < $1.start }
+        var merged: [SpeechRun] = []
+        for run in kept {
+            if var last = merged.last, last.cluster == run.cluster, run.start <= last.end + 1 {
+                last.end = max(last.end, run.end)
+                merged[merged.count - 1] = last
+            } else {
+                merged.append(run)
+            }
+        }
+        return merged
     }
 
     private static func sliceAudio(url: URL, from start: Int, through end: Int) throws -> URL {
@@ -146,7 +156,7 @@ enum LectureTranscriber {
                 } catch {
                     lastError = error
                     logAttemptFailure("Dictation", locale: candidate, error: error)
-                    if isUnsupportedConfiguration(error) { break }
+                    if isUnsupportedConfiguration(error) || error as? TranscriptError == .qualityFailed { break }
                     if let transcriptError = error as? TranscriptError, transcriptError == .unreadable {
                         throw error
                     }
@@ -573,7 +583,7 @@ enum LectureTranscriber {
 
     private static func isUnsupportedConfiguration(_ error: Error) -> Bool {
         let nsError = error as NSError
-        return nsError.domain == SFSpeechErrorDomain && nsError.code == 4
+        return nsError.domain == SFSpeechErrorDomain && (nsError.code == 4 || nsError.code == 15)
     }
 
     private static func logAttemptFailure(_ kind: String, locale: Locale, error: Error) {

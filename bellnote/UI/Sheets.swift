@@ -250,6 +250,7 @@ struct ModelsPage: View {
     @State private var downloadingFluid = false
     @State private var downloadProgress: Double = 0
     @State private var installed: [ModelRole: Bool] = [:]
+    @State private var leftover: [ModelRole: Bool] = [:]
     @State private var fluidInstalled = false
     @State private var status: [ModelRole: String] = [:]
     @State private var fluidStatus: String?
@@ -259,18 +260,40 @@ struct ModelsPage: View {
         List {
             modelRow(.tagger, title: "2B", bytes: ModelCatalog.taggerBytes, locked: ModelLock.taggerLocked(budget))
             modelRow(.page, title: "4B", bytes: ModelCatalog.pageBytes, locked: ModelLock.pageLocked(budget))
+            modelRow(.asr, title: "Qwen ASR", bytes: ModelCatalog.asrBytes, locked: false)
             fluidAudioRow()
-            if installed[.tagger] == true, installed[.page] == true {
+            Section {
+                Picker("Transcript", selection: Binding(
+                    get: { session.speechEngine },
+                    set: { session.setSpeechEngine($0) }
+                )) {
+                    Text("Apple Dictation").tag(SpeechEngine.apple)
+                    if installed[.asr] == true {
+                        Text("Qwen ASR").tag(SpeechEngine.qwen)
+                    }
+                }
+                .pickerStyle(.segmented)
+                Text(session.speechEngine == .qwen
+                    ? "Qwen ASR is saved. It does not write yet."
+                    : "Apple Dictation writes the words.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            if installed[.tagger] == true || installed[.page] == true {
                 Section {
                     Picker("Page model", selection: Binding(
                         get: { session.preferTaggerForPage },
                         set: { session.setPreferTaggerForPage($0) }
                     )) {
-                        Text("2B").tag(true)
-                        Text("4B").tag(false)
+                        if installed[.tagger] == true {
+                            Text("2B").tag(true)
+                        }
+                        if installed[.page] == true {
+                            Text("4B").tag(false)
+                        }
                     }
                     .pickerStyle(.segmented)
-                    Text("Used when writing the lecture page.")
+                    Text("Ask and the page use this downloaded model.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -307,6 +330,8 @@ struct ModelsPage: View {
         switch pendingDelete {
         case .mlx(.page):
             String(localized: "Delete 4B?")
+        case .mlx(.asr):
+            String(localized: "Delete Qwen ASR?")
         case .mlx:
             String(localized: "Delete 2B?")
         case .fluidAudio:
@@ -407,7 +432,11 @@ struct ModelsPage: View {
                     Text(bytes.formatted(.byteCount(style: .file)))
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    if locked, !ready {
+                    if leftover[role] == true, !ready {
+                        Text("Incompletely installed")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else if locked, !ready {
                         Text(role == .tagger ? "Needs 2 GB free." : "Needs 4 GB free and 8 GB of memory.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -426,7 +455,7 @@ struct ModelsPage: View {
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                     }
-                } else if ready {
+                } else if ready || leftover[role] == true {
                     Button("Delete", role: .destructive) {
                         Self.log.info("UI delete tap role=\(role.rawValue, privacy: .public) title=\(title, privacy: .public)")
                         pendingDelete = .mlx(role)
@@ -480,6 +509,9 @@ struct ModelsPage: View {
             if role == .tagger, session.preferTaggerForPage {
                 session.setPreferTaggerForPage(false)
             }
+            if role == .asr, session.speechEngine == .qwen {
+                session.setSpeechEngine(.apple)
+            }
             Self.log.info("UI delete ok role=\(role.rawValue, privacy: .public)")
         } catch {
             let nsError = error as NSError
@@ -501,9 +533,17 @@ struct ModelsPage: View {
         Self.log.info("Models page open")
         let tagger = await LocalModelRuntime.shared.probe(.tagger)
         let page = await LocalModelRuntime.shared.probe(.page)
+        let asr = await LocalModelRuntime.shared.probe(.asr)
         installed[.tagger] = tagger.isReady
         installed[.page] = page.isReady
+        installed[.asr] = asr.isReady
+        leftover[.tagger] = tagger.directoryExists && !tagger.isReady
+        leftover[.page] = page.directoryExists && !page.isReady
+        leftover[.asr] = asr.directoryExists && !asr.isReady
         fluidInstalled = SpeakerPass.modelsAreInstalled()
+        if session.speechEngine == .qwen, !asr.isReady {
+            session.setSpeechEngine(.apple)
+        }
         if tagger.isReady, !page.isReady {
             session.setPreferTaggerForPage(true)
         } else if page.isReady, !tagger.isReady {

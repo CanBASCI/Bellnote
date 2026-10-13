@@ -55,10 +55,11 @@ actor LocalModelRuntime {
     }
 
     func compose(tags: [WindowTag], task: String) async throws -> String {
-        Self.log.info("Compose begin tags=\(tags.count)")
+        let role = try composeRole()
+        Self.log.info("Compose begin tags=\(tags.count) role=\(role.rawValue, privacy: .public)")
         do {
-            try await ensure(.page)
-            let session = try makeSession(role: .page, instructions: pageInstructions)
+            try await ensure(role)
+            let session = try makeSession(role: role, instructions: pageInstructions)
             let source = tags.map(\.text).joined(separator: "\n")
             let response = try await session.respond(to: "\(task)\n\n\(source)")
             Self.log.info("Compose ok characters=\(response.content.count)")
@@ -69,8 +70,16 @@ actor LocalModelRuntime {
         }
     }
 
+    private func repoID(_ role: ModelRole) -> String {
+        switch role {
+        case .tagger: ModelCatalog.taggerRepo
+        case .page: ModelCatalog.pageRepo
+        case .asr: ModelCatalog.asrRepo
+        }
+    }
+
     func probe(_ role: ModelRole) -> HubWeights.Snapshot {
-        let repo = role == .tagger ? ModelCatalog.taggerRepo : role == .page ? ModelCatalog.pageRepo : ModelCatalog.asrRepo
+        let repo = repoID(role)
         let snapshot = HubWeights.snapshot(for: repo)
         Self.log.info(
             "Probe role=\(role.rawValue, privacy: .public) repo=\(snapshot.repo, privacy: .public) path=\(snapshot.path, privacy: .public) directory=\(snapshot.directoryExists) config=\(snapshot.hasConfig) safetensors=\(snapshot.safetensorsCount) files=\(snapshot.fileCount) bytes=\(snapshot.bytes) names=\(snapshot.fileNames.joined(separator: ","), privacy: .public)"
@@ -82,10 +91,24 @@ actor LocalModelRuntime {
         _ role: ModelRole,
         onProgress: (@Sendable (Double) -> Void)? = nil
     ) async throws {
-        guard role == .tagger || role == .page else { throw LocalModelError.notInstalled }
-        let repo = role == .tagger ? ModelCatalog.taggerRepo : ModelCatalog.pageRepo
+        guard role == .tagger || role == .page || role == .asr else { throw LocalModelError.notInstalled }
+        let repo = repoID(role)
         Self.log.info("Download tapped role=\(role.rawValue, privacy: .public) repo=\(repo, privacy: .public)")
         _ = probe(role)
+        if role == .asr {
+            let downloader = HubSnapshotDownloader()
+            _ = try await downloader.download(
+                id: repo,
+                revision: "main",
+                matching: ["*"],
+                useLatest: false
+            ) { progress in
+                onProgress?(progress.fractionCompleted)
+            }
+            onProgress?(1)
+            _ = probe(role)
+            return
+        }
         do {
             let model = try makeModel(role, onProgress: onProgress)
             let available = await model.isAvailable
@@ -106,8 +129,8 @@ actor LocalModelRuntime {
     }
 
     func delete(_ role: ModelRole) async throws {
-        guard role == .tagger || role == .page else { throw LocalModelError.notInstalled }
-        let repo = role == .tagger ? ModelCatalog.taggerRepo : ModelCatalog.pageRepo
+        guard role == .tagger || role == .page || role == .asr else { throw LocalModelError.notInstalled }
+        let repo = repoID(role)
         Self.log.info("Delete tapped role=\(role.rawValue, privacy: .public) repo=\(repo, privacy: .public)")
         if resident == role {
             await gate.unload()
@@ -127,7 +150,23 @@ actor LocalModelRuntime {
         resident = nil
     }
 
+    /// The installed model the user picked. A missing model is never downloaded from here.
+    private func composeRole() throws -> ModelRole {
+        let preferTagger = UserDefaults.standard.bool(forKey: AppPreferences.pagePrefersTaggerKey)
+        let taggerReady = isInstalled(.tagger)
+        let pageReady = isInstalled(.page)
+        if preferTagger, taggerReady { return .tagger }
+        if !preferTagger, pageReady { return .page }
+        if taggerReady { return .tagger }
+        if pageReady { return .page }
+        throw LocalModelError.notInstalled
+    }
+
     private func ensure(_ role: ModelRole) async throws {
+        guard isInstalled(role) else {
+            Self.log.error("Model is not installed role=\(role.rawValue, privacy: .public)")
+            throw LocalModelError.notInstalled
+        }
         if role == .page, resident == .tagger {
             Self.log.info("Unload tagger before page")
             await gate.unload()
@@ -150,13 +189,18 @@ actor LocalModelRuntime {
     }
 
     private func makeSession(role: ModelRole, instructions: String) throws -> LanguageModelSession {
-        LanguageModelSession(model: try makeModel(role), tools: [], instructions: instructions)
+        guard isInstalled(role) else {
+            Self.log.error("Refusing to fetch a model that was not downloaded role=\(role.rawValue, privacy: .public)")
+            throw LocalModelError.notInstalled
+        }
+        return LanguageModelSession(model: try makeModel(role), tools: [], instructions: instructions)
     }
 
     private func makeModel(
         _ role: ModelRole,
         onProgress: (@Sendable (Double) -> Void)? = nil
     ) throws -> MLXLanguageModel {
+        guard role == .tagger || role == .page else { throw LocalModelError.notInstalled }
         let repo = role == .tagger ? ModelCatalog.taggerRepo : ModelCatalog.pageRepo
         let disk = HubWeights.snapshot(for: repo)
         Self.log.info("Make model role=\(role.rawValue, privacy: .public) repo=\(disk.repo, privacy: .public) path=\(disk.path, privacy: .public) bytes=\(disk.bytes) config=\(disk.hasConfig) safetensors=\(disk.safetensorsCount)")

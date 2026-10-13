@@ -14,6 +14,7 @@ final class AppSession {
     var focusedModel: ModelRole?
     var resumeAfterInterruption = false
     var preferTaggerForPage: Bool
+    var speechEngine: SpeechEngine
 
     init() {
         let defaults = UserDefaults.standard
@@ -27,6 +28,7 @@ final class AppSession {
         let storedAppearance = defaults.string(forKey: AppPreferences.appearanceKey) ?? AppAppearance.system.rawValue
         appearance = AppAppearance(rawValue: storedAppearance) ?? .system
         preferTaggerForPage = defaults.bool(forKey: AppPreferences.pagePrefersTaggerKey)
+        speechEngine = SpeechEngine(rawValue: defaults.string(forKey: AppPreferences.speechEngineKey) ?? "") ?? .apple
     }
 
     func setAppearance(_ appearance: AppAppearance) {
@@ -42,6 +44,11 @@ final class AppSession {
     func setPreferTaggerForPage(_ preferTagger: Bool) {
         UserDefaults.standard.set(preferTagger, forKey: AppPreferences.pagePrefersTaggerKey)
         preferTaggerForPage = preferTagger
+    }
+
+    func setSpeechEngine(_ engine: SpeechEngine) {
+        UserDefaults.standard.set(engine.rawValue, forKey: AppPreferences.speechEngineKey)
+        speechEngine = engine
     }
 
     var locale: Locale { Locale(identifier: languageCode) }

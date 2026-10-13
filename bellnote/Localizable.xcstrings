@@ -162,6 +162,54 @@
         }
       }
     },
+    "Apple Dictation" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple Dictation"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple dikte"
+          }
+        }
+      }
+    },
+    "Apple Dictation writes the words." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple Dictation writes the words."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kelimeleri Apple dikte yazar."
+          }
+        }
+      }
+    },
+    "Ask and the page use this downloaded model." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ask and the page use this downloaded model."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sor ve ders sayfası bu indirilen modeli kullanır."
+          }
+        }
+      }
+    },
     "Assignments" : {
       "localizations" : {
         "en" : {
@@ -383,6 +431,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "2B silinsin mi?"
+          }
+        }
+      }
+    },
+    "Delete Qwen ASR?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete Qwen ASR?"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Qwen ASR silinsin mi?"
           }
         }
       }
@@ -779,6 +843,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Programı içe aktar"
+          }
+        }
+      }
+    },
+    "Incompletely installed" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Incompletely installed"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eksik yüklendi"
           }
         }
       }
@@ -1402,6 +1482,38 @@
         }
       }
     },
+    "Qwen ASR" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Qwen ASR"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Qwen ASR"
+          }
+        }
+      }
+    },
+    "Qwen ASR is saved. It does not write yet." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Qwen ASR is saved. It does not write yet."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Qwen ASR kayda geçer. Henüz cümle yazmaz."
+          }
+        }
+      }
+    },
     "Page model" : {
       "localizations" : {
         "en" : {
@@ -1530,34 +1642,18 @@
         }
       }
     },
-    "Process again?" : {
+    "Process" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Process again?"
+            "value" : "Process"
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tekrar işlensin mi?"
-          }
-        }
-      }
-    },
-    "The written notes will be deleted. The recording stays." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The written notes will be deleted. The recording stays."
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Yazılan metin silinir. Ses kaydı durur."
+            "value" : "İşle"
           }
         }
       }
@@ -1578,18 +1674,18 @@
         }
       }
     },
-    "Process" : {
+    "Process again?" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Process"
+            "value" : "Process again?"
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "İşle"
+            "value" : "Tekrar işlensin mi?"
           }
         }
       }
@@ -2226,6 +2322,22 @@
         }
       }
     },
+    "Transcript" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Transcript"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Transkript"
+          }
+        }
+      }
+    },
     "The recording could not be read." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2273,6 +2385,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Transkript kalite kontrolünden geçemedi."
+          }
+        }
+      }
+    },
+    "The written notes will be deleted. The recording stays." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The written notes will be deleted. The recording stays."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yazılan metin silinir. Ses kaydı durur."
           }
         }
       }
@@ -2456,6 +2584,7 @@
       }
     },
     "Used when writing the lecture page." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
