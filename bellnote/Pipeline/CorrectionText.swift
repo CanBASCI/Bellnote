@@ -24,10 +24,38 @@ enum CorrectionText {
                 if !task.isEmpty { assignments.append(task) }
                 continue
             }
+            // The model sometimes adds its own comment, such as "Note: there are no assignments".
+            if isCommentary(bare) { continue }
             body.append(line)
         }
         let text = body.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
         return Parts(body: text, assignments: assignments)
+    }
+
+    private static let commentaryPrefixes = [
+        "note:", "notes:", "note -", "(note", "not:", "açıklama:", "explanation:", "comment:",
+        "corrected text:", "düzeltilmiş metin:",
+    ]
+
+    /// A line the model wrote about its own answer instead of as part of the lecture text.
+    static func isCommentary(_ line: String) -> Bool {
+        let lower = line.lowercased(with: Locale(identifier: "en"))
+        if commentaryPrefixes.contains(where: { lower.hasPrefix($0) }) { return true }
+        return lower.contains("no specific assignment") || lower.contains("no assignments")
+    }
+
+    private static let homeworkCues = [
+        "ödev", "sorumlu", "teslim", "haftaya", "getirin", "getirmeniz", "hazırlayın", "hazırlamanız",
+        "araştırın", "araştırmanız", "okuyun", "okumanız", "yapın", "yapmanız", "yazın", "yazmanız",
+        "çözün", "çalışın", "çalışmanız", "inceleyin", "ezberleyin", "bitirin", "gönderin", "gelirken",
+        "homework", "assignment", "due ", "hand in", "submit", "responsible for", "read chapter",
+    ]
+
+    /// Whether the spoken text contains a word a teacher uses when giving homework.
+    /// The model alone is not trusted: it once turned "you will learn" into a task.
+    static func hasHomeworkCue(_ text: String) -> Bool {
+        let lower = text.lowercased(with: Locale(identifier: "tr"))
+        return homeworkCues.contains { lower.contains($0) }
     }
 
     /// The text without highlight markers, for lists, previews and reading aloud.

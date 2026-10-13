@@ -130,7 +130,7 @@ actor LocalModelRuntime {
             let limit = min(1500, text.count / 2 + 300)
             let response = try await session.respond(
                 to: "Text:\n\(text)\n\nCorrected text:",
-                options: GenerationOptions(maximumResponseTokens: limit)
+                options: GenerationOptions(temperature: 0, maximumResponseTokens: limit)
             )
             let output = response.content.trimmingCharacters(in: .whitespacesAndNewlines)
             Self.log.info("Correct ok characters=\(output.count) text=\(output, privacy: .public)")
@@ -350,16 +350,24 @@ actor LocalModelRuntime {
 
     private var correctionInstructions: String {
         """
-        You are a proofreader. Rewrite the text in the same language with correct spelling, \
-        punctuation, capital letters and natural word order. Keep every idea. \
-        Do not summarise, shorten, translate or add facts. \
+        You proofread a transcript of a spoken lecture. The text comes from speech recognition: \
+        it has little punctuation and some misheard words. Work in the same language. \
+        1. Add punctuation, capital letters and sentence breaks. \
+        2. Put each sentence in normal word order, for example the verb at the end in Turkish. \
+        3. Change a word only when it is clearly misheard and the right word sounds almost the \
+        same, for example halini to elini. Otherwise copy the word exactly, including informal \
+        words like abi or hocam. Keep the person and tense endings as they are. \
+        4. If a part makes no sense, keep those words as they are. Never guess a new meaning, \
+        never add, remove or replace ideas, and never summarise, shorten or translate. \
+        Example text: bugün sinavda cikacak konulari anlatiyorum herkes halini kaldirsin \
+        Example result: Bugün sınavda çıkacak konuları anlatıyorum. Herkes elini kaldırsın. \
         Wrap short important phrases in double asterisks, like **this**: terms, names, numbers \
         and dates. Never wrap whole sentences. \
         Only when the teacher clearly gives homework, or says the students are responsible for \
         something, add a line after the text that starts with ASSIGNMENT: followed by that task \
         in the teacher's own words, copied from the text. Never invent a task. \
-        Most texts have none. Then write no ASSIGNMENT line. \
-        Write only the corrected text. Thinking is off.
+        Output the corrected text and nothing else: no notes, comments, explanations or \
+        remarks about the text, and never say that something is missing. Thinking is off.
         """
     }
 

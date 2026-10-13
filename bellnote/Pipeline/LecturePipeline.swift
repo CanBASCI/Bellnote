@@ -263,9 +263,11 @@ enum LecturePipeline {
                 if faithful {
                     paragraphs.append(parts.body)
                     // A task must be made of words the teacher said, otherwise the model invented it.
-                    let spokenTasks = parts.assignments.filter { CorrectionText.overlap($0, chunk) >= 0.6 }
+                    // A real homework also needs a word like "ödev" or "teslim" in the spoken text.
+                    let cue = CorrectionText.hasHomeworkCue(chunk)
+                    let spokenTasks = parts.assignments.filter { cue && CorrectionText.overlap($0, chunk) >= 0.6 }
                     if spokenTasks.count < parts.assignments.count {
-                        log.warning("Assignment dropped, not in the spoken text count=\(parts.assignments.count - spokenTasks.count)")
+                        log.warning("Assignment dropped count=\(parts.assignments.count - spokenTasks.count) homeworkCue=\(cue)")
                     }
                     tasks.append(contentsOf: spokenTasks)
                 } else {
