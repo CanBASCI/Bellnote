@@ -18,7 +18,8 @@ struct TermEditor: View {
                 Stepper(value: $year, in: 1...12) {
                     Text("Year \(year)")
                 }
-                Stepper(value: $termNumber, in: 1...4) {
+                // A year of study has at most two terms.
+                Stepper(value: $termNumber, in: 1...2) {
                     Text("Term \(termNumber)")
                 }
                 TextField("Name", text: $name)
@@ -1319,31 +1320,102 @@ struct StudySheet: View {
     var mode: StudyMode
     @Environment(\.dismiss) private var dismiss
     @State private var prompt = ""
+    @State private var asked = ""
     @State private var answer = ""
+    @State private var busy = false
     @State private var reader = SpeechReader()
     private static let log = Logger(subsystem: "app.bellnote", category: "study")
 
+    private var suggestions: [String] {
+        [
+            String(localized: "What are the assignments?"),
+            String(localized: "What is on the exam?"),
+        ]
+    }
+
     var body: some View {
         NavigationStack {
-            List {
-                Section {
-                    TextField(mode == .ask ? "Ask" : "Quiz", text: $prompt)
-                    Button("Run") { Task { await run() } }
-                }
-                if !answer.isEmpty {
-                    Section {
-                        Text(answer)
-                        Button(reader.isSpeaking ? "Stop" : "Listen") {
-                            if reader.isSpeaking {
-                                reader.stop()
-                            } else {
-                                reader.read(answer, locale: Locale(identifier: course.localeIdentifier))
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    if !asked.isEmpty {
+                        Text(asked)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 10)
+                            .foregroundStyle(.white)
+                            .background(Color.accentColor, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                            .frame(maxWidth: .infinity, alignment: .trailing)
+                    }
+                    if busy {
+                        ProgressView()
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 10)
+                    }
+                    if !answer.isEmpty {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(answer)
+                                .textSelection(.enabled)
+                            Button(reader.isSpeaking ? "Stop" : "Listen", systemImage: reader.isSpeaking ? "stop.fill" : "speaker.wave.2.fill") {
+                                if reader.isSpeaking {
+                                    reader.stop()
+                                } else {
+                                    reader.read(answer, locale: Locale(identifier: course.localeIdentifier))
+                                }
                             }
+                            .buttonStyle(.glass)
+                            .controlSize(.small)
                         }
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 10)
+                        .background(Color(.secondarySystemFill), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    if asked.isEmpty {
+                        Text("Answers come only from your lectures.")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
                     }
                 }
+                .padding()
+            }
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                VStack(spacing: 10) {
+                    if mode == .ask {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 8) {
+                                ForEach(suggestions, id: \.self) { suggestion in
+                                    Button(suggestion) {
+                                        prompt = suggestion
+                                        Task { await run() }
+                                    }
+                                    .buttonStyle(.bordered)
+                                    .buttonBorderShape(.capsule)
+                                    .controlSize(.small)
+                                }
+                            }
+                        }
+                        .scrollClipDisabled()
+                    }
+                    HStack(spacing: 8) {
+                        TextField(mode == .ask ? "Ask a question" : "Quiz", text: $prompt)
+                            .textFieldStyle(.plain)
+                            .submitLabel(.send)
+                            .onSubmit { Task { await run() } }
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 12)
+                            .glassEffect(.regular, in: .capsule)
+                        Button("Run", systemImage: "arrow.up") { Task { await run() } }
+                            .labelStyle(.iconOnly)
+                            .buttonStyle(.glassProminent)
+                            .buttonBorderShape(.circle)
+                            .controlSize(.large)
+                            .disabled(busy || prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    }
+                }
+                .padding(.horizontal)
+                .padding(.bottom, 8)
             }
             .navigationTitle(mode == .ask ? "Ask" : "Quiz")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } }
             }
@@ -1352,7 +1424,18 @@ struct StudySheet: View {
     }
 
     private func run() async {
-        Self.log.info("Study run tapped mode=\(mode == .ask ? "ask" : "quiz", privacy: .public) lectures=\(course.lectures.count) question=\(prompt, privacy: .public)")
+        let question = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !question.isEmpty, !busy else { return }
+        asked = question
+        answer = ""
+        busy = true
+        prompt = ""
+        defer { busy = false }
+        await ask(question)
+    }
+
+    private func ask(_ question: String) async {
+        Self.log.info("Study run tapped mode=\(mode == .ask ? "ask" : "quiz", privacy: .public) lectures=\(course.lectures.count) question=\(question, privacy: .public)")
         let blocks = course.lectures.flatMap { lecture in
             lecture.blocks.map { block in
                 StudyBlock(
@@ -1392,7 +1475,7 @@ struct StudySheet: View {
             )
         }
         do {
-            let reply = try await LocalModelRuntime.shared.answer(question: prompt, tags: tags)
+            let reply = try await LocalModelRuntime.shared.answer(question: question, tags: tags)
             let missing = reply.contains("NOT_IN_NOTES") || reply.isEmpty
             Self.log.info("Study answer shown notInNotes=\(missing) characters=\(reply.count)")
             answer = missing ? String(localized: "The lectures do not contain that.") : reply

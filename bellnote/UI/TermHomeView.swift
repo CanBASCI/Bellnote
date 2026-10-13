@@ -35,6 +35,7 @@ struct TermHomeView: View {
                     }
                     .tabItem { Label("Settings", systemImage: "gearshape") }
                 }
+                .tabBarMinimizeBehavior(.onScrollDown)
             } else {
                 NavigationStack {
                     ContentUnavailableView {
@@ -123,7 +124,7 @@ struct TodayPage: View {
             }
             ToolbarItem(placement: .primaryAction) {
                 Button("New course", systemImage: "plus") { showCourse = true }
-                    .labelStyle(.titleAndIcon)
+                    .labelStyle(.iconOnly)
             }
         }
         .sheet(isPresented: $showConsent) {
@@ -186,43 +187,50 @@ struct TodayPage: View {
     @ViewBuilder
     private func hero(_ slot: WeeklySlot) -> some View {
         let soon = slot.weekday == Calendar.current.component(.weekday, from: .now)
-        VStack(alignment: .leading, spacing: 8) {
+        let name = slot.course?.name ?? String(localized: "Course")
+        VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 8) {
-                if soon {
-                    RoundedRectangle(cornerRadius: 4, style: .continuous)
-                        .fill(Color.pink)
-                        .frame(width: 14, height: 14)
-                        .accessibilityHidden(true)
-                }
+                CourseBadge(name: name, size: 28)
                 Text(status(for: slot))
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(soon ? Color.accentColor : Color.secondary)
             }
-            Text(slot.course?.name ?? String(localized: "Course"))
-                .font(.title2.weight(.semibold))
-            Text(slotDetail(slot))
+            Text(name)
+                .font(.largeTitle.bold())
+                .minimumScaleFactor(0.7)
+                .lineLimit(2)
+            Label(slotDetail(slot), systemImage: "clock")
+                .font(.subheadline)
                 .foregroundStyle(.secondary)
             if let course = slot.course {
-                Button("Record") { recordCourse = course; showConsent = true }
-                    .buttonStyle(.glassProminent)
+                Button {
+                    recordCourse = course
+                    showConsent = true
+                } label: {
+                    Label("Start recording", systemImage: "record.circle.fill")
+                        .symbolRenderingMode(.monochrome)
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.glassProminent)
+                .controlSize(.large)
+                .tint(.red)
+                .padding(.top, 4)
             }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 6)
     }
 
     private func noteRow(_ course: Course) -> some View {
-        HStack(alignment: .center, spacing: 10) {
-            Capsule()
-                .fill(Color.green)
-                .frame(width: 3)
-                .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 4) {
+        HStack(alignment: .top, spacing: 12) {
+            CourseBadge(name: course.name)
+            VStack(alignment: .leading, spacing: 3) {
                 Text(course.name)
                     .font(.headline)
                 Text(excerpt(course))
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
-                    .lineLimit(3)
+                    .lineLimit(2)
                 if let meta = noteMeta(course) {
                     Text(meta)
                         .font(.footnote)
@@ -230,6 +238,7 @@ struct TodayPage: View {
                 }
             }
         }
+        .padding(.vertical, 2)
     }
 
     private func status(for slot: WeeklySlot) -> String {

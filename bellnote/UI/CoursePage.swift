@@ -52,6 +52,16 @@ struct CoursePage: View {
                 .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
             }
+            Section {
+                HStack(spacing: 10) {
+                    statTile(value: lectures.count, title: "Recordings")
+                    statTile(value: course.assignments.filter { !$0.done }.count, title: "Assignments")
+                    statTile(value: course.sittings.count, title: "Exams")
+                }
+                .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+            }
             Section("Lectures") {
                 if lectures.isEmpty {
                     Text("No lectures yet.")
@@ -61,12 +71,14 @@ struct CoursePage: View {
                     NavigationLink {
                         LecturePage(lecture: lecture)
                     } label: {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(lecture.startedAt.formatted(date: .abbreviated, time: .shortened))
-                            Text(LectureState(rawValue: lecture.state)?.title ?? lecture.state)
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                        }
+                        lectureRow(lecture)
+                    }
+                }
+            }
+            if !course.assignments.isEmpty {
+                Section("Assignments") {
+                    ForEach(course.assignments.sorted { ($0.due ?? .distantFuture) < ($1.due ?? .distantFuture) }) { assignment in
+                        AssignmentRow(assignment: assignment)
                     }
                 }
             }
@@ -113,6 +125,53 @@ struct CoursePage: View {
 
     private var lectures: [Lecture] {
         course.lectures.sorted { $0.startedAt > $1.startedAt }
+    }
+
+    private func statTile(value: Int, title: LocalizedStringKey) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(value, format: .number)
+                .font(.title2.weight(.bold).monospacedDigit())
+            Text(title)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .accessibilityElement(children: .combine)
+    }
+
+    private func lectureRow(_ lecture: Lecture) -> some View {
+        let state = LectureState(rawValue: lecture.state)
+        return VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text(lecture.startedAt.formatted(.dateTime.day().month(.abbreviated).hour().minute()))
+                    .font(.headline)
+                if lecture.recordedSeconds >= 60 {
+                    Text(String(format: String(localized: "%lld min"), lecture.recordedSeconds / 60))
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 8)
+                StatusChip(title: state?.title ?? lecture.state, tint: state?.tint ?? .gray)
+            }
+            let excerpt = preview(lecture)
+            if !excerpt.isEmpty {
+                Text(excerpt)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+        }
+        .padding(.vertical, 2)
+    }
+
+    private func preview(_ lecture: Lecture) -> String {
+        let summary = lecture.summary.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !summary.isEmpty else { return "" }
+        return CorrectionText.plain(summary)
     }
 
     private func ensureLecturer() {

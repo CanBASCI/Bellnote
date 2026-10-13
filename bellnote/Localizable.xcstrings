@@ -60,6 +60,7 @@
       }
     },
     "%lld open" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -126,6 +127,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ders ekle"
+          }
+        }
+      }
+    },
+    "AI correction" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI correction"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI düzeltme"
+          }
+        }
+      }
+    },
+    "Answers come only from your lectures." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Answers come only from your lectures."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cevap yalnızca derslerinden gelir."
           }
         }
       }
@@ -227,6 +260,22 @@
         }
       }
     },
+    "Ask a question" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ask a question"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bir soru sor"
+          }
+        }
+      }
+    },
     "Ask and the page use this downloaded model." : {
       "localizations" : {
         "en" : {
@@ -307,23 +356,8 @@
         }
       }
     },
-    "AI correction" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "AI correction"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "AI düzeltme"
-          }
-        }
-      }
-    },
     "Chapters" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -863,6 +897,7 @@
       }
     },
     "Hello, I am %@." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -874,6 +909,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Merhaba, ben %@."
+          }
+        }
+      }
+    },
+    "Hello, I am female voice %lld." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hello, I am female voice %lld."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Merhaba, ben kadın sesi %lld."
+          }
+        }
+      }
+    },
+    "Hello, I am male voice %lld." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hello, I am male voice %lld."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Merhaba, ben erkek sesi %lld."
           }
         }
       }
@@ -1057,6 +1124,7 @@
       }
     },
     "Less" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1237,6 +1305,7 @@
       }
     },
     "More" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1364,6 +1433,38 @@
         }
       }
     },
+    "No AI correction yet." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No AI correction yet."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Henüz AI düzeltme yok."
+          }
+        }
+      }
+    },
+    "No assignments yet." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No assignments yet."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Henüz ödev yok."
+          }
+        }
+      }
+    },
     "No class" : {
       "localizations" : {
         "en" : {
@@ -1442,22 +1543,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Eşleşen not yok."
-          }
-        }
-      }
-    },
-    "No AI correction yet." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No AI correction yet."
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Henüz AI düzeltme yok."
           }
         }
       }
@@ -1608,6 +1693,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Tamam"
+          }
+        }
+      }
+    },
+    "On this device" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "On this device"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cihazda kalır"
           }
         }
       }
@@ -2110,6 +2211,22 @@
         }
       }
     },
+    "Recordings" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recordings"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kayıtlar"
+          }
+        }
+      }
+    },
     "Resume" : {
       "localizations" : {
         "en" : {
@@ -2332,6 +2449,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Başlangıç"
+          }
+        }
+      }
+    },
+    "Start recording" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Start recording"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kaydı başlat"
           }
         }
       }
@@ -2903,6 +3036,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Gün"
+          }
+        }
+      }
+    },
+    "What are the assignments?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "What are the assignments?"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ödevler neler?"
+          }
+        }
+      }
+    },
+    "What is on the exam?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "What is on the exam?"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sınavda neler var?"
           }
         }
       }

@@ -58,15 +58,24 @@ struct RecorderSheet: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 20) {
-                VStack(spacing: 8) {
-                    RoundedRectangle(cornerRadius: 5, style: .continuous)
-                        .fill(capture.isRunning ? Color.pink : Color.secondary.opacity(0.45))
-                        .frame(width: 16, height: 16)
-                        .accessibilityLabel(Text("Recording"))
-                    Text(capture.isRunning ? "Recording" : "Paused")
-                        .foregroundStyle(.secondary)
+                VStack(spacing: 10) {
+                    Label("On this device", systemImage: "lock.fill")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.green)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 4)
+                        .background(Color.green.opacity(0.15), in: Capsule())
                     Text(MediaClock.full(elapsed))
-                        .font(.system(size: 44, weight: .semibold, design: .rounded).monospacedDigit())
+                        .font(.system(size: 56, weight: .semibold, design: .rounded).monospacedDigit())
+                        .contentTransition(.numericText())
+                    Image(systemName: "waveform")
+                        .font(.system(size: 44, weight: .medium))
+                        .foregroundStyle(capture.isRunning ? Color.accentColor : Color.secondary)
+                        .symbolEffect(.variableColor.iterative, isActive: capture.isRunning)
+                        .accessibilityHidden(true)
+                    Text(capture.isRunning ? "Recording" : "Paused")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
                 }
                 .padding(.top, 12)
                 if let failed {
@@ -94,23 +103,23 @@ struct RecorderSheet: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
-                VStack(spacing: 12) {
-                    HStack(spacing: 12) {
-                        Button(capture.isRunning ? "Pause" : "Resume") {
+                GlassEffectContainer(spacing: 28) {
+                    HStack(alignment: .top, spacing: 28) {
+                        controlButton(
+                            capture.isRunning ? "Pause" : "Resume",
+                            systemImage: capture.isRunning ? "pause.fill" : "play.fill"
+                        ) {
                             if capture.isRunning {
                                 pause()
                             } else {
                                 Task { await resume() }
                             }
                         }
-                        .buttonStyle(.glass)
-                        Button("I didn't get this") { flag() }
-                            .buttonStyle(.glass)
+                        controlButton("Stop", systemImage: "stop.fill", prominent: true) { askStop = true }
+                        controlButton("I didn't get this", systemImage: "flag.fill") { flag() }
                     }
-                    Button("Stop") { askStop = true }
-                        .buttonStyle(.glassProminent)
-                        .controlSize(.large)
                 }
+                .padding(.bottom, 8)
             }
             .padding()
             .navigationTitle(lecture.course?.name ?? "")
@@ -127,6 +136,45 @@ struct RecorderSheet: View {
         .confirmationDialog("Resume recording?", isPresented: $askResume) {
             Button("Resume") { Task { await resume() } }
             Button("Stay paused", role: .cancel) {}
+        }
+    }
+
+    /// A round system glass button with its name under it. Stop is the large red one.
+    @ViewBuilder
+    private func controlButton(
+        _ title: LocalizedStringKey,
+        systemImage: String,
+        prominent: Bool = false,
+        action: @escaping () -> Void
+    ) -> some View {
+        VStack(spacing: 6) {
+            if prominent {
+                Button(action: action) {
+                    Image(systemName: systemImage)
+                        .font(.title)
+                        .frame(width: 44, height: 44)
+                }
+                .buttonStyle(.glassProminent)
+                .buttonBorderShape(.circle)
+                .controlSize(.large)
+                .tint(.red)
+                .accessibilityLabel(Text(title))
+            } else {
+                Button(action: action) {
+                    Image(systemName: systemImage)
+                        .font(.title3)
+                        .frame(width: 32, height: 32)
+                }
+                .buttonStyle(.glass)
+                .buttonBorderShape(.circle)
+                .controlSize(.large)
+                .accessibilityLabel(Text(title))
+            }
+            Text(title)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .frame(width: 84)
         }
     }
 

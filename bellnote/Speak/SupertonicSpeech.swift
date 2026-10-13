@@ -19,9 +19,13 @@ enum SupertonicVoice {
         return String(format: String(localized: "Male %lld", locale: locale), speaker - 4)
     }
 
+    /// The line spoken when a voice is tapped, so the student hears the tone and its number.
     static func greeting(_ speaker: Int, locale: Locale) -> String {
-        let name = title(speaker, locale: locale)
-        return String(format: String(localized: "Hello, I am %@.", locale: locale), name)
+        let speaker = clamped(speaker)
+        if speaker < 5 {
+            return String(format: String(localized: "Hello, I am female voice %lld.", locale: locale), speaker + 1)
+        }
+        return String(format: String(localized: "Hello, I am male voice %lld.", locale: locale), speaker - 4)
     }
 }
 

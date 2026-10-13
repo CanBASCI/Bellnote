@@ -9,7 +9,19 @@ struct LecturePage: View {
     var body: some View {
         LectureNote(lecture: lecture, showsDate: false)
             .navigationTitle(lecture.startedAt.formatted(date: .abbreviated, time: .shortened))
+            .navigationSubtitle(subtitle)
     }
+
+    private var subtitle: String {
+        guard lecture.recordedSeconds >= 60 else { return "" }
+        return String(format: String(localized: "%lld min"), lecture.recordedSeconds / 60)
+    }
+}
+
+private enum LectureTab: Hashable {
+    case correction
+    case raw
+    case assignments
 }
 
 struct LectureNote: View {
@@ -28,7 +40,7 @@ struct LectureNote: View {
     @State private var choosingSpeaker = false
     @State private var typingSpeaker = false
     @State private var typedSpeakerName = ""
-    @State private var summaryExpanded = false
+    @State private var tab: LectureTab = .correction
 
     var body: some View {
         List {
@@ -39,112 +51,53 @@ struct LectureNote: View {
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
-            } else if lecture.audioRelativePath != nil {
+            }
+            if showsDate {
                 Section {
-                    Button(lecture.state == LectureState.ready.rawValue ? "Process again" : "Process") {
-                        if lecture.state == LectureState.ready.rawValue {
+                    Text(lecture.startedAt.formatted(date: .abbreviated, time: .omitted))
+                        .font(.title2.weight(.semibold))
+                }
+            }
+            Section {
+                Picker("", selection: $tab) {
+                    Text("AI correction").tag(LectureTab.correction)
+                    Text("Raw").tag(LectureTab.raw)
+                    Text("Assignments").tag(LectureTab.assignments)
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .listRowBackground(Color.clear)
+                .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
+            }
+            switch tab {
+            case .correction:
+                correctionSections
+            case .raw:
+                rawSections
+            case .assignments:
+                assignmentSections
+            }
+        }
+        .listStyle(.insetGrouped)
+        .toolbar {
+            if lecture.audioRelativePath != nil {
+                ToolbarItem(placement: .primaryAction) {
+                    let again = lecture.state == LectureState.ready.rawValue
+                    Button(
+                        again ? "Process again" : "Process",
+                        systemImage: again ? "arrow.clockwise" : "waveform.badge.magnifyingglass"
+                    ) {
+                        if again {
                             askReprocess = true
                         } else {
                             fluidGate.request { await process() }
                         }
                     }
-                }
-            }
-            Section {
-                if showsDate {
-                    Text(lecture.startedAt.formatted(date: .abbreviated, time: .omitted))
-                        .font(.title2.weight(.semibold))
-                }
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("AI correction")
-                        .font(.footnote.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                    Text(CorrectionText.attributed(bodyText))
-                        .lineLimit(summaryExpanded ? nil as Int? : 5)
-                    if isLongSummary {
-                        Button(summaryExpanded ? "Less" : "More") {
-                            withAnimation { summaryExpanded.toggle() }
-                        }
-                        .font(.subheadline)
-                        .buttonStyle(.borderless)
-                    }
-                }
-                if let course = lecture.course {
-                    HStack(spacing: 8) {
-                        Button("Ask") {
-                            studyMode = .ask
-                            showStudy = true
-                        }
-                        .buttonStyle(.bordered)
-                        Button(quizTitle(course)) {
-                            studyMode = .quiz
-                            showStudy = true
-                        }
-                        .buttonStyle(.bordered)
-                        Button(reader.isSpeaking ? "Stop" : "Listen") {
-                            if reader.isSpeaking {
-                                reader.stop()
-                            } else {
-                                listen(course)
-                            }
-                        }
-                        .buttonStyle(.bordered)
-                    }
-                    .padding(.top, 4)
-                }
-            }
-            if !chapters.isEmpty || !lecture.flaggedSeconds.isEmpty {
-                Section("Chapters") {
-                    ForEach(chapters) { block in
-                        chapterLabel(block)
-                    }
-                    ForEach(Array(orphanFlags.enumerated()), id: \.offset) { _, second in
-                        Button {
-                            audio.seek(to: second, play: true)
-                        } label: {
-                            HStack(alignment: .firstTextBaseline, spacing: 12) {
-                                Text(MediaClock.short(second))
-                                    .font(.subheadline.monospacedDigit())
-                                    .foregroundStyle(.secondary)
-                                    .frame(width: 52, alignment: .leading)
-                                Text("I didn't get this")
-                            }
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-            }
-            if let course = lecture.course, !course.assignments.isEmpty {
-                Section {
-                    Button {
-                        showAssignments = true
-                    } label: {
-                        if openCount(course) == 0 {
-                            Text("Assignments")
-                        } else {
-                            LabeledContent("Assignments", value: String(format: String(localized: "%lld open"), openCount(course)))
-                        }
-                    }
-                }
-            }
-            if !lecture.blocks.isEmpty {
-                Section {
-                    DisclosureGroup("Raw") {
-                        ForEach(lecture.blocks.sorted { $0.second < $1.second }) { block in
-                            VStack(alignment: .leading, spacing: 2) {
-                                if block.speaker > 0 {
-                                    Text(verbatim: "\(speakerTitle(block.speaker)) · \(MediaClock.short(block.second))")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                }
-                                Text(verbatim: block.text)
-                            }
-                        }
-                    }
+                    .labelStyle(.iconOnly)
+                    .disabled(workingStage != nil)
                 }
             }
         }
-        .listStyle(.insetGrouped)
         .safeAreaInset(edge: .bottom, spacing: 0) {
             if audio.duration > 0 {
                 playback
@@ -200,12 +153,112 @@ struct LectureNote: View {
         }
     }
 
+    @ViewBuilder
+    private var correctionSections: some View {
+        Section {
+            Text(CorrectionText.attributed(bodyText))
+                .font(.body)
+                .lineSpacing(4)
+                .textSelection(.enabled)
+        }
+        if let course = lecture.course {
+            Section {
+                GlassEffectContainer(spacing: 8) {
+                    HStack(spacing: 8) {
+                        Button("Ask", systemImage: "sparkles") {
+                            studyMode = .ask
+                            showStudy = true
+                        }
+                        Button(quizTitle(course), systemImage: "checklist") {
+                            studyMode = .quiz
+                            showStudy = true
+                        }
+                        Button(reader.isSpeaking ? "Stop" : "Listen", systemImage: reader.isSpeaking ? "stop.fill" : "speaker.wave.2.fill") {
+                            if reader.isSpeaking {
+                                reader.stop()
+                            } else {
+                                listen(course)
+                            }
+                        }
+                    }
+                    .buttonStyle(.glass)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                }
+                .frame(maxWidth: .infinity)
+                .listRowBackground(Color.clear)
+                .listRowInsets(EdgeInsets())
+            }
+        }
+    }
+
+    /// Exactly what Apple dictation returned, one block per speaker turn.
+    @ViewBuilder
+    private var rawSections: some View {
+        let blocks = lecture.blocks
+            .filter { !$0.text.isEmpty }
+            .sorted { $0.second < $1.second }
+        if blocks.isEmpty && lecture.flaggedSeconds.isEmpty {
+            Section {
+                Text("No lectures yet.")
+                    .foregroundStyle(.secondary)
+            }
+        } else {
+            Section {
+                ForEach(blocks) { block in
+                    chapterLabel(block)
+                }
+                ForEach(Array(orphanFlags.enumerated()), id: \.offset) { _, second in
+                    Button {
+                        audio.seek(to: second, play: true)
+                    } label: {
+                        HStack(alignment: .firstTextBaseline, spacing: 12) {
+                            Text(MediaClock.short(second))
+                                .font(.subheadline.monospacedDigit())
+                                .foregroundStyle(.secondary)
+                                .frame(width: 52, alignment: .leading)
+                            Text("I didn't get this")
+                        }
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var assignmentSections: some View {
+        let own = lectureAssignments
+        Section {
+            if own.isEmpty {
+                Text("No assignments yet.")
+                    .foregroundStyle(.secondary)
+            }
+            ForEach(own) { assignment in
+                AssignmentRow(assignment: assignment)
+            }
+        }
+        if let course = lecture.course, course.assignments.count > own.count {
+            Section {
+                Button("Assignments") { showAssignments = true }
+            }
+        }
+    }
+
+    /// Homework that came from this lecture's own text.
+    private var lectureAssignments: [Assignment] {
+        guard let course = lecture.course else { return [] }
+        let ids = Set(lecture.blocks.map(\.token))
+        return course.assignments.filter { ids.contains($0.sourceBlockID) }
+    }
+
     private var playback: some View {
         HStack(spacing: 12) {
             Button(audio.isPlaying ? "Pause" : "Play", systemImage: audio.isPlaying ? "pause.fill" : "play.fill") {
                 audio.toggle()
             }
             .labelStyle(.iconOnly)
+            .buttonStyle(.glass)
             Text(MediaClock.short(audio.currentSecond))
                 .font(.caption.monospacedDigit())
                 .foregroundStyle(.secondary)
@@ -220,13 +273,11 @@ struct LectureNote: View {
                 .font(.caption.monospacedDigit())
                 .foregroundStyle(.tertiary)
         }
-        .padding(.horizontal)
-        .padding(.vertical, 10)
-        .background(.bar)
-    }
-
-    private var isLongSummary: Bool {
-        CorrectionText.plain(bodyText).count > 160 || bodyText.contains("\n")
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+        .glassEffect(.regular, in: .capsule)
+        .padding(.horizontal, 16)
+        .padding(.bottom, 8)
     }
 
     private var bodyText: String {
@@ -252,46 +303,44 @@ struct LectureNote: View {
 
     private func chapterLabel(_ block: Block) -> some View {
         let current = isCurrent(block)
-        return VStack(alignment: .leading, spacing: 2) {
-            HStack(alignment: .firstTextBaseline, spacing: 12) {
+        return VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                if block.speaker > 0 {
+                    Button {
+                        beginNaming(block.speaker)
+                    } label: {
+                        Text(speakerTitle(block.speaker))
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(Color.accentColor)
+                    }
+                    .buttonStyle(.plain)
+                }
                 Button {
                     audio.seek(to: block.second, play: true)
                 } label: {
                     Text(MediaClock.short(block.second))
                         .font(.subheadline.monospacedDigit())
                         .foregroundStyle(current ? Color.accentColor : Color.secondary)
-                        .frame(width: 52, alignment: .leading)
                 }
                 .buttonStyle(.plain)
-                if block.speaker > 0 {
-                    Button {
-                        beginNaming(block.speaker)
-                    } label: {
-                        Text(speakerTitle(block.speaker))
-                            .font(.subheadline)
-                            .foregroundStyle(Color.accentColor)
-                    }
-                    .buttonStyle(.plain)
-                }
             }
             Button {
                 audio.seek(to: block.second, play: true)
             } label: {
-                Text(MediaClock.sentence(block.text))
+                Text(verbatim: block.text)
                     .foregroundStyle(.primary)
                     .fontWeight(current ? .semibold : .regular)
                     .multilineTextAlignment(.leading)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             .buttonStyle(.plain)
-            .padding(.leading, 64)
             if block.missing || block.userFlag {
                 Text("Missing")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                    .padding(.leading, 64)
             }
         }
+        .padding(.vertical, 2)
     }
 
     private var lecturerName: String? {
