@@ -114,13 +114,16 @@ private final class DiarizerBox: @unchecked Sendable {
     private let lock = NSLock()
     private var prepared = false
 
-    /// Keep voices the first pass already separated. The default mix weight
-    /// collapses a short second and third speaker into the longest one.
+    /// The community defaults (0.6 / 0.07 / 0.8) merged this clip's voices into
+    /// one speaker; 0.45 / 0.3 / 0.5 split them into seven. Keep the softer
+    /// VBx priors, merge the first pass a little more, and cap the count so
+    /// one voice cannot fan out into many.
     private static var lectureConfig: OfflineDiarizerConfig {
         var config = OfflineDiarizerConfig.default
-        config.clustering.threshold = 0.45
+        config.clustering.threshold = 0.6
         config.clustering.warmStartFa = 0.3
         config.clustering.warmStartFb = 0.5
+        config.clustering.maxSpeakers = 4
         return config
     }
 

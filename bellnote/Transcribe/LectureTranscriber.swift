@@ -26,40 +26,53 @@ enum LectureTranscriber {
         locale: Locale,
         runs: [SpeechRun]
     ) async throws -> [TranscriptLine] {
-        let spoken = try await transcribeFile(url: url, locale: locale, keeping: [])
-        let assigned = assign(spoken, to: runs)
-        let speakers = Set(assigned.map(\.speaker).filter { $0 > 0 })
-        log.info("Apple dictation lines=\(assigned.count) speakers=\(speakers.count)")
-        return assigned
-    }
-
-    private static func assign(_ lines: [TranscriptLine], to runs: [SpeechRun]) -> [TranscriptLine] {
-        guard !runs.isEmpty else { return lines }
+        let turns = appleTurns(runs)
+        if turns.isEmpty {
+            let spoken = try await transcribeFile(url: url, locale: locale, keeping: [])
+            log.info("Apple dictation lines=\(spoken.count) speakers=0")
+            return spoken
+        }
         let longest = RoleRules.longestCluster(runs) ?? 1
-        return lines.map { line in
-            guard let run = run(at: line.second, in: runs) else { return line }
-            return TranscriptLine(
-                second: line.second,
-                text: line.text,
-                role: RoleRules.label(run, longestCluster: longest),
-                speaker: run.cluster
+        log.info("Apple dictation turns=\(turns.count) speakers=\(Set(turns.map(\.cluster)).count)")
+        var lines: [TranscriptLine] = []
+        for turn in turns {
+            let clip = try clipAudio(url, from: turn.start, through: turn.end)
+            defer { try? FileManager.default.removeItem(at: clip) }
+            let spoken: [TranscriptLine]
+            do {
+                spoken = try await transcribeFile(url: clip, locale: locale, keeping: [])
+            } catch {
+                log.error(
+                    "Apple dictation turn failed speaker=\(turn.cluster) start=\(turn.start) message=\(error.localizedDescription, privacy: .public)"
+                )
+                continue
+            }
+            let text = spoken
+                .map(\.text)
+                .joined(separator: " ")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let words = text.split(whereSeparator: \.isWhitespace).count
+            log.info(
+                "Apple dictation speaker=\(turn.cluster) start=\(turn.start) seconds=\(turn.end - turn.start) words=\(words) text=\(text, privacy: .public)"
             )
+            guard !text.isEmpty else { continue }
+            lines.append(TranscriptLine(
+                second: turn.start,
+                text: text,
+                role: appleRole(turn, longestCluster: longest),
+                speaker: turn.cluster
+            ))
         }
-    }
-
-    private static func run(at second: Int, in runs: [SpeechRun]) -> SpeechRun? {
-        if let hit = runs.first(where: { second >= $0.start && second < $0.end }) {
-            return hit
+        guard !lines.isEmpty else { throw TranscriptError.qualityFailed }
+        // Number only the speakers that actually have text, in order of appearance.
+        var numbers: [Int: Int] = [:]
+        let numbered = lines.map { line -> TranscriptLine in
+            let number = numbers[line.speaker] ?? numbers.count + 1
+            numbers[line.speaker] = number
+            return TranscriptLine(second: line.second, text: line.text, role: line.role, speaker: number)
         }
-        return runs.min { left, right in
-            distance(left, second: second) < distance(right, second: second)
-        }
-    }
-
-    private static func distance(_ run: SpeechRun, second: Int) -> Int {
-        if second < run.start { return run.start - second }
-        if second > run.end { return second - run.end }
-        return 0
+        log.info("Apple dictation lines=\(numbered.count) speakers=\(numbers.count)")
+        return numbered
     }
 
     static func speakerTurns(_ runs: [SpeechRun]) -> [SpeechRun] {
@@ -77,6 +90,31 @@ enum LectureTranscriber {
             }
         }
         return merged
+    }
+
+    /// Apple dictation only. Qwen keeps `speakerTurns` unchanged.
+    /// Every speaker keeps their own turns. `speakerTurns` drops short or overlapping runs
+    /// of non-lecturers as room noise, which erased the other people here.
+    private static func appleTurns(_ runs: [SpeechRun]) -> [SpeechRun] {
+        let kept = runs
+            .filter { $0.duration >= 2 }
+            .sorted { $0.start < $1.start }
+        var merged: [SpeechRun] = []
+        for run in kept {
+            if var last = merged.last, last.cluster == run.cluster, run.start <= last.end + 1 {
+                last.end = max(last.end, run.end)
+                merged[merged.count - 1] = last
+            } else {
+                merged.append(run)
+            }
+        }
+        return merged
+    }
+
+    /// `.room` blocks are discarded later in the pipeline, so Apple turns never carry it.
+    private static func appleRole(_ turn: SpeechRun, longestCluster: Int) -> SpeakerRole {
+        let role = RoleRules.label(turn, longestCluster: longestCluster)
+        return role == .room ? .unknown : role
     }
 
     private static func transcribeFile(
@@ -407,6 +445,40 @@ enum LectureTranscriber {
         func makeAsyncIterator() -> Iterator {
             Iterator(inputs: inputs)
         }
+    }
+
+    private static func clipAudio(_ url: URL, from start: Int, through end: Int) throws -> URL {
+        let source = try AVAudioFile(forReading: url)
+        let format = source.processingFormat
+        guard format.sampleRate > 0 else { throw TranscriptError.unreadable }
+        let startFrame = min(source.length, AVAudioFramePosition(Double(max(0, start)) * format.sampleRate))
+        let endFrame = min(source.length, AVAudioFramePosition(Double(max(start + 1, end)) * format.sampleRate))
+        guard endFrame > startFrame else { throw TranscriptError.unreadable }
+        let destination = FileManager.default.temporaryDirectory
+            .appendingPathComponent("bellnote-turn-\(UUID().uuidString).caf")
+        let output = try AVAudioFile(
+            forWriting: destination,
+            settings: format.settings,
+            commonFormat: format.commonFormat,
+            interleaved: format.isInterleaved
+        )
+        source.framePosition = startFrame
+        let capacity: AVAudioFrameCount = 8_192
+        do {
+            while source.framePosition < endFrame {
+                let frames = AVAudioFrameCount(min(AVAudioFramePosition(capacity), endFrame - source.framePosition))
+                guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frames) else {
+                    throw TranscriptError.unreadable
+                }
+                try source.read(into: buffer, frameCount: frames)
+                if buffer.frameLength == 0 { break }
+                try output.write(from: buffer)
+            }
+        } catch {
+            try? FileManager.default.removeItem(at: destination)
+            throw error
+        }
+        return destination
     }
 
     private static func preparedAudio(
