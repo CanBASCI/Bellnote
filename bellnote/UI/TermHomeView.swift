@@ -97,6 +97,13 @@ struct TodayPage: View {
                     NavigationLink(value: course) {
                         noteRow(course)
                     }
+                    // Each note is its own glass card. The list keeps the swipe to delete.
+                    .listRowBackground(
+                        RoundedRectangle(cornerRadius: 26, style: .continuous)
+                            .fill(.clear)
+                            .glassEffect(.regular, in: .rect(cornerRadius: 26))
+                    )
+                    .listRowSeparator(.hidden)
                 }
                 .onDelete { offsets in
                     if let index = offsets.first { askDelete(orderedCourses[index]) }
@@ -120,6 +127,7 @@ struct TodayPage: View {
             }
         }
         .listStyle(.insetGrouped)
+        .listRowSpacing(4)
         .navigationTitle("Today")
         .navigationSubtitle(Date.now.formatted(.dateTime.weekday(.wide).day().month(.wide)))
         .navigationDestination(for: Course.self) { course in
@@ -251,6 +259,12 @@ struct TodayPage: View {
             }
         }
         .padding(.vertical, 6)
+        // Glass fills the whole list card; the system already insets that card from the edges.
+        .listRowBackground(
+            RoundedRectangle(cornerRadius: 26, style: .continuous)
+                .fill(.clear)
+                .glassEffect(.regular, in: .rect(cornerRadius: 26))
+        )
     }
 
     private func noteRow(_ course: Course) -> some View {
