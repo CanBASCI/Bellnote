@@ -113,6 +113,8 @@ enum LectureTranscriber {
                         }
                     }
                 }
+            } else {
+                log.info("Speech transcriber unavailable locale=\(candidate.identifier, privacy: .public)")
             }
 
             for preset in dictationPresets {
@@ -318,8 +320,11 @@ enum LectureTranscriber {
         do {
             let lastSample = try await feed(analyzer, file: analysisFile, modules: [module])
             if let lastSample {
+                let seconds = lastSample.seconds
+                log.info("Finalize through seconds=\(seconds)")
                 try await analyzer.finalizeAndFinish(through: lastSample)
             } else {
+                log.info("Finalize through end of input")
                 try await analyzer.finalizeAndFinishThroughEndOfInput()
             }
         } catch {
@@ -343,7 +348,7 @@ enum LectureTranscriber {
         let joined = selected.map(\.text).joined(separator: " ")
         let words = joined.split(whereSeparator: \.isWhitespace).count
         log.info(
-            "Transcript collected lines=\(lines.count) kept=\(selected.count) words=\(words) preview=\(String(joined.prefix(120)), privacy: .public)"
+            "Transcript collected lines=\(lines.count) kept=\(selected.count) words=\(words) audioSeconds=\(audioSeconds) head=\(String(joined.prefix(80)), privacy: .public) tail=\(String(joined.suffix(80)), privacy: .public)"
         )
         guard !selected.isEmpty else {
             throw TranscriptError.qualityFailed
@@ -537,10 +542,17 @@ enum LectureTranscriber {
     ) async throws -> [TranscriptLine] where S.Element: SpeechModuleResult {
         var finals: [TranscriptLine] = []
         var volatileBySecond: [Int: String] = [:]
+        var index = 0
         for try await result in results {
+            index += 1
             let value = text(result).trimmingCharacters(in: .whitespacesAndNewlines)
+            let start = result.range.start.seconds
+            let duration = result.range.duration.seconds
+            log.info(
+                "Transcript result index=\(index) final=\(result.isFinal) start=\(start) duration=\(duration) characters=\(value.count) head=\(String(value.prefix(60)), privacy: .public) tail=\(String(value.suffix(60)), privacy: .public)"
+            )
             guard !value.isEmpty else { continue }
-            let second = max(0, Int(result.range.start.seconds.rounded(.down)))
+            let second = max(0, Int(start.isFinite ? start.rounded(.down) : 0))
             if result.isFinal {
                 finals.append(TranscriptLine(second: second, text: value, role: .narrator))
                 volatileBySecond.removeValue(forKey: second)
@@ -548,6 +560,9 @@ enum LectureTranscriber {
                 volatileBySecond[second] = value
             }
         }
+        log.info(
+            "Transcript results count=\(index) finals=\(finals.count) volatile=\(volatileBySecond.count) kept=\(finals.isEmpty ? "volatile" : "final", privacy: .public)"
+        )
         if !finals.isEmpty { return finals }
         return volatileBySecond.keys.sorted().compactMap { second in
             guard let value = volatileBySecond[second] else { return nil }

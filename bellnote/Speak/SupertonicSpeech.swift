@@ -9,6 +9,20 @@ enum SupertonicVoice {
     static func clamped(_ value: Int) -> Int {
         min(max(value, 0), count - 1)
     }
+
+    /// voice.bin is filename-sorted, so ids 0...4 are F1...F5 and 5...9 are M1...M5.
+    static func title(_ speaker: Int, locale: Locale) -> String {
+        let speaker = clamped(speaker)
+        if speaker < 5 {
+            return String(format: String(localized: "Female %lld", locale: locale), speaker + 1)
+        }
+        return String(format: String(localized: "Male %lld", locale: locale), speaker - 4)
+    }
+
+    static func greeting(_ speaker: Int, locale: Locale) -> String {
+        let name = title(speaker, locale: locale)
+        return String(format: String(localized: "Hello, I am %@.", locale: locale), name)
+    }
 }
 
 enum SupertonicError: Error {
@@ -101,11 +115,12 @@ enum SupertonicSpeech {
         log.info("Supertonic delete ok")
     }
 
-    static func clip(text: String, language: String, speaker: Int, cancel: SupertonicCancel) async throws -> SupertonicClip {
-        try await withCheckedThrowingContinuation { continuation in
+    static func clip(text: String, language: String, speaker voice: Int, cancel: SupertonicCancel) async throws -> SupertonicClip {
+        let voice = SupertonicVoice.clamped(voice)
+        return try await withCheckedThrowingContinuation { continuation in
             queue.async {
                 do {
-                    let clip = try render(text: text, language: language, speaker: speaker, cancel: cancel)
+                    let clip = try render(text: text, language: language, voice: voice, cancel: cancel)
                     continuation.resume(returning: clip)
                 } catch {
                     continuation.resume(throwing: error)
@@ -114,15 +129,16 @@ enum SupertonicSpeech {
         }
     }
 
-    private static func render(text: String, language: String, speaker: Int, cancel: SupertonicCancel) throws -> SupertonicClip {
+    private static func render(text: String, language: String, voice: Int, cancel: SupertonicCancel) throws -> SupertonicClip {
         guard isInstalled else { throw SupertonicError.notInstalled }
-        let speaker = try loaded()
+        let tts = try loaded()
+        let sid = voice
         var samples: [Float] = []
         var rate: Int32 = 44_100
         for piece in pieces(text) {
             if cancel.stopped { return SupertonicClip(samples: [], sampleRate: rate) }
             var generation = SherpaOnnxGenerationConfigSwift()
-            generation.sid = SupertonicVoice.clamped(speaker)
+            generation.sid = sid
             generation.numSteps = 8
             generation.speed = 1
             generation.extra = ["lang": language]
@@ -132,7 +148,7 @@ enum SupertonicSpeech {
                 return flag.stopped ? 0 : 1
             }
             let token = Unmanaged.passUnretained(cancel).toOpaque()
-            let audio = speaker.generateWithConfig(text: piece, config: generation, callback: callback, arg: token)
+            let audio = tts.generateWithConfig(text: piece, config: generation, callback: callback, arg: token)
             guard audio.audio != nil, audio.n > 0 else { throw SupertonicError.failed }
             rate = audio.sampleRate
             if !samples.isEmpty {

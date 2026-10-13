@@ -18,8 +18,11 @@ final class SpeechReader: NSObject, AVSpeechSynthesizerDelegate {
     private var startedAt = Date.distantPast
     private let playback = AVAudioEngine()
     private let playbackNode = AVAudioPlayerNode()
+    private let sessionQueue = DispatchQueue(label: "app.bellnote.listen-session", qos: .userInitiated)
     private var playbackReady = false
-    private let supertonicCancel = SupertonicCancel()
+    private var sessionReady = false
+    private var supertonicCancel = SupertonicCancel()
+    private var allowAppleFallback = true
 
     override init() {
         super.init()
@@ -27,7 +30,15 @@ final class SpeechReader: NSObject, AVSpeechSynthesizerDelegate {
         synthesizer.usesApplicationAudioSession = false
     }
 
+    func preview(_ text: String, locale: Locale) {
+        allowAppleFallback = false
+        guard prefersSupertonic else { return }
+        Self.log.info("Listen preview characters=\(text.count) locale=\(locale.identifier, privacy: .public)")
+        beginSupertonic(text, locale: locale)
+    }
+
     func read(_ text: String, locale: Locale) {
+        allowAppleFallback = true
         Self.log.info(
             "Listen read characters=\(text.count) locale=\(locale.identifier, privacy: .public) speaking=\(self.isSpeaking) synthesizer=\(self.synthesizer.isSpeaking) preview=\(String(text.prefix(80)), privacy: .public)"
         )
@@ -71,6 +82,7 @@ final class SpeechReader: NSObject, AVSpeechSynthesizerDelegate {
         Self.log.info("Listen stop")
         turn += 1
         isSpeaking = false
+        sessionReady = false
         supertonicCancel.stopped = true
         synthesizer.stopSpeaking(at: .immediate)
         playbackNode.stop()
@@ -86,7 +98,10 @@ final class SpeechReader: NSObject, AVSpeechSynthesizerDelegate {
     }
 
     private func beginSupertonic(_ text: String, locale: Locale) {
-        supertonicCancel.stopped = false
+        supertonicCancel.stopped = true
+        if playbackReady { playbackNode.stop() }
+        let cancel = SupertonicCancel()
+        supertonicCancel = cancel
         synthesizer.stopSpeaking(at: .immediate)
         turn += 1
         self.locale = locale
@@ -96,10 +111,10 @@ final class SpeechReader: NSObject, AVSpeechSynthesizerDelegate {
         startedAt = Date()
         isSpeaking = !paragraphs.isEmpty
         Self.log.info("Listen supertonic start paragraphs=\(self.paragraphs.count) turn=\(self.turn)")
-        Task { await playSupertonicParagraph() }
+        Task { await playSupertonicParagraph(cancel: cancel) }
     }
 
-    private func playSupertonicParagraph() async {
+    private func playSupertonicParagraph(cancel: SupertonicCancel) async {
         guard paragraphs.indices.contains(index), isSpeaking else {
             isSpeaking = false
             return
@@ -111,21 +126,25 @@ final class SpeechReader: NSObject, AVSpeechSynthesizerDelegate {
         Self.log.info("Listen supertonic index=\(self.index) lang=\(language, privacy: .public) speaker=\(speaker) characters=\(text.count)")
         let clip: SupertonicClip
         do {
-            clip = try await SupertonicSpeech.clip(text: text, language: language, speaker: speaker, cancel: supertonicCancel)
+            clip = try await SupertonicSpeech.clip(text: text, language: language, speaker: speaker, cancel: cancel)
         } catch {
             Self.log.error("Listen supertonic failed \(error.localizedDescription, privacy: .public)")
-            guard spokenTurn == turn, isSpeaking, !supertonicCancel.stopped else { return }
+            guard spokenTurn == turn, isSpeaking, !cancel.stopped else { return }
+            guard allowAppleFallback else {
+                isSpeaking = false
+                return
+            }
             speakCurrent()
             return
         }
-        guard spokenTurn == turn, isSpeaking, !supertonicCancel.stopped else { return }
+        guard spokenTurn == turn, isSpeaking, !cancel.stopped else { return }
         guard !clip.samples.isEmpty else { return }
         let seconds = Double(clip.samples.count) / Double(max(clip.sampleRate, 1))
         Self.log.info("Listen supertonic play seconds=\(seconds)")
-        play(clip, turn: spokenTurn)
+        await play(clip, turn: spokenTurn)
     }
 
-    private func play(_ clip: SupertonicClip, turn spokenTurn: Int) {
+    private func play(_ clip: SupertonicClip, turn spokenTurn: Int) async {
         let format = AVAudioFormat(
             commonFormat: .pcmFormatFloat32,
             sampleRate: Double(clip.sampleRate),
@@ -142,13 +161,16 @@ final class SpeechReader: NSObject, AVSpeechSynthesizerDelegate {
             guard let address = source.baseAddress, let channel = buffer.floatChannelData else { return }
             channel[0].update(from: address, count: source.count)
         }
+        guard await activatePlaybackSession() else {
+            Self.log.error("Listen supertonic session failed")
+            isSpeaking = false
+            return
+        }
+        guard spokenTurn == turn, isSpeaking else { return }
         do {
-            let session = AVAudioSession.sharedInstance()
-            try session.setCategory(.playback, mode: .spokenAudio)
-            try session.setActive(true)
             if !playbackReady {
                 playback.attach(playbackNode)
-                playback.connect(playbackNode, to: playback.mainMixerNode, format: format)
+                try playback.connectNode(playbackNode, to: playback.mainMixerNode, format: format)
                 playbackReady = true
             }
             if !playback.isRunning { try playback.start() }
@@ -162,13 +184,38 @@ final class SpeechReader: NSObject, AVSpeechSynthesizerDelegate {
                 self?.supertonicParagraphFinished(turn: spokenTurn)
             }
         }
-        playbackNode.play()
+        do {
+            try playbackNode.playAudio()
+        } catch {
+            Self.log.error("Listen supertonic play \(error.localizedDescription, privacy: .public)")
+            isSpeaking = false
+        }
+    }
+
+    private func activatePlaybackSession() async -> Bool {
+        if sessionReady { return true }
+        let ready = await withCheckedContinuation { continuation in
+            sessionQueue.async {
+                let session = AVAudioSession.sharedInstance()
+                do {
+                    try session.setCategory(.playback, mode: .spokenAudio)
+                } catch {
+                    continuation.resume(returning: false)
+                    return
+                }
+                session.activate(options: []) { activated, _ in
+                    continuation.resume(returning: activated)
+                }
+            }
+        }
+        if ready { sessionReady = true }
+        return ready
     }
 
     private func supertonicParagraphFinished(turn spokenTurn: Int) {
         guard spokenTurn == turn, isSpeaking else { return }
         index += 1
-        Task { await playSupertonicParagraph() }
+        Task { await playSupertonicParagraph(cancel: supertonicCancel) }
     }
 
     private func supertonicLanguage(_ locale: Locale) -> String {

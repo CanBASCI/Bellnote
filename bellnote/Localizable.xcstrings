@@ -146,6 +146,23 @@
         }
       }
     },
+    "Apple" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple"
+          }
+        }
+      }
+    },
     "Apple Dictation" : {
       "localizations" : {
         "en" : {
@@ -162,22 +179,6 @@
         }
       }
     },
-    "Delete Supertonic?" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Delete Supertonic?"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Supertonic silinsin mi?"
-          }
-        }
-      }
-    },
     "Apple Dictation reads the notes." : {
       "localizations" : {
         "en" : {
@@ -190,150 +191,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Notları Apple dikte okur."
-          }
-        }
-      }
-    },
-    "Supertonic reads the notes." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Supertonic reads the notes."
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Notları Supertonic okur."
-          }
-        }
-      }
-    },
-    "Voice" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Voice"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ses"
-          }
-        }
-      }
-    },
-    "Male %lld" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Male %lld"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Erkek %lld"
-          }
-        }
-      }
-    },
-    "Female %lld" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Female %lld"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Kadın %lld"
-          }
-        }
-      }
-    },
-    "Listen uses this voice." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Listen uses this voice."
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Dinle bu sesi kullanır."
-          }
-        }
-      }
-    },
-    "Read aloud" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Read aloud"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sesli okuma"
-          }
-        }
-      }
-    },
-    "Reads notes aloud in Turkish and English." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Reads notes aloud in Turkish and English."
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Notları Türkçe ve İngilizce sesli okur."
-          }
-        }
-      }
-    },
-    "Supertonic" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Supertonic"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Supertonic"
-          }
-        }
-      }
-    },
-    "Apple" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Apple"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Apple"
           }
         }
       }
@@ -659,6 +516,22 @@
         }
       }
     },
+    "Delete Supertonic?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete Supertonic?"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Supertonic silinsin mi?"
+          }
+        }
+      }
+    },
     "Done" : {
       "localizations" : {
         "en" : {
@@ -938,6 +811,22 @@
         }
       }
     },
+    "Female %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Female %lld"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kadın %lld"
+          }
+        }
+      }
+    },
     "FluidAudio" : {
 
     },
@@ -953,6 +842,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Adı"
+          }
+        }
+      }
+    },
+    "Hello, I am %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hello, I am %@."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Merhaba, ben %@."
           }
         }
       }
@@ -1216,6 +1121,23 @@
         }
       }
     },
+    "Listen uses this voice." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Listen uses this voice."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dinle bu sesi kullanır."
+          }
+        }
+      }
+    },
     "Locale" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1229,6 +1151,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Dil"
+          }
+        }
+      }
+    },
+    "Male %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Male %lld"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Erkek %lld"
           }
         }
       }
@@ -2012,6 +1950,22 @@
         }
       }
     },
+    "Read aloud" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Read aloud"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sesli okuma"
+          }
+        }
+      }
+    },
     "Reading the recording" : {
       "localizations" : {
         "en" : {
@@ -2024,6 +1978,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Kayıt okunuyor"
+          }
+        }
+      }
+    },
+    "Reads notes aloud in Turkish and English." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reads notes aloud in Turkish and English."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notları Türkçe ve İngilizce sesli okur."
           }
         }
       }
@@ -2431,6 +2401,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Özet"
+          }
+        }
+      }
+    },
+    "Supertonic" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Supertonic"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Supertonic"
+          }
+        }
+      }
+    },
+    "Supertonic reads the notes." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Supertonic reads the notes."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notları Supertonic okur."
           }
         }
       }
@@ -2853,6 +2855,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ders sayfası yazılırken kullanılır."
+          }
+        }
+      }
+    },
+    "Voice" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Voice"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ses"
           }
         }
       }

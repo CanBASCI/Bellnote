@@ -260,6 +260,7 @@ struct ModelsPage: View {
     @State private var fluidStatus: String?
     @State private var supertonicStatus: String?
     @State private var pendingDelete: ModelsPageDeletePrompt?
+    @State private var voicePreview = SpeechReader()
 
     var body: some View {
         List {
@@ -304,15 +305,21 @@ struct ModelsPage: View {
                 if session.readAloud == .supertonic, supertonicInstalled {
                     Picker("Voice", selection: Binding(
                         get: { session.supertonicVoice },
-                        set: { session.setSupertonicVoice($0) }
+                        set: { voice in
+                            session.setSupertonicVoice(voice)
+                            voicePreview.preview(
+                                SupertonicVoice.greeting(voice, locale: session.locale),
+                                locale: session.locale
+                            )
+                        }
                     )) {
                         ForEach(0..<5, id: \.self) { index in
                             Text(verbatim: String(format: String(localized: "Male %lld"), index + 1))
-                                .tag(index)
+                                .tag(index + 5)
                         }
                         ForEach(0..<5, id: \.self) { index in
                             Text(verbatim: String(format: String(localized: "Female %lld"), index + 1))
-                                .tag(index + 5)
+                                .tag(index)
                         }
                     }
                 }
@@ -338,6 +345,10 @@ struct ModelsPage: View {
             }
         }
         .navigationTitle("Models")
+        .onDisappear { voicePreview.stop() }
+        .onChange(of: session.readAloud) { _, engine in
+            if engine != .supertonic { voicePreview.stop() }
+        }
         .task {
             refreshBudget()
             await refreshInstalled()
