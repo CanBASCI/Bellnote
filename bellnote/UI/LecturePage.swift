@@ -258,15 +258,18 @@ struct LectureNote: View {
     private func studyBar(_ course: Course) -> some View {
         GlassEffectContainer(spacing: 8) {
             HStack(spacing: 8) {
-                Button("Ask", systemImage: "sparkles") {
+                StudyButton(title: Text("Ask"), systemImage: "sparkles") {
                     studyMode = .ask
                     showStudy = true
                 }
-                Button(quizTitle(course), systemImage: "checklist") {
+                StudyButton(title: Text(verbatim: quizTitle(course)), systemImage: "checklist") {
                     studyMode = .quiz
                     showStudy = true
                 }
-                Button(reader.isSpeaking ? "Stop" : "Listen", systemImage: reader.isSpeaking ? "stop.fill" : "speaker.wave.2.fill") {
+                StudyButton(
+                    title: reader.isSpeaking ? Text("Stop") : Text("Listen"),
+                    systemImage: reader.isSpeaking ? "stop.fill" : "speaker.wave.2.fill"
+                ) {
                     if reader.isSpeaking {
                         reader.stop()
                     } else {
@@ -284,31 +287,13 @@ struct LectureNote: View {
     }
 
     private var playback: some View {
-        HStack(spacing: 12) {
-            Button(audio.isPlaying ? "Pause" : "Play", systemImage: audio.isPlaying ? "pause.fill" : "play.fill") {
-                audio.toggle()
-            }
-            .labelStyle(.iconOnly)
-            .buttonStyle(.glass)
-            Text(MediaClock.short(audio.currentSecond))
-                .font(.caption.monospacedDigit())
-                .foregroundStyle(.secondary)
-            Slider(
-                value: Binding(
-                    get: { Double(audio.currentSecond) },
-                    set: { audio.seek(to: Int($0), play: audio.isPlaying) }
-                ),
-                in: 0...Double(max(audio.duration, 1))
-            )
-            Text(MediaClock.short(audio.duration))
-                .font(.caption.monospacedDigit())
-                .foregroundStyle(.tertiary)
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
-        .glassEffect(.regular, in: .capsule)
-        .padding(.horizontal, 16)
-        .padding(.bottom, 8)
+        PlayerBar(
+            isPlaying: audio.isPlaying,
+            current: audio.currentSecond,
+            duration: audio.duration,
+            toggle: { audio.toggle() },
+            seek: { audio.seek(to: $0, play: audio.isPlaying) }
+        )
     }
 
     private var hasCorrection: Bool {
