@@ -74,16 +74,21 @@ actor LocalModelRuntime {
         return snapshot
     }
 
-    func download(_ role: ModelRole) async throws {
+    func download(
+        _ role: ModelRole,
+        onProgress: (@Sendable (Double) -> Void)? = nil
+    ) async throws {
         guard role == .tagger || role == .page else { throw LocalModelError.notInstalled }
         let repo = role == .tagger ? ModelCatalog.taggerRepo : ModelCatalog.pageRepo
         Self.log.info("Download tapped role=\(role.rawValue, privacy: .public) repo=\(repo, privacy: .public)")
         _ = probe(role)
         do {
-            let model = try makeModel(role)
+            let model = try makeModel(role, onProgress: onProgress)
             let available = await model.isAvailable
             Self.log.info("Availability before preload role=\(role.rawValue, privacy: .public) available=\(available)")
+            onProgress?(0)
             try await model.preload()
+            onProgress?(1)
             try await ensure(role)
             let after = probe(role)
             let availableAfter = await model.isAvailable
@@ -94,6 +99,23 @@ actor LocalModelRuntime {
             Self.log.error("Download failed role=\(role.rawValue, privacy: .public) domain=\(nsError.domain, privacy: .public) code=\(nsError.code) message=\(error.localizedDescription, privacy: .public) detail=\(String(describing: error), privacy: .public)")
             throw error
         }
+    }
+
+    func delete(_ role: ModelRole) async throws {
+        guard role == .tagger || role == .page else { throw LocalModelError.notInstalled }
+        let repo = role == .tagger ? ModelCatalog.taggerRepo : ModelCatalog.pageRepo
+        Self.log.info("Delete tapped role=\(role.rawValue, privacy: .public) repo=\(repo, privacy: .public)")
+        if resident == role {
+            await gate.unload()
+            resident = nil
+        }
+        try HubWeights.remove(repo)
+        _ = probe(role)
+        Self.log.info("Delete finished role=\(role.rawValue, privacy: .public)")
+    }
+
+    func isInstalled(_ role: ModelRole) -> Bool {
+        probe(role).isReady
     }
 
     func cancel(lecture id: UUID) async {
@@ -127,7 +149,10 @@ actor LocalModelRuntime {
         LanguageModelSession(model: try makeModel(role), tools: [], instructions: instructions)
     }
 
-    private func makeModel(_ role: ModelRole) throws -> MLXLanguageModel {
+    private func makeModel(
+        _ role: ModelRole,
+        onProgress: (@Sendable (Double) -> Void)? = nil
+    ) throws -> MLXLanguageModel {
         let repo = role == .tagger ? ModelCatalog.taggerRepo : ModelCatalog.pageRepo
         let disk = HubWeights.snapshot(for: repo)
         Self.log.info("Make model role=\(role.rawValue, privacy: .public) repo=\(disk.repo, privacy: .public) path=\(disk.path, privacy: .public) bytes=\(disk.bytes) config=\(disk.hasConfig) safetensors=\(disk.safetensorsCount)")
@@ -149,6 +174,7 @@ actor LocalModelRuntime {
                             if progress.fractionCompleted == 0 || progress.isFinished || Int(progress.fractionCompleted * 100) % 10 == 0 {
                                 Self.log.info("Load progress repo=\(configuration.name, privacy: .public) fraction=\(progress.fractionCompleted)")
                             }
+                            onProgress?(progress.fractionCompleted)
                             progressHandler(progress)
                         }
                     )
@@ -279,13 +305,53 @@ enum HubWeights {
         var fileCount: Int
         var bytes: Int64
         var fileNames: [String]
+
+        var isReady: Bool {
+            directoryExists && hasConfig && safetensorsCount > 0
+        }
+    }
+
+    static func remove(_ id: String) throws {
+        let cache = HubCache.default
+        guard let repo = Repo.ID(rawValue: id) else {
+            throw LocalModelError.loadFailed
+        }
+        let manager = FileManager.default
+        let repoDirectory = cache.repoDirectory(repo: repo, kind: .model)
+        if manager.fileExists(atPath: repoDirectory.path) {
+            try manager.removeItem(at: repoDirectory)
+        }
+        let metadata = cache.metadataDirectory(repo: repo, kind: .model)
+        if manager.fileExists(atPath: metadata.path) {
+            try manager.removeItem(at: metadata)
+        }
     }
 
     static func directory(for id: String) -> URL {
-        let root = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
-            ?? FileManager.default.temporaryDirectory
-        return root.appendingPathComponent("huggingface", isDirectory: true)
-            .appendingPathComponent(id.replacingOccurrences(of: "/", with: "--"), isDirectory: true)
+        let cache = HubCache.default
+        guard let repo = Repo.ID(rawValue: id) else {
+            return cache.cacheDirectory
+                .appendingPathComponent("models--" + id.replacingOccurrences(of: "/", with: "--"), isDirectory: true)
+        }
+        let snapshots = cache.snapshotsDirectory(repo: repo, kind: .model)
+        if let revision = cache.resolveRevision(repo: repo, kind: .model, ref: "main") {
+            let url = snapshots.appendingPathComponent(revision, isDirectory: true)
+            if FileManager.default.fileExists(atPath: url.path) {
+                return url
+            }
+        }
+        if let children = try? FileManager.default.contentsOfDirectory(
+            at: snapshots,
+            includingPropertiesForKeys: [.contentModificationDateKey],
+            options: [.skipsHiddenFiles]
+        ), let newest = children.max(by: { lhs, rhs in
+            let left = (try? lhs.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
+            let right = (try? rhs.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
+            return left < right
+        }) {
+            return newest
+        }
+        return snapshots
     }
 
     static func snapshot(for id: String) -> Snapshot {
@@ -310,12 +376,13 @@ enum HubWeights {
         var safetensors = 0
         if let enumerator = manager.enumerator(
             at: url,
-            includingPropertiesForKeys: [.isRegularFileKey, .fileSizeKey],
+            includingPropertiesForKeys: [.isRegularFileKey, .isSymbolicLinkKey, .fileSizeKey],
             options: [.skipsHiddenFiles]
         ) {
             for case let file as URL in enumerator {
+                let target = file.resolvingSymlinksInPath()
                 guard
-                    let values = try? file.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey]),
+                    let values = try? target.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey]),
                     values.isRegularFile == true
                 else { continue }
                 total += Int64(values.fileSize ?? 0)

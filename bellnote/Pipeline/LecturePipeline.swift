@@ -9,8 +9,13 @@ enum LecturePipeline {
     static func advance(
         lecture: Lecture,
         context: ModelContext,
-        preferTaggerForPage: Bool
+        preferTaggerForPage: Bool,
+        onProgress: ((PipelineStage) -> Void)? = nil
     ) async {
+        func report(_ working: PipelineStage) async {
+            onProgress?(working)
+            await Task.yield()
+        }
         guard let course = lecture.course else {
             lecture.state = LectureState.failed.rawValue
             lecture.failureMessageKey = "Missing course."
@@ -25,6 +30,7 @@ enum LecturePipeline {
         do {
             if stage == .idle || stage == .audio {
                 log.info("Stage audio")
+                await report(.audio)
                 try await finishAudio(lecture)
                 stage = .audio
                 lecture.stage = stage.rawValue
@@ -32,6 +38,7 @@ enum LecturePipeline {
             }
             if stage == .audio {
                 log.info("Stage speakers")
+                await report(.speakers)
                 try await finishSpeakers(lecture)
                 stage = .speakers
                 lecture.stage = stage.rawValue
@@ -39,6 +46,7 @@ enum LecturePipeline {
             }
             if stage == .speakers {
                 log.info("Stage transcript")
+                await report(.transcript)
                 try await finishTranscript(lecture, course: course)
                 stage = .transcript
                 lecture.stage = stage.rawValue
@@ -47,6 +55,7 @@ enum LecturePipeline {
             }
             if stage == .transcript {
                 log.info("Stage tags model=\(ModelCatalog.taggerRepo, privacy: .public)")
+                await report(.tags)
                 try await finishTags(lecture, course: course)
                 stage = .tags
                 lecture.stage = stage.rawValue
@@ -55,6 +64,7 @@ enum LecturePipeline {
             }
             if stage == .tags {
                 log.info("Stage page preferTagger=\(preferTaggerForPage) model=\(preferTaggerForPage ? ModelCatalog.taggerRepo : ModelCatalog.pageRepo, privacy: .public)")
+                await report(.page)
                 try await finishPage(lecture, preferTagger: preferTaggerForPage)
                 stage = .page
                 lecture.stage = stage.rawValue
@@ -63,6 +73,7 @@ enum LecturePipeline {
             }
             if stage == .page {
                 log.info("Stage links")
+                await report(.links)
                 finishLinks(lecture, course: course, context: context)
                 stage = .links
                 lecture.stage = PipelineStage.ready.rawValue
@@ -93,10 +104,15 @@ enum LecturePipeline {
         } catch {
             lecture.state = LectureState.failed.rawValue
             lecture.stage = stage.rawValue
-            lecture.neededModel = (stage == .page || stage == .links) ? ModelRole.page.rawValue : ModelRole.tagger.rawValue
-            lecture.failureMessageKey = error.localizedDescription
             let nsError = error as NSError
-            log.error("Process failed stage=\(stage.rawValue, privacy: .public) type=\(String(describing: type(of: error)), privacy: .public) domain=\(nsError.domain, privacy: .public) code=\(nsError.code) message=\(error.localizedDescription, privacy: .public) detail=\(String(describing: error), privacy: .public)")
+            if nsError.domain == "SFSpeechErrorDomain" {
+                lecture.neededModel = nil
+                log.error("Apple Speech failed (not the 2B/4B model) stage=\(stage.rawValue, privacy: .public) code=\(nsError.code) message=\(error.localizedDescription, privacy: .public)")
+            } else {
+                lecture.neededModel = (stage == .page || stage == .links) ? ModelRole.page.rawValue : ModelRole.tagger.rawValue
+                log.error("Process failed stage=\(stage.rawValue, privacy: .public) type=\(String(describing: type(of: error)), privacy: .public) domain=\(nsError.domain, privacy: .public) code=\(nsError.code) message=\(error.localizedDescription, privacy: .public) detail=\(String(describing: error), privacy: .public)")
+            }
+            lecture.failureMessageKey = error.localizedDescription
         }
     }
 
@@ -116,9 +132,11 @@ enum LecturePipeline {
         let locale = Locale(identifier: course.localeIdentifier)
         let ranges: [ClosedRange<Int>]
         do {
-            let runs = try SpeakerPass.runs(url: url)
+            let runs = try await SpeakerPass.runs(url: url)
             ranges = SpeakerPass.narratorRanges(runs)
+            log.info("Speaker ranges count=\(ranges.count)")
         } catch {
+            log.error("Speaker pass failed message=\(error.localizedDescription, privacy: .public)")
             ranges = []
         }
         let lines = try await LectureTranscriber.transcribe(url: url, locale: locale, keeping: ranges)

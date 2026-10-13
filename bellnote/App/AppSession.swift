@@ -39,5 +39,10 @@ final class AppSession {
         languageCode = AppLanguage.resolved(preference: language.rawValue, system: Locale.current.identifier)
     }
 
+    func setPreferTaggerForPage(_ preferTagger: Bool) {
+        UserDefaults.standard.set(preferTagger, forKey: AppPreferences.pagePrefersTaggerKey)
+        preferTaggerForPage = preferTagger
+    }
+
     var locale: Locale { Locale(identifier: languageCode) }
 }

@@ -92,6 +92,8 @@ struct PendingSheet: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @State private var running = false
+    @State private var workingStage: PipelineStage?
+    @State private var fluidGate = FluidAudioGate()
 
     var body: some View {
         NavigationStack {
@@ -108,11 +110,24 @@ struct PendingSheet: View {
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                         if let failure = lecture.failureMessageKey, !failure.isEmpty {
-                            Text(failure)
+                            Text(String(localized: String.LocalizationValue(failure)))
                                 .font(.footnote)
                                 .foregroundStyle(.secondary)
                         }
                     }
+                }
+            }
+            .safeAreaInset(edge: .bottom) {
+                if let workingStage {
+                    VStack(alignment: .leading, spacing: 8) {
+                        ProgressView(value: workingStage.fraction)
+                        Text(workingStage.title)
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding()
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(.bar)
                 }
             }
             .navigationTitle("Pending")
@@ -120,24 +135,31 @@ struct PendingSheet: View {
                 ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Process") {
-                        Task { await process() }
+                        fluidGate.request { await process() }
                     }
                     .disabled(lectures.isEmpty || running)
                 }
             }
         }
+        .fluidAudioGate(fluidGate)
         .presentationDetents([.medium, .large])
     }
 
     private func process() async {
         running = true
-        defer { running = false }
+        defer {
+            running = false
+            workingStage = nil
+        }
         for lecture in lectures {
+            workingStage = PipelineStage(rawValue: lecture.stage)?.next ?? .audio
             await LecturePipeline.advance(
                 lecture: lecture,
                 context: modelContext,
                 preferTaggerForPage: UserDefaults.standard.bool(forKey: AppPreferences.pagePrefersTaggerKey)
-            )
+            ) { stage in
+                workingStage = stage
+            }
         }
     }
 }
@@ -215,62 +237,230 @@ struct SettingsPage: View {
     }
 }
 
+private enum ModelsPageDeletePrompt: Equatable {
+    case mlx(ModelRole)
+    case fluidAudio
+}
+
 struct ModelsPage: View {
     private static let log = Logger(subsystem: "app.bellnote", category: "models-ui")
+    @Environment(AppSession.self) private var session
     @State private var budget = DeviceBudget(freeDiskBytes: 0, physicalMemoryBytes: 0)
     @State private var downloading: ModelRole?
+    @State private var downloadingFluid = false
+    @State private var downloadProgress: Double = 0
+    @State private var installed: [ModelRole: Bool] = [:]
+    @State private var fluidInstalled = false
     @State private var status: [ModelRole: String] = [:]
+    @State private var fluidStatus: String?
+    @State private var pendingDelete: ModelsPageDeletePrompt?
 
     var body: some View {
         List {
             modelRow(.tagger, title: "2B", bytes: ModelCatalog.taggerBytes, locked: ModelLock.taggerLocked(budget))
             modelRow(.page, title: "4B", bytes: ModelCatalog.pageBytes, locked: ModelLock.pageLocked(budget))
+            fluidAudioRow()
+            if installed[.tagger] == true, installed[.page] == true {
+                Section {
+                    Picker("Page model", selection: Binding(
+                        get: { session.preferTaggerForPage },
+                        set: { session.setPreferTaggerForPage($0) }
+                    )) {
+                        Text("2B").tag(true)
+                        Text("4B").tag(false)
+                    }
+                    .pickerStyle(.segmented)
+                    Text("Used when writing the lecture page.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
         }
         .navigationTitle("Models")
         .task {
             refreshBudget()
-            await logInstalledModels()
+            await refreshInstalled()
+        }
+        .confirmationDialog(
+            deletePromptTitle,
+            isPresented: Binding(
+                get: { pendingDelete != nil },
+                set: { if !$0 { pendingDelete = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("Delete", role: .destructive) {
+                guard let target = pendingDelete else { return }
+                pendingDelete = nil
+                switch target {
+                case let .mlx(role):
+                    Task { await delete(role) }
+                case .fluidAudio:
+                    Task { await deleteFluidAudio() }
+                }
+            }
+            Button("Cancel", role: .cancel) { pendingDelete = nil }
+        }
+    }
+
+    private var deletePromptTitle: String {
+        switch pendingDelete {
+        case .mlx(.page):
+            String(localized: "Delete 4B?")
+        case .mlx:
+            String(localized: "Delete 2B?")
+        case .fluidAudio:
+            String(localized: "Delete FluidAudio?")
+        case nil:
+            ""
         }
     }
 
     @ViewBuilder
-    private func modelRow(_ role: ModelRole, title: String, bytes: Int64, locked: Bool) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(title)
-            Text(bytes.formatted(.byteCount(style: .file)))
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            if locked {
-                Text(role == .tagger ? "Needs 2 GB free." : "Needs 4 GB free and 8 GB of memory.")
-                    .font(.caption)
-            } else if downloading == role {
-                HStack(spacing: 8) {
-                    ProgressView()
-                    Text("Downloading")
+    private func fluidAudioRow() -> some View {
+        let bytes = fluidInstalled ? SpeakerPass.installedByteCount() : ModelCatalog.diarizerBytes
+        let ready = fluidInstalled
+        let anyDownload = downloading != nil || downloadingFluid
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .center, spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("FluidAudio")
+                    Text(bytes.formatted(.byteCount(style: .file)))
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                }
-            } else {
-                Button("Download") {
-                    Self.log.info("UI download tap role=\(role.rawValue, privacy: .public) title=\(title, privacy: .public)")
-                    downloading = role
-                    status[role] = nil
-                    Task {
-                        do {
-                            try await LocalModelRuntime.shared.download(role)
-                            status[role] = String(localized: "Download finished.")
-                            Self.log.info("UI download ok role=\(role.rawValue, privacy: .public)")
-                        } catch {
-                            let nsError = error as NSError
-                            status[role] = String(localized: "A model is not available.")
-                            Self.log.error("UI download failed role=\(role.rawValue, privacy: .public) domain=\(nsError.domain, privacy: .public) code=\(nsError.code) message=\(error.localizedDescription, privacy: .public)")
-                        }
-                        downloading = nil
-                        _ = await LocalModelRuntime.shared.probe(role)
+                    Text(String(localized: "Separates speakers while processing a lecture."))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    if ready, !downloadingFluid {
+                        Text("Installed")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
                 }
-                .buttonStyle(.borderless)
-                .disabled(downloading != nil)
+                Spacer(minLength: 8)
+                if downloadingFluid {
+                    VStack(alignment: .trailing, spacing: 4) {
+                        ProgressView(value: downloadProgress.clamped(to: 0...1))
+                            .frame(width: 96)
+                        Text(downloadProgress.clamped(to: 0...1), format: .percent.precision(.fractionLength(0)))
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                } else if ready {
+                    Button("Delete", role: .destructive) {
+                        Self.log.info("UI delete tap fluidAudio")
+                        pendingDelete = .fluidAudio
+                    }
+                    .buttonStyle(.borderless)
+                    .disabled(anyDownload)
+                } else {
+                    Button("Download") {
+                        Self.log.info("UI download tap fluidAudio")
+                        downloadingFluid = true
+                        downloadProgress = 0
+                        fluidStatus = nil
+                        Task {
+                            do {
+                                try await SpeakerPass.downloadModels { fraction in
+                                    Task { @MainActor in
+                                        downloadProgress = max(downloadProgress, min(max(fraction, 0), 1))
+                                    }
+                                }
+                                fluidStatus = String(localized: "Download finished.")
+                                Self.log.info("UI download ok fluidAudio")
+                            } catch {
+                                let nsError = error as NSError
+                                fluidStatus = String(localized: "A model is not available.")
+                                Self.log.error("UI download failed fluidAudio domain=\(nsError.domain, privacy: .public) code=\(nsError.code) message=\(error.localizedDescription, privacy: .public)")
+                            }
+                            downloadingFluid = false
+                            downloadProgress = 0
+                            await refreshInstalled()
+                        }
+                    }
+                    .buttonStyle(.borderless)
+                    .disabled(anyDownload)
+                }
+            }
+            if let fluidStatus {
+                Text(fluidStatus)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func deleteFluidAudio() async {
+        SpeakerPass.deleteModels()
+        fluidStatus = nil
+        Self.log.info("UI delete ok fluidAudio")
+        await refreshInstalled()
+    }
+
+    @ViewBuilder
+    private func modelRow(_ role: ModelRole, title: String, bytes: Int64, locked: Bool) -> some View {
+        let ready = installed[role] == true
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .center, spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(title)
+                    Text(bytes.formatted(.byteCount(style: .file)))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    if locked, !ready {
+                        Text(role == .tagger ? "Needs 2 GB free." : "Needs 4 GB free and 8 GB of memory.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else if ready, downloading != role {
+                        Text("Installed")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                Spacer(minLength: 8)
+                if downloading == role {
+                    VStack(alignment: .trailing, spacing: 4) {
+                        ProgressView(value: downloadProgress.clamped(to: 0...1))
+                            .frame(width: 96)
+                        Text(downloadProgress.clamped(to: 0...1), format: .percent.precision(.fractionLength(0)))
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                } else if ready {
+                    Button("Delete", role: .destructive) {
+                        Self.log.info("UI delete tap role=\(role.rawValue, privacy: .public) title=\(title, privacy: .public)")
+                        pendingDelete = .mlx(role)
+                    }
+                    .buttonStyle(.borderless)
+                    .disabled(downloading != nil || downloadingFluid)
+                } else if !locked {
+                    Button("Download") {
+                        Self.log.info("UI download tap role=\(role.rawValue, privacy: .public) title=\(title, privacy: .public)")
+                        downloading = role
+                        downloadProgress = 0
+                        status[role] = nil
+                        Task {
+                            do {
+                                try await LocalModelRuntime.shared.download(role) { fraction in
+                                    Task { @MainActor in
+                                        downloadProgress = max(downloadProgress, min(max(fraction, 0), 1))
+                                    }
+                                }
+                                status[role] = String(localized: "Download finished.")
+                                Self.log.info("UI download ok role=\(role.rawValue, privacy: .public)")
+                            } catch {
+                                let nsError = error as NSError
+                                status[role] = String(localized: "A model is not available.")
+                                Self.log.error("UI download failed role=\(role.rawValue, privacy: .public) domain=\(nsError.domain, privacy: .public) code=\(nsError.code) message=\(error.localizedDescription, privacy: .public)")
+                            }
+                            downloading = nil
+                            downloadProgress = 0
+                            await refreshInstalled()
+                        }
+                    }
+                    .buttonStyle(.borderless)
+                    .disabled(downloading != nil || downloadingFluid)
+                }
             }
             if let status = status[role] {
                 Text(status)
@@ -278,6 +468,25 @@ struct ModelsPage: View {
                     .foregroundStyle(.secondary)
             }
         }
+    }
+
+    private func delete(_ role: ModelRole) async {
+        do {
+            try await LocalModelRuntime.shared.delete(role)
+            status[role] = nil
+            if role == .page, !session.preferTaggerForPage {
+                session.setPreferTaggerForPage(true)
+            }
+            if role == .tagger, session.preferTaggerForPage {
+                session.setPreferTaggerForPage(false)
+            }
+            Self.log.info("UI delete ok role=\(role.rawValue, privacy: .public)")
+        } catch {
+            let nsError = error as NSError
+            status[role] = String(localized: "A model is not available.")
+            Self.log.error("UI delete failed role=\(role.rawValue, privacy: .public) domain=\(nsError.domain, privacy: .public) code=\(nsError.code) message=\(error.localizedDescription, privacy: .public)")
+        }
+        await refreshInstalled()
     }
 
     private func refreshBudget() {
@@ -288,10 +497,24 @@ struct ModelsPage: View {
         Self.log.info("Budget freeDisk=\(free) physicalMemory=\(ProcessInfo.processInfo.physicalMemory) taggerLocked=\(ModelLock.taggerLocked(budget)) pageLocked=\(ModelLock.pageLocked(budget))")
     }
 
-    private func logInstalledModels() async {
+    private func refreshInstalled() async {
         Self.log.info("Models page open")
-        _ = await LocalModelRuntime.shared.probe(.tagger)
-        _ = await LocalModelRuntime.shared.probe(.page)
+        let tagger = await LocalModelRuntime.shared.probe(.tagger)
+        let page = await LocalModelRuntime.shared.probe(.page)
+        installed[.tagger] = tagger.isReady
+        installed[.page] = page.isReady
+        fluidInstalled = SpeakerPass.modelsAreInstalled()
+        if tagger.isReady, !page.isReady {
+            session.setPreferTaggerForPage(true)
+        } else if page.isReady, !tagger.isReady {
+            session.setPreferTaggerForPage(false)
+        }
+    }
+}
+
+private extension Comparable {
+    func clamped(to range: ClosedRange<Self>) -> Self {
+        min(max(self, range.lowerBound), range.upperBound)
     }
 }
 

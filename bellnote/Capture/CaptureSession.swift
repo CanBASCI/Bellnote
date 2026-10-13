@@ -38,11 +38,10 @@ nonisolated final class CaptureSession: NSObject, @unchecked Sendable {
         return Int(Double(recordedFrames) / targetFormat.sampleRate)
     }
 
-    func start(url: URL) throws {
+    func start(url: URL) async throws {
         guard let targetFormat else { throw CaptureError.unsupportedFormat }
         let session = AVAudioSession.sharedInstance()
-        try session.setCategory(.playAndRecord, mode: .default, options: [.allowBluetoothHFP, .defaultToSpeaker])
-        try session.setActive(true)
+        try await Self.activateRecordSession()
         let settings: [String: Any] = [
             AVFormatIDKey: kAudioFormatMPEG4AAC,
             AVSampleRateKey: 16_000,
@@ -55,14 +54,14 @@ nonisolated final class CaptureSession: NSObject, @unchecked Sendable {
         guard let converter = AVAudioConverter(from: inputFormat, to: targetFormat) else {
             throw CaptureError.unsupportedFormat
         }
-        lock.lock()
-        file = audioFile
-        self.converter = converter
-        recordedFrames = 0
-        writeError = nil
-        paused = false
-        started = true
-        lock.unlock()
+        lock.withLock {
+            file = audioFile
+            self.converter = converter
+            recordedFrames = 0
+            writeError = nil
+            paused = false
+            started = true
+        }
         input.removeTap(onBus: 0)
         do {
             try input.installAudioTap(onBus: 0, bufferSize: 4096, format: inputFormat) { [weak self] buffer, _ in
@@ -72,11 +71,11 @@ nonisolated final class CaptureSession: NSObject, @unchecked Sendable {
             try engine.start()
         } catch {
             input.removeTap(onBus: 0)
-            lock.lock()
-            file = nil
-            self.converter = nil
-            started = false
-            lock.unlock()
+            lock.withLock {
+                file = nil
+                self.converter = nil
+                started = false
+            }
             throw error
         }
         observeSession(session)
@@ -90,33 +89,75 @@ nonisolated final class CaptureSession: NSObject, @unchecked Sendable {
         if shouldPause { engine.pause() }
     }
 
-    func resumeCapture() throws {
-        lock.lock()
-        let shouldResume = started && paused
-        lock.unlock()
+    func resumeCapture() async throws {
+        let shouldResume = lock.withLock { started && paused }
         guard shouldResume else { return }
-        try AVAudioSession.sharedInstance().setActive(true)
+        try await Self.activateRecordSession()
         try engine.start()
-        lock.lock()
-        paused = false
-        lock.unlock()
+        lock.withLock { paused = false }
     }
 
-    func stop() throws {
+    func stop() async throws {
         if engine.isRunning || started {
             engine.inputNode.removeTap(onBus: 0)
             engine.stop()
         }
-        lock.lock()
-        let error = writeError
-        file = nil
-        converter = nil
-        started = false
-        paused = false
-        lock.unlock()
+        let error = lock.withLock {
+            let error = writeError
+            file = nil
+            converter = nil
+            started = false
+            paused = false
+            return error
+        }
         endObservations()
         if let error { throw error }
-        try AVAudioSession.sharedInstance().setActive(false, options: [.notifyOthersOnDeactivation])
+        try await Self.deactivateRecordSession()
+    }
+
+    private static let sessionQueue = DispatchQueue(label: "app.bellnote.capture-session")
+
+    private static func activateRecordSession() async throws {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            sessionQueue.async {
+                let session = AVAudioSession.sharedInstance()
+                do {
+                    try session.setCategory(
+                        .playAndRecord,
+                        mode: .default,
+                        options: [.allowBluetoothHFP, .defaultToSpeaker]
+                    )
+                } catch {
+                    continuation.resume(throwing: error)
+                    return
+                }
+                session.activate(options: []) { activated, error in
+                    if let error {
+                        continuation.resume(throwing: error)
+                    } else if activated {
+                        continuation.resume()
+                    } else {
+                        continuation.resume(throwing: CaptureError.unsupportedFormat)
+                    }
+                }
+            }
+        }
+    }
+
+    private static func deactivateRecordSession() async throws {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            sessionQueue.async {
+                AVAudioSession.sharedInstance().deactivate(options: [.notifyOthersOnDeactivation]) { deactivated, error in
+                    if let error {
+                        continuation.resume(throwing: error)
+                    } else if deactivated {
+                        continuation.resume()
+                    } else {
+                        continuation.resume(throwing: CaptureError.unsupportedFormat)
+                    }
+                }
+            }
+        }
     }
 
     private func append(_ buffer: AVReadOnlyAudioPCMBuffer) {

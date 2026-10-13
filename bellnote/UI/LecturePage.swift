@@ -20,13 +20,22 @@ struct LectureNote: View {
     @State private var showStudy = false
     @State private var studyMode: StudyMode = .ask
     @State private var showAssignments = false
+    @State private var fluidGate = FluidAudioGate()
+    @State private var workingStage: PipelineStage?
 
     var body: some View {
         List {
-            if lecture.state != LectureState.ready.rawValue && lecture.audioRelativePath != nil {
+            if let workingStage {
+                Section {
+                    ProgressView(value: workingStage.fraction)
+                    Text(workingStage.title)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+            } else if lecture.state != LectureState.ready.rawValue && lecture.audioRelativePath != nil {
                 Section {
                     Button("Process") {
-                        Task { await process() }
+                        fluidGate.request { await process() }
                     }
                 }
             }
@@ -121,7 +130,7 @@ struct LectureNote: View {
         .task(id: audio.isPlaying) {
             while !Task.isCancelled, audio.isPlaying {
                 try? await Task.sleep(for: .milliseconds(400))
-                audio.sync()
+                await audio.sync()
             }
         }
         .sheet(isPresented: $showStudy) {
@@ -134,6 +143,7 @@ struct LectureNote: View {
                 AssignmentSheet(course: course)
             }
         }
+        .fluidAudioGate(fluidGate)
     }
 
     private var playback: some View {
@@ -165,7 +175,7 @@ struct LectureNote: View {
         let summary = lecture.summary.trimmingCharacters(in: .whitespacesAndNewlines)
         if !summary.isEmpty { return summary }
         if let failure = lecture.failureMessageKey, !failure.isEmpty {
-            return failure
+            return String(localized: String.LocalizationValue(failure))
         }
         return String(localized: "No summary yet.")
     }
@@ -231,11 +241,15 @@ struct LectureNote: View {
 
     private func process() async {
         guard let context = lecture.modelContext else { return }
+        workingStage = PipelineStage(rawValue: lecture.stage)?.next ?? .audio
+        defer { workingStage = nil }
         await LecturePipeline.advance(
             lecture: lecture,
             context: context,
             preferTaggerForPage: UserDefaults.standard.bool(forKey: AppPreferences.pagePrefersTaggerKey)
-        )
+        ) { stage in
+            workingStage = stage
+        }
     }
 }
 
@@ -266,22 +280,20 @@ final class LectureAudio {
     private(set) var isPlaying = false
     private(set) var currentSecond = 0
     private(set) var duration = 0
-    private var player: AVAudioPlayer?
-    private var sessionReady = false
+    private let engine = LecturePlaybackEngine()
 
     func load(_ lecture: Lecture) async {
-        guard player == nil, let relative = lecture.audioRelativePath else { return }
+        await engine.reset()
+        isPlaying = false
+        duration = 0
+        currentSecond = 0
+        guard let relative = lecture.audioRelativePath else { return }
         guard let root = try? Vault.documents() else { return }
         let url = root.appendingPathComponent(relative)
-        let path = url.path
-        guard FileManager.default.fileExists(atPath: path) else { return }
-        let data = await Task.detached(priority: .userInitiated) {
-            try? Data(contentsOf: url)
-        }.value
-        guard let data, let player = try? AVAudioPlayer(data: data) else { return }
-        self.player = player
-        duration = Int(player.duration.rounded())
-        currentSecond = 0
+        guard FileManager.default.fileExists(atPath: url.path) else { return }
+        let seconds = await engine.load(url)
+        guard seconds > 0 else { return }
+        duration = seconds
     }
 
     func toggle() {
@@ -292,63 +304,148 @@ final class LectureAudio {
         Task { await seekPlayback(to: second, play: play) }
     }
 
-    func sync() {
-        guard let player else { return }
-        currentSecond = Int(player.currentTime)
-        if !player.isPlaying { isPlaying = false }
+    func sync() async {
+        let snapshot = await engine.snapshot()
+        currentSecond = snapshot.timeSeconds
+        if !snapshot.isPlaying { isPlaying = false }
     }
 
     func stop() {
-        player?.stop()
-        isPlaying = false
-        sessionReady = false
-        Task { await deactivateSession() }
+        Task {
+            await engine.stop()
+            isPlaying = false
+        }
     }
 
     private func togglePlayback() async {
-        guard let player else { return }
-        if player.isPlaying {
-            player.pause()
+        if await engine.isPlaying() {
+            await engine.pause()
             isPlaying = false
             return
         }
-        guard await activateSession() else { return }
-        player.play()
-        isPlaying = true
+        isPlaying = await engine.play()
     }
 
     private func seekPlayback(to second: Int, play: Bool) async {
-        guard let player else { return }
         let clamped = min(max(0, second), max(duration, 0))
-        player.currentTime = TimeInterval(clamped)
+        if play {
+            isPlaying = await engine.play(from: TimeInterval(clamped))
+        } else {
+            await engine.setCurrentTime(TimeInterval(clamped))
+        }
         currentSecond = clamped
-        guard play else { return }
-        guard await activateSession() else { return }
-        player.play()
-        isPlaying = true
+    }
+}
+
+/// `AVAudioPlayer.play` calls synchronous `setActive`. Keep that off the main thread.
+private final class LecturePlaybackEngine: @unchecked Sendable {
+    private let queue = DispatchQueue(label: "app.bellnote.lecture-playback", qos: .userInitiated)
+    private var player: AVAudioPlayer?
+    private var sessionReady = false
+
+    struct Snapshot: Sendable {
+        var timeSeconds: Int
+        var isPlaying: Bool
+    }
+
+    func reset() async {
+        await onQueue { [self] in
+            player?.stop()
+            player = nil
+            sessionReady = false
+        }
+        await deactivateSession()
+    }
+
+    func load(_ url: URL) async -> Int {
+        let data = await Task.detached(priority: .userInitiated) {
+            try? Data(contentsOf: url)
+        }.value
+        guard let data else { return 0 }
+        return await onQueue { [self] in
+            guard let player = try? AVAudioPlayer(data: data) else { return 0 }
+            self.player = player
+            return Int(player.duration.rounded())
+        }
+    }
+
+    func isPlaying() async -> Bool {
+        await onQueue { [self] in player?.isPlaying ?? false }
+    }
+
+    func pause() async {
+        await onQueue { [self] in player?.pause() }
+    }
+
+    func stop() async {
+        await onQueue { [self] in
+            player?.stop()
+            sessionReady = false
+        }
+        await deactivateSession()
+    }
+
+    func setCurrentTime(_ time: TimeInterval) async {
+        await onQueue { [self] in player?.currentTime = time }
+    }
+
+    func play(from time: TimeInterval? = nil) async -> Bool {
+        guard await ensureSession() else { return false }
+        return await onQueue { [self] in
+            guard let player else { return false }
+            if let time { player.currentTime = time }
+            player.prepareToPlay()
+            return player.play()
+        }
+    }
+
+    func snapshot() async -> Snapshot {
+        await onQueue { [self] in
+            Snapshot(
+                timeSeconds: Int(player?.currentTime ?? 0),
+                isPlaying: player?.isPlaying ?? false
+            )
+        }
+    }
+
+    private func ensureSession() async -> Bool {
+        if await onQueue({ [self] in sessionReady }) { return true }
+        let ready = await activateSession()
+        await onQueue { [self] in sessionReady = ready }
+        return ready
+    }
+
+    private func onQueue<T: Sendable>(_ body: @escaping @Sendable () -> T) async -> T {
+        await withCheckedContinuation { continuation in
+            queue.async {
+                continuation.resume(returning: body())
+            }
+        }
     }
 
     private func activateSession() async -> Bool {
-        if sessionReady { return true }
-        let session = AVAudioSession.sharedInstance()
-        do {
-            try session.setCategory(.playback, mode: .spokenAudio)
-        } catch {
-            return false
-        }
-        let activated = await withCheckedContinuation { (continuation: CheckedContinuation<Bool, Never>) in
-            session.activate(options: []) { activated, _ in
-                continuation.resume(returning: activated)
+        await withCheckedContinuation { continuation in
+            queue.async {
+                let session = AVAudioSession.sharedInstance()
+                do {
+                    try session.setCategory(.playback, mode: .spokenAudio)
+                } catch {
+                    continuation.resume(returning: false)
+                    return
+                }
+                session.activate(options: []) { activated, _ in
+                    continuation.resume(returning: activated)
+                }
             }
         }
-        sessionReady = activated
-        return activated
     }
 
     private func deactivateSession() async {
-        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
-            AVAudioSession.sharedInstance().deactivate(options: [.notifyOthersOnDeactivation]) { _, _ in
-                continuation.resume()
+        await withCheckedContinuation { continuation in
+            queue.async {
+                AVAudioSession.sharedInstance().deactivate(options: [.notifyOthersOnDeactivation]) { _, _ in
+                    continuation.resume()
+                }
             }
         }
     }

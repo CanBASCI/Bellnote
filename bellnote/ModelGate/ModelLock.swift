@@ -32,4 +32,6 @@ enum ModelCatalog {
     static let taggerBytes: Int64 = 1_610_612_736
     static let pageBytes: Int64 = 3_114_000_000
     static let asrBytes: Int64 = 419_430_400
+    /// Offline diarizer (FluidAudio); approximate download size.
+    static let diarizerBytes: Int64 = 157_286_400
 }

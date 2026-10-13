@@ -1,6 +1,9 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "" : {
+
+    },
     "%@ · %@" : {
       "localizations" : {
         "en" : {
@@ -72,37 +75,11 @@
         }
       }
     },
-    "This model is locked on this device." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "This model is locked on this device."
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Bu model bu aygıtta kilitli."
-          }
-        }
-      }
+    "2B" : {
+
     },
-    "This model cannot run on this device." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "This model cannot run on this device."
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Bu model bu aygıtta çalışmıyor."
-          }
-        }
-      }
+    "4B" : {
+
     },
     "A model is not available." : {
       "localizations" : {
@@ -394,34 +371,50 @@
         }
       }
     },
-    "Edit" : {
+    "Delete 2B?" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Edit"
+            "value" : "Delete 2B?"
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Düzenle"
+            "value" : "2B silinsin mi?"
           }
         }
       }
     },
-    "Not set" : {
+    "Delete 4B?" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Not set"
+            "value" : "Delete 4B?"
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Yok"
+            "value" : "4B silinsin mi?"
+          }
+        }
+      }
+    },
+    "Delete FluidAudio?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete FluidAudio?"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "FluidAudio silinsin mi?"
           }
         }
       }
@@ -458,6 +451,22 @@
         }
       }
     },
+    "Download failed. Check your connection and try again." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Download failed. Check your connection and try again."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "İndirme başarısız. Bağlantınızı kontrol edip tekrar deneyin."
+          }
+        }
+      }
+    },
     "Download finished." : {
       "localizations" : {
         "en" : {
@@ -470,6 +479,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "İndirme bitti."
+          }
+        }
+      }
+    },
+    "Download FluidAudio?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Download FluidAudio?"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "FluidAudio yüklensin mi?"
           }
         }
       }
@@ -492,6 +517,7 @@
       }
     },
     "Downloading" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -503,6 +529,39 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "İndiriliyor"
+          }
+        }
+      }
+    },
+    "Downloading FluidAudio…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Downloading FluidAudio…"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "FluidAudio indiriliyor…"
+          }
+        }
+      }
+    },
+    "Edit" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edit"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Düzenle"
           }
         }
       }
@@ -639,6 +698,9 @@
         }
       }
     },
+    "FluidAudio" : {
+
+    },
     "Given name" : {
       "localizations" : {
         "en" : {
@@ -717,6 +779,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Programı içe aktar"
+          }
+        }
+      }
+    },
+    "Installed" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Installed"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yüklü"
           }
         }
       }
@@ -834,6 +912,22 @@
         }
       }
     },
+    "Linking notes" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Linking notes"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notalar bağlanıyor"
+          }
+        }
+      }
+    },
     "Listen" : {
       "localizations" : {
         "en" : {
@@ -879,6 +973,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Eksik"
+          }
+        }
+      }
+    },
+    "Missing course." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Missing course."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ders eksik."
           }
         }
       }
@@ -1125,6 +1236,23 @@
         }
       }
     },
+    "Not set" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not set"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yok"
+          }
+        }
+      }
+    },
     "Note" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1226,6 +1354,22 @@
         }
       }
     },
+    "OK" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OK"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tamam"
+          }
+        }
+      }
+    },
     "Other contact" : {
       "localizations" : {
         "en" : {
@@ -1254,6 +1398,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Başka bir oturumla çakışıyor."
+          }
+        }
+      }
+    },
+    "Page model" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Page model"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sayfa modeli"
           }
         }
       }
@@ -1467,6 +1627,22 @@
         }
       }
     },
+    "Reading the recording" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reading the recording"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kayıt okunuyor"
+          }
+        }
+      }
+    },
     "Ready" : {
       "localizations" : {
         "en" : {
@@ -1595,6 +1771,22 @@
         }
       }
     },
+    "Retry" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Retry"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yeniden dene"
+          }
+        }
+      }
+    },
     "Run" : {
       "localizations" : {
         "en" : {
@@ -1644,6 +1836,38 @@
         }
       }
     },
+    "Separates speakers while processing a lecture." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Separates speakers while processing a lecture."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ders işlenirken konuşmacıları ayırır."
+          }
+        }
+      }
+    },
+    "Separating speakers" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Separating speakers"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Konuşmacılar ayrılıyor"
+          }
+        }
+      }
+    },
     "Settings" : {
       "localizations" : {
         "en" : {
@@ -1689,6 +1913,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Konuş"
+          }
+        }
+      }
+    },
+    "Speaker separation needs the FluidAudio models on this device. Download now?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Speaker separation needs the FluidAudio models on this device. Download now?"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Konuşmacı ayrımı için FluidAudio modellerinin bu cihazda yüklü olması gerekir. Şimdi indirilsin mi?"
           }
         }
       }
@@ -1810,6 +2050,22 @@
         }
       }
     },
+    "Tagging the lecture" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tagging the lecture"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ders etiketleniyor"
+          }
+        }
+      }
+    },
     "Term" : {
       "localizations" : {
         "en" : {
@@ -1922,6 +2178,57 @@
         }
       }
     },
+    "The recording could not be read." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The recording could not be read."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kayıt okunamadı."
+          }
+        }
+      }
+    },
+    "The speech asset is not installed." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The speech asset is not installed."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Konuşma modeli yüklü değil."
+          }
+        }
+      }
+    },
+    "The transcript failed the quality check." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The transcript failed the quality check."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Transkript kalite kontrolünden geçemedi."
+          }
+        }
+      }
+    },
     "This is your confirmation, not proof that the lecturer consented." : {
       "localizations" : {
         "en" : {
@@ -1934,6 +2241,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Bu sizin onayınızdır, öğretim üyesinin onayının kanıtı değildir."
+          }
+        }
+      }
+    },
+    "This model cannot run on this device." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This model cannot run on this device."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bu model bu aygıtta çalışmıyor."
+          }
+        }
+      }
+    },
+    "This model is locked on this device." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This model is locked on this device."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bu model bu aygıtta kilitli."
           }
         }
       }
@@ -2066,6 +2407,22 @@
         }
       }
     },
+    "Used when writing the lecture page." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Used when writing the lecture page."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ders sayfası yazılırken kullanılır."
+          }
+        }
+      }
+    },
     "Weekday" : {
       "localizations" : {
         "en" : {
@@ -2078,6 +2435,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Gün"
+          }
+        }
+      }
+    },
+    "Writing the page" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Writing the page"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sayfa yazılıyor"
+          }
+        }
+      }
+    },
+    "Writing the transcript" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Writing the transcript"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Metin yazılıyor"
           }
         }
       }

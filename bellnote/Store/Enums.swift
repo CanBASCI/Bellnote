@@ -41,6 +41,31 @@ enum PipelineStage: String, Codable, Sendable, CaseIterable {
         case .ready, .failed: nil
         }
     }
+
+    var fraction: Double {
+        switch self {
+        case .idle: 0.08
+        case .audio: 0.2
+        case .speakers: 0.35
+        case .transcript: 0.55
+        case .tags: 0.75
+        case .page: 0.9
+        case .links, .ready: 1
+        case .failed: 0
+        }
+    }
+
+    var title: String {
+        switch self {
+        case .idle, .audio: String(localized: "Reading the recording")
+        case .speakers: String(localized: "Separating speakers")
+        case .transcript: String(localized: "Writing the transcript")
+        case .tags: String(localized: "Tagging the lecture")
+        case .page: String(localized: "Writing the page")
+        case .links, .ready: String(localized: "Linking notes")
+        case .failed: String(localized: "Failed")
+        }
+    }
 }
 
 enum SpeakerRole: String, Codable, Sendable {

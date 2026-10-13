@@ -28,6 +28,30 @@ struct CoursePage: View {
 
     var body: some View {
         List {
+            Section {
+                HStack(alignment: .firstTextBaseline, spacing: 12) {
+                    Text(course.name)
+                        .font(.largeTitle.bold())
+                        .foregroundStyle(.primary)
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.8)
+                    Spacer(minLength: 8)
+                    Button {
+                        showLecturer = true
+                    } label: {
+                        Text(lecturerName)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.trailing)
+                            .lineLimit(2)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(Text("Lecturer"))
+                }
+                .listRowInsets(EdgeInsets(top: 8, leading: 20, bottom: 4, trailing: 20))
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+            }
             Section("Lectures") {
                 if lectures.isEmpty {
                     Text("No lectures yet.")
@@ -46,28 +70,6 @@ struct CoursePage: View {
                     }
                 }
             }
-            Section("Lecturer") {
-                Button {
-                    showLecturer = true
-                } label: {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(lecturerName)
-                                .foregroundStyle(.primary)
-                            if let detail = lecturerDetail {
-                                Text(detail)
-                                    .font(.subheadline)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                        Spacer(minLength: 0)
-                        Text("Edit")
-                            .font(.subheadline)
-                            .foregroundStyle(.tint)
-                    }
-                }
-                .buttonStyle(.plain)
-            }
             Section("Inventory", isExpanded: $showInventory) {
                 if course.inventory.isEmpty {
                     Text("Nothing named in a lecture yet.")
@@ -78,7 +80,8 @@ struct CoursePage: View {
             }
         }
         .listStyle(.insetGrouped)
-        .navigationTitle(course.name)
+        .navigationTitle("")
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button("Record", systemImage: "record.circle") { showConsent = true }
@@ -101,19 +104,11 @@ struct CoursePage: View {
     }
 
     private var lecturerName: String {
-        guard let contact = course.lecturer else { return String(localized: "Not set") }
+        guard let contact = course.lecturer else { return String(localized: "Lecturer") }
         let parts = [contact.title, contact.givenName, contact.familyName]
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
-        return parts.isEmpty ? String(localized: "Not set") : parts.joined(separator: " ")
-    }
-
-    private var lecturerDetail: String? {
-        guard let contact = course.lecturer else { return nil }
-        let parts = [contact.email, contact.phone]
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+        return parts.isEmpty ? String(localized: "Lecturer") : parts.joined(separator: " ")
     }
 
     private var lectures: [Lecture] {

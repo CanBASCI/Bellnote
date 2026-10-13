@@ -97,7 +97,11 @@ struct RecorderSheet: View {
                 VStack(spacing: 12) {
                     HStack(spacing: 12) {
                         Button(capture.isRunning ? "Pause" : "Resume") {
-                            capture.isRunning ? pause() : resume()
+                            if capture.isRunning {
+                                pause()
+                            } else {
+                                Task { await resume() }
+                            }
                         }
                         .buttonStyle(.glass)
                         Button("I didn't get this") { flag() }
@@ -121,7 +125,7 @@ struct RecorderSheet: View {
             Button("No", role: .cancel) { pause() }
         }
         .confirmationDialog("Resume recording?", isPresented: $askResume) {
-            Button("Resume") { resume() }
+            Button("Resume") { Task { await resume() } }
             Button("Stay paused", role: .cancel) {}
         }
     }
@@ -137,7 +141,7 @@ struct RecorderSheet: View {
         do {
             let folder = try Vault.courseDirectory(id: lecture.course?.token ?? UUID())
             let url = folder.appendingPathComponent("\(lecture.startedAt.timeIntervalSince1970).m4a")
-            try capture.start(url: url)
+            try await capture.start(url: url)
             if let root = try? Vault.documents() {
                 lecture.audioRelativePath = url.path.replacingOccurrences(of: root.path + "/", with: "")
             }
@@ -167,9 +171,9 @@ struct RecorderSheet: View {
         modelContext.insert(segment)
     }
 
-    private func resume() {
+    private func resume() async {
         do {
-            try capture.resumeCapture()
+            try await capture.resumeCapture()
             lecture.state = LectureState.recording.rawValue
         } catch {
             failed = String(localized: "Recording did not resume.")
@@ -183,7 +187,7 @@ struct RecorderSheet: View {
     private func finish() async {
         ticker?.invalidate()
         do {
-            try capture.stop()
+            try await capture.stop()
             lecture.recordedSeconds = elapsed
             lecture.state = LectureState.paused.rawValue
             lecture.stage = PipelineStage.idle.rawValue

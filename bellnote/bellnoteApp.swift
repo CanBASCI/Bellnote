@@ -1,4 +1,3 @@
-import BackgroundTasks
 import SwiftData
 import SwiftUI
 
@@ -12,9 +11,6 @@ struct bellnoteApp: App {
             container = try AppSchema.container()
         } catch {
             container = nil
-        }
-        BGTaskScheduler.shared.register(forTaskWithIdentifier: "app.bellnote.refresh", using: nil) { task in
-            task.setTaskCompleted(success: false)
         }
     }
 

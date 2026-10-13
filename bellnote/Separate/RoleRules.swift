@@ -19,8 +19,8 @@ enum RoleRules {
         if run.near && run.duration < 20 && run.addressedLecturer {
             return .question
         }
-        if run.cluster == longestCluster && run.duration >= 20 {
-            return .narrator
+        if run.cluster == longestCluster {
+            return run.duration < 2 ? .room : .narrator
         }
         if run.duration < 4 {
             return .room
