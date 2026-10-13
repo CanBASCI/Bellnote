@@ -66,6 +66,8 @@ enum SupertonicSpeech {
         "voice.bin"
     ]
     nonisolated(unsafe) private static var engine: SherpaOnnxOfflineTtsWrapper?
+    nonisolated(unsafe) private static var lastUse = Date.distantPast
+    private static let idleSeconds = 20.0
 
     static var isInstalled: Bool {
         let directory = HubWeights.directory(for: ModelCatalog.supertonicRepo)
@@ -109,6 +111,15 @@ enum SupertonicSpeech {
         log.info("Supertonic download ok")
     }
 
+    /// Drops the loaded voice model. It loads again on the next read.
+    static func unload() {
+        queue.async {
+            guard engine != nil else { return }
+            engine = nil
+            log.info("Supertonic unloaded")
+        }
+    }
+
     static func delete() throws {
         queue.async { engine = nil }
         try HubWeights.remove(ModelCatalog.supertonicRepo)
@@ -132,6 +143,7 @@ enum SupertonicSpeech {
     private static func render(text: String, language: String, voice: Int, cancel: SupertonicCancel) throws -> SupertonicClip {
         guard isInstalled else { throw SupertonicError.notInstalled }
         let tts = try loaded()
+        defer { markUsed() }
         let sid = voice
         var samples: [Float] = []
         var rate: Int32 = 44_100
@@ -158,6 +170,16 @@ enum SupertonicSpeech {
         }
         if cancel.stopped { return SupertonicClip(samples: [], sampleRate: rate) }
         return SupertonicClip(samples: samples, sampleRate: rate)
+    }
+
+    /// Runs on `queue`. Frees the model after a quiet period so it does not sit in memory.
+    private static func markUsed() {
+        lastUse = Date()
+        queue.asyncAfter(deadline: .now() + idleSeconds + 1) {
+            guard engine != nil, Date().timeIntervalSince(lastUse) >= idleSeconds else { return }
+            engine = nil
+            log.info("Supertonic unloaded after idle")
+        }
     }
 
     private static func loaded() throws -> SherpaOnnxOfflineTtsWrapper {

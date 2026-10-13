@@ -258,7 +258,7 @@ struct TodayPage: View {
             return String(localized: "No lectures yet.")
         }
         let summary = lecture.summary.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !summary.isEmpty { return MediaClock.sentence(summary) }
+        if !summary.isEmpty { return MediaClock.sentence(CorrectionText.plain(summary)) }
         if let text = lecture.blocks.sorted(by: { $0.second < $1.second }).first(where: { !$0.text.isEmpty })?.text {
             return MediaClock.sentence(text)
         }

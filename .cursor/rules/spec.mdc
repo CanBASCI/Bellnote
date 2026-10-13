@@ -1,0 +1,19 @@
+---
+description: Bellnote product spec. Read before changing behavior, screens, models, or pipeline.
+alwaysApply: true
+---
+
+# Bellnote spec
+
+The full implementation spec is in `docs/SPEC.md`. It is the source of truth. Read the relevant section before changing behavior, and do not ask the user to paste it again.
+
+Hard rules to keep in mind:
+
+- Code, comments, identifiers, logs, and commits are English. UI copy lives in `Localizable.xcstrings` (English and Turkish).
+- Commits use the student's own git identity. No agent author, no `Co-authored-by`.
+- Everything stays on device. No upload, no account, no analytics.
+- Models are never downloaded unless the student taps Download. Use only the model the student installed and selected.
+- The model emits tags and prose. Linking is Swift. A fact that is not in a stored block is not written.
+- Use system controls and Liquid Glass. No custom blur or custom control where a system one exists.
+- No force unwrap, no force try, no silently swallowed error.
+- Out of scope for v1: journal, meetings, cloud, accounts, analytics, training, iOS 26 fallback.

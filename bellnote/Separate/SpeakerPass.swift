@@ -47,6 +47,12 @@ enum SpeakerPass {
         return runs
     }
 
+    /// Frees the diarizer models once the speaker runs are known.
+    static func release() {
+        store.release()
+        log.info("Diarizer released footprintMB=\(MemoryProbe.footprintMB())")
+    }
+
     static func narratorRanges(_ runs: [SpeechRun]) -> [ClosedRange<Int>] {
         guard let longest = RoleRules.longestCluster(runs) else { return [] }
         return runs.compactMap { run in
@@ -185,6 +191,14 @@ private final class DiarizerBox: @unchecked Sendable {
         let loaded = try await OfflineDiarizerModels.load(progressHandler: progressHandler)
         diarizer.initialize(models: loaded)
         lock.withLock { prepared = true }
+    }
+
+    /// Drops the loaded Core ML models. The text models need that memory.
+    func release() {
+        lock.withLock {
+            prepared = false
+            diarizer = OfflineDiarizerManager(config: Self.lectureConfig)
+        }
     }
 
     func process(_ url: URL) async throws -> DiarizationResult {

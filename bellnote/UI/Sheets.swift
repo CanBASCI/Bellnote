@@ -1014,7 +1014,7 @@ struct ProgramPage: View {
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button("Add slot", systemImage: "plus") { showEditor = true }
-                    .labelStyle(.titleAndIcon)
+                    .labelStyle(.iconOnly)
             }
         }
         .onAppear {
@@ -1321,6 +1321,7 @@ struct StudySheet: View {
     @State private var prompt = ""
     @State private var answer = ""
     @State private var reader = SpeechReader()
+    private static let log = Logger(subsystem: "app.bellnote", category: "study")
 
     var body: some View {
         NavigationStack {
@@ -1351,6 +1352,7 @@ struct StudySheet: View {
     }
 
     private func run() async {
+        Self.log.info("Study run tapped mode=\(mode == .ask ? "ask" : "quiz", privacy: .public) lectures=\(course.lectures.count) question=\(prompt, privacy: .public)")
         let blocks = course.lectures.flatMap { lecture in
             lecture.blocks.map { block in
                 StudyBlock(
@@ -1370,7 +1372,9 @@ struct StudySheet: View {
             }
         }
         let selected = StudySelection.select(blocks, filter: .wholeCourse)
+        Self.log.info("Study blocks total=\(blocks.count) selected=\(selected.count)")
         guard !selected.isEmpty else {
+            Self.log.info("Study no blocks selected")
             answer = String(localized: "The lectures do not contain that.")
             return
         }
@@ -1388,8 +1392,12 @@ struct StudySheet: View {
             )
         }
         do {
-            answer = try await LocalModelRuntime.shared.compose(tags: tags, task: prompt)
+            let reply = try await LocalModelRuntime.shared.answer(question: prompt, tags: tags)
+            let missing = reply.contains("NOT_IN_NOTES") || reply.isEmpty
+            Self.log.info("Study answer shown notInNotes=\(missing) characters=\(reply.count)")
+            answer = missing ? String(localized: "The lectures do not contain that.") : reply
         } catch {
+            Self.log.error("Study answer failed: \(error.localizedDescription, privacy: .public)")
             answer = String(localized: "A model is not available.")
         }
     }

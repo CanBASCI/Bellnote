@@ -22,6 +22,7 @@ enum LecturePipeline {
             log.error("Process stopped: missing course.")
             return
         }
+        SupertonicSpeech.unload()
         lecture.state = LectureState.processing.rawValue
         lecture.failureMessageKey = nil
         var stage = PipelineStage(rawValue: lecture.stage) ?? .idle
@@ -69,11 +70,11 @@ enum LecturePipeline {
             if stage == .tags {
                 log.info("Stage page preferTagger=\(preferTaggerForPage) model=\(preferTaggerForPage ? ModelCatalog.taggerRepo : ModelCatalog.pageRepo, privacy: .public)")
                 await report(.page)
-                try await finishPage(lecture, preferTagger: preferTaggerForPage)
+                await finishPage(lecture, course: course, context: context)
                 stage = .page
                 lecture.stage = stage.rawValue
                 try context.save()
-                log.info("Page summary characters=\(lecture.summary.count)")
+                log.info("AI correction characters=\(lecture.summary.count)")
             }
             if stage == .page {
                 log.info("Stage links")
@@ -85,6 +86,7 @@ enum LecturePipeline {
                 try context.save()
                 await ReminderScheduler.notifyReady(course: course.name, startedAt: lecture.startedAt)
                 log.info("Process ready")
+                await LocalModelRuntime.shared.unloadAll()
             }
         } catch let error as TranscriptError {
             lecture.state = LectureState.failed.rawValue
@@ -172,6 +174,7 @@ enum LecturePipeline {
             log.error("Speaker pass failed message=\(error.localizedDescription, privacy: .public)")
             runs = []
         }
+        SpeakerPass.release()
         let lines: [TranscriptLine]
         if engine == .qwen {
             guard qwenReady else { throw TranscriptError.qwenMissing }
@@ -217,13 +220,11 @@ enum LecturePipeline {
             }
             let spoken = block.text
             block.kind = BlockKind(tag: tag.kind).rawValue
-            block.text = TagKeep.sentence(tag.text, spoken: spoken)
             block.topics = TagKeep.topics(tag.topics, spoken: spoken)
             block.listItems = TagKeep.items(tag.listItems, spoken: spoken)
             block.numbers = TagKeep.numbers(tag.numbers, spoken: spoken)
             block.importance = tag.importanceCue
             block.missing = tag.missing
-            block.role = SpeakerRole(rawValue: tag.speakerRole)?.rawValue ?? block.role
             log.info("Tag keep model=\(tag.text, privacy: .public) spoken=\(block.text, privacy: .public)")
             if tag.kind == BlockKind.reference.rawValue || tag.kind == BlockKind.assignment.rawValue {
                 block.timeHintRaw = block.text
@@ -238,29 +239,76 @@ enum LecturePipeline {
         lecture.blocks = tagged.isEmpty ? source.filter { $0.role != SpeakerRole.room.rawValue } : tagged
     }
 
-    private static func finishPage(_ lecture: Lecture, preferTagger: Bool) async throws {
-        let tags = lecture.blocks.map { block in
-            WindowTag(
-                language: "",
-                speakerRole: block.role,
-                kind: block.kind,
-                topics: block.topics,
-                text: block.text,
-                listItems: block.listItems,
-                numbers: block.numbers,
-                importanceCue: block.importance,
-                missing: block.missing
-            )
+    /// Writes the AI correction: the lecturer's words with correct spelling, punctuation and
+    /// word order, important parts marked, homework collected. Apple's raw text stays untouched
+    /// in the blocks. If a model is missing or its answer drifts, the raw words are kept.
+    private static func finishPage(_ lecture: Lecture, course: Course, context: ModelContext) async {
+        let spoken = lecture.blocks
+            .sorted { $0.second < $1.second }
+            .filter { $0.role != SpeakerRole.room.rawValue }
+            .filter { !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+        let lecturer = spoken.filter { $0.role == SpeakerRole.narrator.rawValue }
+        let source = lecturer.isEmpty ? spoken : lecturer
+        log.info("Correction source blocks=\(source.count) lecturerOnly=\(!lecturer.isEmpty)")
+        var paragraphs: [String] = []
+        var tasks: [String] = []
+        for chunk in CorrectionText.chunks(source.map(\.text)) {
+            do {
+                let output = try await LocalModelRuntime.shared.correct(chunk)
+                let parts = CorrectionText.split(output)
+                let faithful = CorrectionText.isFaithful(parts.body, to: chunk)
+                let kept = CorrectionText.overlap(chunk, CorrectionText.plain(parts.body))
+                log.info("Correction check faithful=\(faithful) sourceCharacters=\(chunk.count) bodyCharacters=\(CorrectionText.plain(parts.body).count) wordsKept=\(kept) assignments=\(parts.assignments.count) highlights=\(parts.body.components(separatedBy: "**").count / 2)")
+                log.info("Correction body=\(parts.body, privacy: .public)")
+                if faithful {
+                    paragraphs.append(parts.body)
+                    // A task must be made of words the teacher said, otherwise the model invented it.
+                    let spokenTasks = parts.assignments.filter { CorrectionText.overlap($0, chunk) >= 0.6 }
+                    if spokenTasks.count < parts.assignments.count {
+                        log.warning("Assignment dropped, not in the spoken text count=\(parts.assignments.count - spokenTasks.count)")
+                    }
+                    tasks.append(contentsOf: spokenTasks)
+                } else {
+                    log.warning("Correction rejected, keeping the raw words")
+                    paragraphs.append(chunk)
+                }
+            } catch {
+                log.error("Correction failed, keeping the raw words message=\(error.localizedDescription, privacy: .public)")
+                paragraphs.append(chunk)
+            }
         }
-        let role: ModelRole = preferTagger ? .tagger : .page
-        if role == .tagger {
-            lecture.summary = tags.map(\.text).joined(separator: "\n")
-            return
+        lecture.summary = paragraphs.joined(separator: "\n\n")
+        log.info("Correction final characters=\(lecture.summary.count) paragraphs=\(paragraphs.count) tasks=\(tasks.count)")
+        addAssignments(tasks, lecture: lecture, course: course, source: source, context: context)
+    }
+
+    private static func addAssignments(
+        _ tasks: [String],
+        lecture: Lecture,
+        course: Course,
+        source: [Block],
+        context: ModelContext
+    ) {
+        guard !source.isEmpty else { return }
+        let tokens = Set(lecture.blocks.map(\.token))
+        var known = course.assignments.filter { tokens.contains($0.sourceBlockID) }.map(\.text)
+        for task in tasks {
+            guard !known.contains(where: { CorrectionText.overlap(task, $0) >= 0.6 }) else { continue }
+            guard let block = source.max(by: {
+                CorrectionText.overlap(task, $0.text) < CorrectionText.overlap(task, $1.text)
+            }) else { continue }
+            let hint = DueDateMath.parse(task)
+            let due = hint.map { DueDateMath.due(from: lecture.startedAt, hint: $0) }
+            context.insert(Assignment(
+                course: course,
+                text: task,
+                due: due,
+                sourceBlockID: block.token,
+                sourceSecond: block.second
+            ))
+            known.append(task)
+            log.info("Assignment added text=\(task, privacy: .public)")
         }
-        lecture.summary = try await LocalModelRuntime.shared.compose(
-            tags: tags,
-            task: "Write a short page summary. Every claim must come from the notes."
-        )
     }
 
     private static func finishLinks(_ lecture: Lecture, course: Course, context: ModelContext) {
@@ -289,7 +337,10 @@ enum LecturePipeline {
             block.outgoing.append(stored)
             context.insert(stored)
         }
+        let blockIDs = Set(lecture.blocks.map(\.token))
         for block in lecture.blocks where block.kind == BlockKind.assignment.rawValue {
+            let existing = course.assignments.filter { blockIDs.contains($0.sourceBlockID) }
+            if existing.contains(where: { CorrectionText.overlap(block.text, $0.text) >= 0.5 }) { continue }
             let hint = block.dueHintRaw.flatMap { DueDateMath.parse($0) }
             let due = hint.map { DueDateMath.due(from: lecture.startedAt, hint: $0) }
             let assignment = Assignment(

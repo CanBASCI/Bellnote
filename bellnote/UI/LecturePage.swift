@@ -55,13 +55,11 @@ struct LectureNote: View {
                     Text(lecture.startedAt.formatted(date: .abbreviated, time: .omitted))
                         .font(.title2.weight(.semibold))
                 }
-                if lecture.recordedSeconds >= 60 {
-                    Text(String(format: String(localized: "%lld min"), lecture.recordedSeconds / 60))
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
                 VStack(alignment: .leading, spacing: 6) {
-                    Text(bodyText)
+                    Text("AI correction")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                    Text(CorrectionText.attributed(bodyText))
                         .lineLimit(summaryExpanded ? nil as Int? : 5)
                     if isLongSummary {
                         Button(summaryExpanded ? "Less" : "More") {
@@ -133,7 +131,14 @@ struct LectureNote: View {
                 Section {
                     DisclosureGroup("Raw") {
                         ForEach(lecture.blocks.sorted { $0.second < $1.second }) { block in
-                            Text(block.text)
+                            VStack(alignment: .leading, spacing: 2) {
+                                if block.speaker > 0 {
+                                    Text(verbatim: "\(speakerTitle(block.speaker)) · \(MediaClock.short(block.second))")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                Text(verbatim: block.text)
+                            }
                         }
                     }
                 }
@@ -221,7 +226,7 @@ struct LectureNote: View {
     }
 
     private var isLongSummary: Bool {
-        bodyText.count > 160 || bodyText.contains("\n")
+        CorrectionText.plain(bodyText).count > 160 || bodyText.contains("\n")
     }
 
     private var bodyText: String {
@@ -230,7 +235,7 @@ struct LectureNote: View {
         if let failure = lecture.failureMessageKey, !failure.isEmpty {
             return String(localized: String.LocalizationValue(failure))
         }
-        return String(localized: "No summary yet.")
+        return String(localized: "No AI correction yet.")
     }
 
     private var chapters: [Block] {
@@ -337,7 +342,9 @@ struct LectureNote: View {
     }
 
     private func listen(_ course: Course) {
-        let text = lecture.summary.isEmpty ? chapters.map(\.text).joined(separator: "\n") : lecture.summary
+        let text = lecture.summary.isEmpty
+            ? chapters.map(\.text).joined(separator: "\n")
+            : CorrectionText.plain(lecture.summary)
         Logger(subsystem: "app.bellnote", category: "listen").info(
             "Listen tap characters=\(text.count) locale=\(course.localeIdentifier, privacy: .public) speaking=\(reader.isSpeaking)"
         )

@@ -1,6 +1,7 @@
 import Foundation
 import FoundationModels
 import HuggingFace
+import MLX
 import MLXFoundationModels
 import MLXLLM
 import MLXLMCommon
@@ -18,15 +19,54 @@ actor LocalModelRuntime {
     nonisolated private static let log = Logger(subsystem: "app.bellnote", category: "model")
 
     private var resident: ModelRole?
+    private var activeCalls = 0
+    private var idleTask: Task<Void, Never>?
+    private static let idleSeconds = 45
     private let gate = ModelGate()
 
     func reset() async {
-        await gate.unload()
-        resident = nil
+        await evictResident()
         Self.log.info("Model reset")
     }
 
+    /// Frees the loaded text model. Skipped while a call is running.
+    func unloadAll() async {
+        guard activeCalls == 0, resident != nil else { return }
+        await evictResident()
+        Self.log.info("Models unloaded")
+    }
+
+    /// `gate.unload()` only changes bookkeeping. The weights stay in MLX's cache until evicted.
+    private func evictResident() async {
+        idleTask?.cancel()
+        idleTask = nil
+        await MLXLanguageModel.evictAll()
+        Memory.clearCache()
+        await gate.unload()
+        resident = nil
+        Self.log.info("Memory after evict footprintMB=\(MemoryProbe.footprintMB())")
+    }
+
+    private func beginCall() {
+        activeCalls += 1
+        idleTask?.cancel()
+        idleTask = nil
+    }
+
+    private func endCall() {
+        activeCalls -= 1
+        guard activeCalls == 0 else { return }
+        idleTask?.cancel()
+        idleTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(Self.idleSeconds))
+            guard !Task.isCancelled else { return }
+            await self?.unloadAll()
+        }
+    }
+
     func tag(window: String, locale: Locale) async throws -> WindowTag {
+        beginCall()
+        defer { endCall() }
         Self.log.info("Tag begin characters=\(window.count) locale=\(locale.identifier, privacy: .public)")
         do {
             try await ensure(.tagger)
@@ -60,6 +100,8 @@ actor LocalModelRuntime {
     }
 
     func compose(tags: [WindowTag], task: String) async throws -> String {
+        beginCall()
+        defer { endCall() }
         let role = try composeRole()
         Self.log.info("Compose begin tags=\(tags.count) role=\(role.rawValue, privacy: .public)")
         do {
@@ -71,6 +113,55 @@ actor LocalModelRuntime {
             return response.content
         } catch {
             Self.log.error("Compose failed: \(error.localizedDescription, privacy: .public)")
+            throw error
+        }
+    }
+
+    /// Rewrites dictated text with correct spelling, punctuation and word order.
+    /// The model marks important parts with ** and lists homework as ASSIGNMENT lines.
+    func correct(_ text: String) async throws -> String {
+        beginCall()
+        defer { endCall() }
+        let role = try composeRole()
+        Self.log.info("Correct begin characters=\(text.count) role=\(role.rawValue, privacy: .public) input=\(text, privacy: .public)")
+        do {
+            try await ensure(role)
+            let session = try makeSession(role: role, instructions: correctionInstructions)
+            let limit = min(1500, text.count / 2 + 300)
+            let response = try await session.respond(
+                to: "Text:\n\(text)\n\nCorrected text:",
+                options: GenerationOptions(maximumResponseTokens: limit)
+            )
+            let output = response.content.trimmingCharacters(in: .whitespacesAndNewlines)
+            Self.log.info("Correct ok characters=\(output.count) text=\(output, privacy: .public)")
+            return output
+        } catch {
+            Self.log.error("Correct failed: \(error.localizedDescription, privacy: .public)")
+            throw error
+        }
+    }
+
+    /// Answers one question from the notes. The notes come first and the question last,
+    /// otherwise a small model copies the notes back instead of answering.
+    func answer(question: String, tags: [WindowTag]) async throws -> String {
+        beginCall()
+        defer { endCall() }
+        let role = try composeRole()
+        Self.log.info("Answer begin tags=\(tags.count) role=\(role.rawValue, privacy: .public)")
+        do {
+            try await ensure(role)
+            let session = try makeSession(role: role, instructions: answerInstructions)
+            let source = tags.map(\.text).joined(separator: "\n")
+            Self.log.info("Answer question=\(question, privacy: .public) notesCharacters=\(source.count) notesHead=\(String(source.prefix(200)), privacy: .public)")
+            let response = try await session.respond(
+                to: "Notes:\n\(source)\n\nQuestion: \(question)\nShort answer:",
+                options: GenerationOptions(maximumResponseTokens: 120)
+            )
+            let text = response.content.trimmingCharacters(in: .whitespacesAndNewlines)
+            Self.log.info("Answer ok characters=\(text.count) text=\(text, privacy: .public)")
+            return text
+        } catch {
+            Self.log.error("Answer failed: \(error.localizedDescription, privacy: .public)")
             throw error
         }
     }
@@ -138,8 +229,7 @@ actor LocalModelRuntime {
         let repo = repoID(role)
         Self.log.info("Delete tapped role=\(role.rawValue, privacy: .public) repo=\(repo, privacy: .public)")
         if resident == role {
-            await gate.unload()
-            resident = nil
+            await evictResident()
         }
         try HubWeights.remove(repo)
         _ = probe(role)
@@ -172,16 +262,17 @@ actor LocalModelRuntime {
             Self.log.error("Model is not installed role=\(role.rawValue, privacy: .public)")
             throw LocalModelError.notInstalled
         }
-        if role == .page, resident == .tagger {
-            Self.log.info("Unload tagger before page")
-            await gate.unload()
-            resident = nil
+        if let loaded = resident, loaded != role {
+            Self.log.info("Unload \(loaded.rawValue, privacy: .public) before \(role.rawValue, privacy: .public)")
+            await evictResident()
         }
         if resident == role {
             Self.log.info("Model already resident role=\(role.rawValue, privacy: .public)")
             return
         }
-        Self.log.info("Ensure role=\(role.rawValue, privacy: .public)")
+        Self.log.info("Ensure role=\(role.rawValue, privacy: .public) footprintMB=\(MemoryProbe.footprintMB())")
+        Memory.cacheLimit = 128 * 1_024 * 1_024
+        SupertonicSpeech.unload()
         switch role {
         case .tagger:
             await gate.loadTagger()
@@ -254,6 +345,30 @@ actor LocalModelRuntime {
         text is one sentence copied from the window, in the lecture language. \
         numbers only if they are spoken in the window. \
         If items are unintelligible, keep the row and set missing true. Do not invent facts.
+        """
+    }
+
+    private var correctionInstructions: String {
+        """
+        You are a proofreader. Rewrite the text in the same language with correct spelling, \
+        punctuation, capital letters and natural word order. Keep every idea. \
+        Do not summarise, shorten, translate or add facts. \
+        Wrap short important phrases in double asterisks, like **this**: terms, names, numbers \
+        and dates. Never wrap whole sentences. \
+        Only when the teacher clearly gives homework, or says the students are responsible for \
+        something, add a line after the text that starts with ASSIGNMENT: followed by that task \
+        in the teacher's own words, copied from the text. Never invent a task. \
+        Most texts have none. Then write no ASSIGNMENT line. \
+        Write only the corrected text. Thinking is off.
+        """
+    }
+
+    private var answerInstructions: String {
+        """
+        Answer the question using only the notes. Reply with the answer alone, \
+        in one or two short sentences, in the language of the question. \
+        Never repeat or list the notes. \
+        If the notes do not contain the answer, reply exactly: NOT_IN_NOTES
         """
     }
 

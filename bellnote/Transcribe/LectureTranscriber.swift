@@ -20,6 +20,7 @@ enum TranscriptError: Error, Equatable {
 
 enum LectureTranscriber {
     private static let log = Logger(subsystem: "app.bellnote", category: "speech")
+    private static let windowSeconds = 10
 
     static func transcribe(
         url: URL,
@@ -36,21 +37,31 @@ enum LectureTranscriber {
         log.info("Apple dictation turns=\(turns.count) speakers=\(Set(turns.map(\.cluster)).count)")
         var lines: [TranscriptLine] = []
         for turn in turns {
-            let clip = try clipAudio(url, from: turn.start, through: turn.end)
-            defer { try? FileManager.default.removeItem(at: clip) }
-            let spoken: [TranscriptLine]
-            do {
-                spoken = try await transcribeFile(url: clip, locale: locale, keeping: [])
-            } catch {
-                log.error(
-                    "Apple dictation turn failed speaker=\(turn.cluster) start=\(turn.start) message=\(error.localizedDescription, privacy: .public)"
-                )
-                continue
+            // Apple dictation silently drops most of a long clip (57 s returned 12 s of text),
+            // so every turn is sent in short windows and the pieces are joined back.
+            var pieces: [String] = []
+            var windowStart = turn.start
+            while windowStart < turn.end {
+                let windowEnd = min(windowStart + windowSeconds, turn.end)
+                defer { windowStart = windowEnd }
+                guard windowEnd - windowStart >= 1 else { continue }
+                do {
+                    let clip = try clipAudio(url, from: windowStart, through: windowEnd)
+                    defer { try? FileManager.default.removeItem(at: clip) }
+                    let spoken = try await transcribeFile(url: clip, locale: locale, keeping: [])
+                    let piece = spoken.map(\.text).joined(separator: " ")
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                    log.info(
+                        "Apple dictation window speaker=\(turn.cluster) from=\(windowStart) to=\(windowEnd) words=\(piece.split(whereSeparator: \.isWhitespace).count)"
+                    )
+                    if !piece.isEmpty { pieces.append(piece) }
+                } catch {
+                    log.error(
+                        "Apple dictation window failed speaker=\(turn.cluster) from=\(windowStart) message=\(error.localizedDescription, privacy: .public)"
+                    )
+                }
             }
-            let text = spoken
-                .map(\.text)
-                .joined(separator: " ")
-                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let text = pieces.joined(separator: " ")
             let words = text.split(whereSeparator: \.isWhitespace).count
             log.info(
                 "Apple dictation speaker=\(turn.cluster) start=\(turn.start) seconds=\(turn.end - turn.start) words=\(words) text=\(text, privacy: .public)"
