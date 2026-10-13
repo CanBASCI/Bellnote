@@ -1,3 +1,4 @@
+import OSLog
 import SwiftData
 import SwiftUI
 
@@ -25,6 +26,9 @@ struct CoursePage: View {
     @State private var activeLecture: Lecture?
     @State private var showLecturer = false
     @State private var showInventory = false
+    @State private var assignmentTarget: AssignmentTarget?
+    @State private var pendingDelete: Lecture?
+    @State private var deleteNotice: String?
 
     var body: some View {
         List {
@@ -73,12 +77,20 @@ struct CoursePage: View {
                     } label: {
                         lectureRow(lecture)
                     }
+                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                        Button("Delete", systemImage: "trash", role: .destructive) {
+                            askDelete(lecture)
+                        }
+                    }
                 }
             }
             if !course.assignments.isEmpty {
                 Section("Assignments") {
                     ForEach(course.assignments.sorted { ($0.due ?? .distantFuture) < ($1.due ?? .distantFuture) }) { assignment in
-                        AssignmentRow(assignment: assignment)
+                        AssignmentRow(assignment: assignment) { second in
+                            guard let lecture = assignment.sourceLecture else { return }
+                            assignmentTarget = AssignmentTarget(lecture: lecture, second: second)
+                        }
                     }
                 }
             }
@@ -92,6 +104,9 @@ struct CoursePage: View {
             }
         }
         .listStyle(.insetGrouped)
+        .navigationDestination(item: $assignmentTarget) { target in
+            LecturePage(lecture: target.lecture, startSecond: target.second)
+        }
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -112,7 +127,51 @@ struct CoursePage: View {
                 LecturerEditor(contact: contact)
             }
         }
+        .confirmationDialog(
+            "Delete this recording?",
+            isPresented: Binding(
+                get: { pendingDelete != nil },
+                set: { if !$0 { pendingDelete = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("Delete", role: .destructive) {
+                if let lecture = pendingDelete { delete(lecture) }
+                pendingDelete = nil
+            }
+            Button("Cancel", role: .cancel) { pendingDelete = nil }
+        } message: {
+            Text("The audio, the notes and the assignments from this recording will be deleted. This cannot be undone.")
+        }
+        .alert(
+            deleteNotice ?? "",
+            isPresented: Binding(
+                get: { deleteNotice != nil },
+                set: { if !$0 { deleteNotice = nil } }
+            )
+        ) {
+            Button("OK", role: .cancel) {}
+        }
         .onAppear(perform: ensureLecturer)
+    }
+
+    private func askDelete(_ lecture: Lecture) {
+        guard LectureRemoval.canDelete(lecture) else {
+            deleteNotice = String(localized: "Wait until this recording has been processed, then delete it.")
+            return
+        }
+        pendingDelete = lecture
+    }
+
+    private func delete(_ lecture: Lecture) {
+        do {
+            try LectureRemoval.delete(lecture, context: modelContext)
+        } catch {
+            Logger(subsystem: "app.bellnote", category: "delete").error(
+                "Lecture delete failed: \(error.localizedDescription, privacy: .public)"
+            )
+            deleteNotice = String(localized: "The recording could not be deleted.")
+        }
     }
 
     private var lecturerName: String {

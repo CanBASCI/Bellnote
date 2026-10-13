@@ -14,10 +14,6 @@ enum TranscriptError: Error, Equatable {
     case assetMissing
     case qualityFailed
     case unreadable
-    case qwenMissing
-    case qwenNotWriting
-    case gemmaMissing
-    case gemmaNotWriting
     case whisperMissing
     case whisperNotWriting
 }
@@ -105,14 +101,88 @@ enum LectureTranscriber {
             ))
         }
         guard !lines.isEmpty else { throw TranscriptError.qualityFailed }
+        let numbered = renumbered(lines)
+        log.info("\(engine, privacy: .public) lines=\(numbered.count) speakers=\(Set(numbered.map(\.speaker)).count)")
+        return numbered
+    }
+
+    /// Numbers speakers by order of appearance, only counting those who have text.
+    static func renumbered(_ lines: [TranscriptLine]) -> [TranscriptLine] {
         var numbers: [Int: Int] = [:]
-        let numbered = lines.map { line -> TranscriptLine in
+        return lines.map { line in
             let number = numbers[line.speaker] ?? numbers.count + 1
             numbers[line.speaker] = number
             return TranscriptLine(second: line.second, text: line.text, role: line.role, speaker: number)
         }
-        log.info("\(engine, privacy: .public) lines=\(numbered.count) speakers=\(numbers.count)")
-        return numbered
+    }
+
+    /// One recognised word with its time in the recording.
+    struct TimedWord: Sendable, Equatable {
+        var start: Double
+        var end: Double
+        var text: String
+    }
+
+    /// Gives every word to the speaker whose run covers it most, then joins neighbouring words of
+    /// one speaker into a line. The engine reads the whole recording, so it keeps its context,
+    /// and a short turn of another speaker is not lost. A word outside every run, farther than a
+    /// second, stays with the speaker before it.
+    static func speakerLines(words: [TimedWord], runs: [SpeechRun]) -> [TranscriptLine] {
+        let spans = mergeRuns(runs, minimum: 0)
+        guard let first = spans.first else { return [] }
+        let longest = RoleRules.longestCluster(runs) ?? first.cluster
+        var lines: [TranscriptLine] = []
+        var cluster = first.cluster
+        var span: SpeechRun = first
+        var pieces: [String] = []
+        var lineStart = 0
+
+        func flush() {
+            let text = pieces.joined(separator: " ")
+            pieces.removeAll()
+            guard !text.isEmpty else { return }
+            let role = cluster == longest ? SpeakerRole.narrator : appleRole(span, longestCluster: longest)
+            lines.append(TranscriptLine(second: lineStart, text: text, role: role, speaker: cluster))
+        }
+
+        for word in words {
+            let text = word.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !text.isEmpty else { continue }
+            let found = bestSpan(for: word, in: spans)
+            let next = found?.cluster ?? cluster
+            if next != cluster, !pieces.isEmpty { flush() }
+            if pieces.isEmpty { lineStart = max(0, Int(word.start)) }
+            cluster = next
+            if let found { span = found }
+            pieces.append(text)
+        }
+        flush()
+        return renumbered(lines)
+    }
+
+    private static func bestSpan(for word: TimedWord, in spans: [SpeechRun]) -> SpeechRun? {
+        var best: SpeechRun?
+        var bestOverlap = 0.0
+        for span in spans {
+            let overlap = min(word.end, Double(span.end)) - max(word.start, Double(span.start))
+            // On a tie the run that began later wins: it is the one that just started speaking.
+            if overlap > bestOverlap || (overlap == bestOverlap && overlap > 0 && span.start > (best?.start ?? -1)) {
+                best = span
+                bestOverlap = overlap
+            }
+        }
+        if best != nil { return best }
+        let middle = (word.start + word.end) / 2
+        var nearest: SpeechRun?
+        var nearestGap = 1.0
+        for span in spans {
+            let gap = max(Double(span.start) - middle, middle - Double(span.end), 0)
+            if gap <= nearestGap {
+                nearest = span
+                nearestGap = gap
+            }
+        }
+        return nearest
     }
 
     static func speakerTurns(_ runs: [SpeechRun]) -> [SpeechRun] {
@@ -136,8 +206,13 @@ enum LectureTranscriber {
     /// Every speaker keeps their own turns. `speakerTurns` drops short or overlapping runs
     /// of non-lecturers as room noise, which erased the other people here.
     private static func appleTurns(_ runs: [SpeechRun]) -> [SpeechRun] {
+        mergeRuns(runs, minimum: 2)
+    }
+
+    /// Keeps runs of at least `minimum` seconds and joins neighbours of one speaker.
+    private static func mergeRuns(_ runs: [SpeechRun], minimum: Int) -> [SpeechRun] {
         let kept = runs
-            .filter { $0.duration >= 2 }
+            .filter { $0.duration >= minimum }
             .sorted { $0.start < $1.start }
         var merged: [SpeechRun] = []
         for run in kept {

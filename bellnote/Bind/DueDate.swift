@@ -11,17 +11,28 @@ enum DueHint: Sendable, Equatable {
 
 enum DueDateMath {
     static func parse(_ hint: String, calendar: Calendar = .current) -> DueHint? {
-        let folded = hint.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: Locale(identifier: "en"))
-        if folded.contains("next week") { return .nextWeek }
-        if folded.contains("this week") { return .thisWeek }
-        if folded.contains("tomorrow") { return .tomorrow }
-        if folded.contains("today") { return .today }
+        // Turkish "ı" does not fold to "i" by itself.
+        let folded = hint
+            .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: Locale(identifier: "en"))
+            .replacingOccurrences(of: "ı", with: "i")
+        let nextWeek = ["next week", "next lecture", "next class", "next session", "haftaya", "gelecek hafta", "sonraki ders", "bir sonraki hafta"]
+        if nextWeek.contains(where: folded.contains) { return .nextWeek }
+        if folded.contains("this week") || folded.contains("bu hafta") { return .thisWeek }
+        if folded.contains("tomorrow") || folded.contains("yarin") { return .tomorrow }
+        if folded.contains("today") || folded.contains("bugun") { return .today }
         if let days = days(in: folded) { return .inDays(days) }
         if let date = isoDate(in: hint, calendar: calendar) { return .explicit(date) }
         return nil
     }
 
-    static func due(from lectureDate: Date, hint: DueHint, calendar: Calendar = .current) -> Date {
+    /// "Next week" means the next lecture of this course: the same weekday, one week later, at the
+    /// time of the slot (or of the recording when the course has no slot that day).
+    static func due(
+        from lectureDate: Date,
+        hint: DueHint,
+        slotStartMinutes: Int? = nil,
+        calendar: Calendar = .current
+    ) -> Date {
         switch hint {
         case .today:
             return calendar.startOfDay(for: lectureDate)
@@ -30,8 +41,13 @@ enum DueDateMath {
         case .thisWeek:
             return endOfWeek(containing: lectureDate, calendar: calendar)
         case .nextWeek:
-            let thisEnd = endOfWeek(containing: lectureDate, calendar: calendar)
-            return calendar.date(byAdding: .day, value: 7, to: thisEnd) ?? thisEnd
+            let sameDay = calendar.date(byAdding: .day, value: 7, to: lectureDate) ?? lectureDate
+            guard let slotStartMinutes else { return sameDay }
+            return calendar.date(
+                byAdding: .minute,
+                value: slotStartMinutes,
+                to: calendar.startOfDay(for: sameDay)
+            ) ?? sameDay
         case .inDays(let count):
             return calendar.date(byAdding: .day, value: count, to: calendar.startOfDay(for: lectureDate)) ?? lectureDate
         case .explicit(let date):
@@ -46,14 +62,23 @@ enum DueDateMath {
     }
 
     private static func days(in folded: String) -> Int? {
-        let pattern = #"in\s+(\d+)\s+days?"#
-        guard let regex = try? NSRegularExpression(pattern: pattern) else { return nil }
-        let range = NSRange(folded.startIndex..<folded.endIndex, in: folded)
-        guard let match = regex.firstMatch(in: folded, range: range),
-              let span = Range(match.range(at: 1), in: folded) else {
-            return nil
+        let patterns: [(String, Int)] = [
+            (#"in\s+(\d+)\s+days?"#, 1),
+            (#"(\d+)\s+gun\s+sonra"#, 1),
+            (#"in\s+(\d+)\s+weeks?"#, 7),
+            (#"(\d+)\s+hafta\s+sonra"#, 7)
+        ]
+        for (pattern, factor) in patterns {
+            guard let regex = try? NSRegularExpression(pattern: pattern) else { continue }
+            let range = NSRange(folded.startIndex..<folded.endIndex, in: folded)
+            guard let match = regex.firstMatch(in: folded, range: range),
+                  let span = Range(match.range(at: 1), in: folded),
+                  let count = Int(folded[span]) else {
+                continue
+            }
+            return count * factor
         }
-        return Int(folded[span])
+        return nil
     }
 
     private static func isoDate(in hint: String, calendar: Calendar) -> Date? {

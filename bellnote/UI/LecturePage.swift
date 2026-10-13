@@ -5,9 +5,11 @@ import SwiftUI
 
 struct LecturePage: View {
     @Bindable var lecture: Lecture
+    /// Plays from this second once the recording is loaded.
+    var startSecond: Int?
 
     var body: some View {
-        LectureNote(lecture: lecture, showsDate: false)
+        LectureNote(lecture: lecture, showsDate: false, startSecond: startSecond)
             .navigationTitle(lecture.startedAt.formatted(date: .abbreviated, time: .shortened))
             .navigationSubtitle(subtitle)
     }
@@ -27,6 +29,7 @@ private enum LectureTab: Hashable {
 struct LectureNote: View {
     @Bindable var lecture: Lecture
     var showsDate: Bool
+    var startSecond: Int?
 
     @State private var audio = LectureAudio()
     @State private var reader = SpeechReader()
@@ -34,7 +37,7 @@ struct LectureNote: View {
     @State private var studyMode: StudyMode = .ask
     @State private var showAssignments = false
     @State private var fluidGate = FluidAudioGate()
-    @State private var workingStage: PipelineStage?
+    private var workingStage: PipelineStage? { PipelineActivity.shared.stage(for: lecture) }
     @State private var askReprocess = false
     @State private var namingSpeaker: Int?
     @State private var choosingSpeaker = false
@@ -105,6 +108,9 @@ struct LectureNote: View {
         }
         .task(id: lecture.persistentModelID) {
             await audio.load(lecture)
+            if let startSecond, audio.duration > 0 {
+                audio.seek(to: startSecond, play: true)
+            }
         }
         .onDisappear { audio.stop() }
         .task(id: audio.isPlaying) {
@@ -235,7 +241,9 @@ struct LectureNote: View {
                     .foregroundStyle(.secondary)
             }
             ForEach(own) { assignment in
-                AssignmentRow(assignment: assignment)
+                AssignmentRow(assignment: assignment) { second in
+                    audio.seek(to: second, play: true)
+                }
             }
         }
         if let course = lecture.course, course.assignments.count > own.count {
@@ -406,15 +414,11 @@ struct LectureNote: View {
         if restart {
             LecturePipeline.discardProcessedNotes(lecture, context: context)
         }
-        workingStage = restart ? .audio : (PipelineStage(rawValue: lecture.stage)?.next ?? .audio)
-        defer { workingStage = nil }
         await LecturePipeline.advance(
             lecture: lecture,
             context: context,
             pageModel: AppPreferences.pageModel()
-        ) { stage in
-            workingStage = stage
-        }
+        )
     }
 }
 

@@ -134,7 +134,7 @@ A board photo is taken by the student, during the recording, from a system camer
 - Do not use AFM 3 Core Advanced. It needs more memory than an 8 GB phone has. Skip it rather than gating the app to a named device.
 - Window tagger: Qwen 3.5 2B. Do not use `SystemLanguageModel` for tags. Apple Speech is the transcript only.
 - Page, summary, quiz, spoken script: Qwen 3.5 4B 4-bit only. Thinking off. Unload 2B before loading 4B.
-- Fallback transcript: Qwen3-ASR-0.6B, offered only when the system transcript fails a quality gate. Not downloaded up front.
+- Optional transcript: Whisper large-v3 turbo through WhisperKit, on device. Chosen by the student in Settings, only after the student downloads it. It reads the whole recording and each word goes to the speaker whose FluidAudio run covers it. Not downloaded up front.
 - TTS: `AVSpeechSynthesizer` with the course locale. No extra TTS model in v1.
 - Speech in: course-locale dictation through `SpeechAnalyzer`, on device, for questions and quiz answers.
 - Processing stays in the foreground. A background task may be asked, but do not promise it finishes. If the system suspends it, persist the last finished stage and resume on next open. A ready notification is sent only after the page is saved.
@@ -144,9 +144,9 @@ Default downloads, not bundled:
 
 - `mlx-community/Qwen3.5-2B-MLX-4bit` (~1.5 GB). Window tags.
 - `mlx-community/Qwen3.5-4B-MLX-4bit` (~2.9 GB). Page, summary, quiz, spoken answer.
-- `mlx-community/Qwen3-ASR-0.6B-4bit` (~400 MB), only after a failed system transcript, and only if the student accepts.
+- `argmaxinc/whisperkit-coreml`, folder `openai_whisper-large-v3-v20240930_turbo_632MB`, with the tokenizer files of `openai/whisper-large-v3` (~0.65 GB in all). Only when the student taps Download. Core ML prepares it for the chip right after the download, because that takes minutes the first time.
 
-The app downloads these from the public Hugging Face `mlx-community` repos. No student account, no developer token, no signup screen. The student never sees the URL. The model screen shows three rows at most: 2B and 4B up front, ASR only when offered. Each row shows the parameter size, the file size, and the job. Partial downloads resume. Deleting a model does not delete notes. SpeechAnalyzer assets come from `AssetInventory`, not from Hugging Face.
+The app downloads these from the public Hugging Face `mlx-community` repos. No student account, no developer token, no signup screen. The student never sees the URL. The model screen groups the rows: AI models (2B, 4B), speech to text (Whisper), audio (FluidAudio, Supertonic). Each row shows the parameter size, the file size, and the job. Partial downloads resume. Deleting a model does not delete notes. SpeechAnalyzer assets come from `AssetInventory`, not from Hugging Face.
 
 Before download, read physical memory and free disk. Do not name the device. Lock 2B if free space is under 2 GB. Lock 4B if free space is under 4 GB, or if physical memory is under 8 GB, and say why. On 8 GB and above, both rows are available, with a note that 4B loads only after 2B is unloaded. After install, run a short timed sample and show the measured page speed. If that sample is too slow, leave 4B installed but default the page path to 2B.
 
@@ -180,7 +180,7 @@ One file, three reads, never concurrent with model load.
 
 1. Speech activity. Paused gaps are already absent. Remaining ranges are speech.
 2. v1 speaker pass: the longest speech run is the narrator candidate. Short overlapping whispers are `room` and are not transcribed. A near, short turn that starts with an address to the lecturer is `question`. Do not build front-row and back-row print matching in v1. FluidAudio may supply the runs. If it fails, one narrator and room is enough.
-3. `SpeechAnalyzer` transcribes narrator and question ranges with timestamps. If the quality gate fails, offer the 0.6B ASR once.
+3. `SpeechAnalyzer` transcribes narrator and question ranges with timestamps. If the quality gate fails, the student can pick the Whisper transcript in Settings.
 4. Tag each window with Qwen 2B. Invalid struct: retry once. Still invalid: keep raw text, do not link.
 5. Unload the tagger. Load Qwen 4B. Compose the page from tags only, not from raw audio.
 6. `Linker.bind` runs on reference and exam-scope tags.
@@ -246,7 +246,7 @@ Single app target.
 - `Consent` — first-lecture attestations, later one-line confirm.
 - `Schedule` — weekly slots, “happening now” pin. Never auto-starts the mic.
 - `Separate` — FluidAudio wrapper, role rules, lecturer print set.
-- `Transcribe` — `SpeechAnalyzer`, asset install, quality gate, optional Qwen ASR.
+- `Transcribe` — `SpeechAnalyzer`, asset install, quality gate, optional Whisper.
 - `Extract` — window tags, one retry.
 - `Compose` — 4B page, summary, quiz items, spoken script. Input is always tags.
 - `Bind` — topic, time, aliases. No model.
@@ -324,7 +324,7 @@ Deleting a lecture asks first. Yes removes that recording, its note, its attesta
 - Lecture: Summary, Notes, Raw. Emphasis strip. Assignments. Linked lectures. Tap timestamp to play.
 - Ask: “summarize this course”, “what were the assignments”, “explain {topic}”. Answers cite date and second. Listen button reads the composed script.
 - Drill: up to 10 questions from emphasis, missing, and previously missed blocks. Score is correct / partial / wrong. Never “you passed.”
-- Models: download 2B and 4B, resume partial files, delete models without deleting notes. ASR is a separate row.
+- Models: download 2B, 4B and Whisper, resume partial files, delete models without deleting notes. Whisper is in its own speech to text group.
 
 Charts only when `numbers` is non-empty: bar, line, two groups, Swift Charts. No spreadsheet engine. A table may export as CSV inside the encrypted file.
 

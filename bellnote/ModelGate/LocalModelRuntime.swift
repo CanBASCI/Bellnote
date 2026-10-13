@@ -184,27 +184,14 @@ actor LocalModelRuntime {
 
     func download(
         _ role: ModelRole,
-        onProgress: (@Sendable (Double) -> Void)? = nil
+        onProgress: (@Sendable (Double) -> Void)? = nil,
+        onPreparing: (@Sendable () -> Void)? = nil
     ) async throws {
         let repo = repoID(role)
         Self.log.info("Download tapped role=\(role.rawValue, privacy: .public) repo=\(repo, privacy: .public)")
         _ = probe(role)
         if role == .whisper {
-            try await WhisperASR.download(onProgress: onProgress)
-            _ = probe(role)
-            return
-        }
-        if role == .asr {
-            let downloader = HubSnapshotDownloader()
-            _ = try await downloader.download(
-                id: repo,
-                revision: "main",
-                matching: ["*"],
-                useLatest: false
-            ) { progress in
-                onProgress?(progress.fractionCompleted)
-            }
-            onProgress?(1)
+            try await WhisperASR.download(onProgress: onProgress, onPreparing: onPreparing)
             _ = probe(role)
             return
         }
@@ -242,6 +229,27 @@ actor LocalModelRuntime {
         Self.log.info("Delete finished role=\(role.rawValue, privacy: .public)")
     }
 
+    /// Models earlier builds could download and this one no longer uses (Gemma 4 and Qwen ASR).
+    /// Their files are removed so the space comes back. Nothing is downloaded.
+    func removeRetiredModels() {
+        for repo in Self.retiredRepos {
+            let directory = HubWeights.directory(for: repo)
+            guard FileManager.default.fileExists(atPath: directory.deletingLastPathComponent().path) else { continue }
+            do {
+                try HubWeights.remove(repo)
+                Self.log.info("Removed retired model repo=\(repo, privacy: .public)")
+            } catch {
+                Self.log.error("Retired model could not be removed repo=\(repo, privacy: .public) message=\(error.localizedDescription, privacy: .public)")
+            }
+        }
+    }
+
+    private static let retiredRepos = [
+        "mlx-community/gemma-4-e2b-it-4bit",
+        "mlx-community/gemma-4-e4b-it-4bit",
+        "mlx-community/Qwen3-ASR-0.6B-4bit",
+    ]
+
     func isInstalled(_ role: ModelRole) -> Bool {
         probe(role).isReady
     }
@@ -255,7 +263,7 @@ actor LocalModelRuntime {
     private func composeRole() throws -> ModelRole {
         let preferred = AppPreferences.pageModel()
         if isInstalled(preferred) { return preferred }
-        for role in [ModelRole.tagger, .page, .gemmaSmall, .gemmaLarge] where isInstalled(role) {
+        for role in [ModelRole.tagger, .page] where isInstalled(role) {
             return role
         }
         throw LocalModelError.notInstalled
@@ -280,9 +288,9 @@ actor LocalModelRuntime {
         switch role {
         case .tagger:
             await gate.loadTagger()
-        case .page, .gemmaSmall, .gemmaLarge:
+        case .page:
             await gate.loadPage()
-        case .asr, .whisper:
+        case .whisper:
             throw LocalModelError.notInstalled
         }
         resident = role
@@ -304,7 +312,7 @@ actor LocalModelRuntime {
         let repo = ModelCatalog.repo(for: role)
         let disk = HubWeights.snapshot(for: repo)
         Self.log.info("Make model role=\(role.rawValue, privacy: .public) repo=\(disk.repo, privacy: .public) path=\(disk.path, privacy: .public) bytes=\(disk.bytes) config=\(disk.hasConfig) safetensors=\(disk.safetensorsCount)")
-        let configuration = ModelConfiguration(id: repo, extraEOSTokens: ModelCatalog.extraEOSTokens(for: role))
+        let configuration = ModelConfiguration(id: repo)
         let model = MLXLanguageModel(
             configuration: configuration,
             capabilities: [.guidedGeneration],

@@ -9,8 +9,6 @@ import WhisperKit
 /// installed. Nothing is downloaded from here.
 enum WhisperASR {
     private static let log = Logger(subsystem: "app.bellnote", category: "whisper-asr")
-    /// Whisper reads 30 s at a time.
-    private static let windowSeconds = 28
 
     /// WhisperKit keeps its files under `models/<owner>/<repo>` inside this folder.
     /// It sits next to the Hub cache the other models use.
@@ -58,8 +56,13 @@ enum WhisperASR {
     }
 
     /// Only called from the Download button. The Core ML files come first, then the three
-    /// tokenizer files WhisperKit needs to read the text. About 0.65 GB in all.
-    static func download(onProgress: (@Sendable (Double) -> Void)?) async throws {
+    /// tokenizer files WhisperKit needs to read the text (about 0.65 GB in all). Then Core ML
+    /// prepares the model for this chip, which takes minutes the first time. Doing it here means
+    /// the first lecture does not wait for it. `onPreparing` is called when that last step starts.
+    static func download(
+        onProgress: (@Sendable (Double) -> Void)?,
+        onPreparing: (@Sendable () -> Void)?
+    ) async throws {
         let base = baseDirectory()
         try FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
         var excluded = base
@@ -73,28 +76,21 @@ enum WhisperASR {
             downloadBase: base,
             from: ModelCatalog.whisperRepo
         ) { progress in
-            onProgress?(progress.fractionCompleted * 0.99)
+            onProgress?(progress.fractionCompleted)
         }
         _ = try await HubApiWrapper(downloadBase: base).snapshot(
             from: HubApiWrapper.Repo(id: ModelCatalog.whisperTokenizerRepo),
             matching: ["config.json", "tokenizer.json", "tokenizer_config.json"]
         )
-        onProgress?(1)
         let after = snapshot()
         log.info("Whisper download finished bytes=\(after.bytes) coreML=\(after.coreMLCount) ready=\(after.isReady)")
+        onProgress?(1)
+        onPreparing?()
+        await prepare()
     }
 
-    static func transcribe(url: URL, locale: Locale, runs: [SpeechRun]) async throws -> [TranscriptLine] {
-        guard isInstalled() else { throw TranscriptError.whisperMissing }
-        let disk = snapshot()
-        log.info(
-            "Whisper files path=\(modelDirectory().path, privacy: .public) bytes=\(disk.bytes) coreML=\(disk.coreMLCount) tokenizer=\(tokenizerIsInstalled()) turns=\(LectureTranscriber.hasTurns(runs)) locale=\(locale.identifier, privacy: .public)"
-        )
-        await LocalModelRuntime.shared.unloadAll()
-        log.info("Whisper load footprintMB=\(MemoryProbe.footprintMB())")
-        // The first load on a device is slow: Core ML prepares the model for this chip, and that
-        // can take minutes. The result is cached, so the next loads are quick.
-        let config = WhisperKitConfig(
+    private static func makeConfig() -> WhisperKitConfig {
+        WhisperKitConfig(
             downloadBase: baseDirectory(),
             modelFolder: modelDirectory().path,
             tokenizerFolder: baseDirectory(),
@@ -104,12 +100,42 @@ enum WhisperASR {
             load: false,
             download: false
         )
-        let kit = try await WhisperKit(config)
+    }
+
+    /// Lets Core ML compile the model for this chip. Apple keeps the result, so later loads are quick.
+    /// A failure here is not fatal: the same work then happens on the first lecture.
+    private static func prepare() async {
+        let started = Date()
+        log.info("Whisper prepare begin")
+        do {
+            let kit = try await WhisperKit(makeConfig())
+            do {
+                try await kit.prewarmModels()
+            } catch {
+                await kit.unloadModels()
+                throw error
+            }
+            await kit.unloadModels()
+            log.info("Whisper prepare done seconds=\(Int(Date().timeIntervalSince(started)))")
+        } catch {
+            log.error("Whisper prepare failed message=\(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    static func transcribe(url: URL, locale: Locale, runs: [SpeechRun]) async throws -> [TranscriptLine] {
+        guard isInstalled() else { throw TranscriptError.whisperMissing }
+        let disk = snapshot()
+        log.info(
+            "Whisper files path=\(modelDirectory().path, privacy: .public) bytes=\(disk.bytes) coreML=\(disk.coreMLCount) tokenizer=\(tokenizerIsInstalled()) runs=\(runs.count) locale=\(locale.identifier, privacy: .public)"
+        )
+        await LocalModelRuntime.shared.unloadAll()
+        log.info("Whisper load footprintMB=\(MemoryProbe.footprintMB())")
+        let kit = try await WhisperKit(makeConfig())
         kit.modelStateCallback = { _, state in
             log.info("Whisper model state=\(state.description, privacy: .public)")
         }
         let started = Date()
-        // A line every 10 s tells a slow first-time Core ML preparation from a real hang.
+        // A line every 10 s tells a slow Core ML preparation from a real hang.
         let heartbeat = Task {
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(10))
@@ -121,7 +147,6 @@ enum WhisperASR {
         }
         defer { heartbeat.cancel() }
         do {
-            log.info("Whisper prepare begin")
             try await kit.prewarmModels()
             log.info("Whisper prepare done seconds=\(Int(Date().timeIntervalSince(started)))")
             try await kit.loadModels()
@@ -143,58 +168,74 @@ enum WhisperASR {
         return lines
     }
 
+    /// Whisper reads the whole recording in its own 30 s windows, so every sentence keeps its
+    /// context. Each word then goes to the speaker whose run covers it. Without speaker runs the
+    /// text is one narrator line per segment.
     private static func write(
         url: URL,
         locale: Locale,
         runs: [SpeechRun],
         kit: WhisperKit
     ) async throws -> [TranscriptLine] {
-        if LectureTranscriber.hasTurns(runs) {
-            return try await LectureTranscriber.transcribeTurns(
-                url: url,
-                runs: runs,
-                windowSeconds: windowSeconds,
-                engine: "Whisper"
-            ) { clip in
-                let begun = Date()
-                do {
-                    let results = try await kit.transcribe(
-                        audioPath: clip.path,
-                        decodeOptions: options(for: locale, timestamps: false)
-                    )
-                    let text = results.map(\.text).joined(separator: " ")
-                    let segments = results.flatMap(\.segments)
-                    let silent = segments.map { String(format: "%.2f", $0.noSpeechProb) }.joined(separator: ",")
-                    log.info(
-                        "Whisper clip seconds=\(String(format: "%.1f", Date().timeIntervalSince(begun))) results=\(results.count) segments=\(segments.count) noSpeech=\(silent, privacy: .public) language=\(results.first?.language ?? "", privacy: .public) footprintMB=\(MemoryProbe.footprintMB()) raw=\(text, privacy: .public)"
-                    )
-                    return clean(text)
-                } catch {
-                    log.error("Whisper clip failed type=\(String(describing: type(of: error)), privacy: .public) message=\(error.localizedDescription, privacy: .public) detail=\(String(describing: error), privacy: .public)")
-                    throw error
-                }
+        let begun = Date()
+        log.info("Whisper whole recording begin runs=\(runs.count)")
+        let results: [TranscriptionResult]
+        do {
+            results = try await kit.transcribe(
+                audioPath: url.path,
+                decodeOptions: options(for: locale, words: !runs.isEmpty)
+            )
+        } catch {
+            log.error("Whisper transcribe failed type=\(String(describing: type(of: error)), privacy: .public) message=\(error.localizedDescription, privacy: .public) detail=\(String(describing: error), privacy: .public)")
+            throw error
+        }
+        let segments = results.flatMap(\.segments).filter { segment in
+            if isRunaway(segment.text) {
+                log.warning("Whisper dropped a repeating segment start=\(segment.start)")
+                return false
             }
+            return true
         }
-        // No speaker turns: Whisper reads the whole recording itself.
-        log.info("Whisper whole recording begin")
-        let results = try await kit.transcribe(
-            audioPath: url.path,
-            decodeOptions: options(for: locale, timestamps: true)
+        log.info(
+            "Whisper transcribed seconds=\(String(format: "%.1f", Date().timeIntervalSince(begun))) results=\(results.count) segments=\(segments.count) language=\(results.first?.language ?? "", privacy: .public) footprintMB=\(MemoryProbe.footprintMB())"
         )
-        var lines: [TranscriptLine] = []
-        for segment in results.flatMap(\.segments) {
-            let text = clean(segment.text)
-            guard !text.isEmpty else { continue }
-            lines.append(TranscriptLine(second: max(0, Int(segment.start)), text: text, role: .narrator))
+        for segment in segments {
+            log.info(
+                "Whisper segment start=\(String(format: "%.1f", segment.start)) end=\(String(format: "%.1f", segment.end)) noSpeech=\(String(format: "%.2f", segment.noSpeechProb)) words=\(segment.words?.count ?? 0) text=\(segment.text, privacy: .public)"
+            )
         }
-        log.info("Whisper whole recording lines=\(lines.count)")
+
+        var lines: [TranscriptLine]
+        if runs.isEmpty {
+            lines = segments.compactMap { segment in
+                let text = segment.text.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !text.isEmpty else { return nil }
+                return TranscriptLine(second: max(0, Int(segment.start)), text: text, role: .narrator)
+            }
+        } else {
+            let words = segments.flatMap { segment -> [LectureTranscriber.TimedWord] in
+                if let timed = segment.words, !timed.isEmpty {
+                    return timed.map {
+                        LectureTranscriber.TimedWord(start: Double($0.start), end: Double($0.end), text: $0.word)
+                    }
+                }
+                return [LectureTranscriber.TimedWord(start: Double(segment.start), end: Double(segment.end), text: segment.text)]
+            }
+            lines = LectureTranscriber.speakerLines(words: words, runs: runs)
+        }
+        for line in lines {
+            log.info(
+                "Whisper line speaker=\(line.speaker) role=\(line.role.rawValue, privacy: .public) start=\(line.second) words=\(line.text.split(whereSeparator: \.isWhitespace).count) text=\(line.text, privacy: .public)"
+            )
+        }
+        log.info("Whisper lines=\(lines.count) speakers=\(Set(lines.map(\.speaker)).count)")
         guard !lines.isEmpty else { throw TranscriptError.qualityFailed }
         return lines
     }
 
     /// The course language is named, so the model never has to guess it. Greedy decoding keeps
     /// the text steady. The default thresholds drop silent windows and repeating answers.
-    private static func options(for locale: Locale, timestamps: Bool) -> DecodingOptions {
+    private static func options(for locale: Locale, words: Bool) -> DecodingOptions {
         let code = locale.language.languageCode?.identifier
         return DecodingOptions(
             task: .transcribe,
@@ -204,17 +245,22 @@ enum WhisperASR {
             usePrefillPrompt: true,
             detectLanguage: false,
             skipSpecialTokens: true,
-            withoutTimestamps: !timestamps,
+            withoutTimestamps: false,
+            wordTimestamps: words,
             suppressBlank: true
         )
     }
 
-    private static func clean(_ text: String) -> String {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        if GemmaASR.isRunaway(trimmed) {
-            log.warning("Whisper dropped a repeating answer")
-            return ""
+    /// A segment can fall into a loop ("a a a a ..."). Such text is dropped and logged.
+    static func isRunaway(_ text: String) -> Bool {
+        var longest = 0
+        var run = 0
+        var previous: Substring?
+        for word in text.split(whereSeparator: \.isWhitespace) {
+            run = (word == previous) ? run + 1 : 1
+            previous = word
+            longest = max(longest, run)
         }
-        return trimmed
+        return longest >= 6
     }
 }

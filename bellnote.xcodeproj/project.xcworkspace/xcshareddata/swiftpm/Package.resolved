@@ -1,5 +1,5 @@
 {
-  "originHash" : "2b86a670be08db62ce69dbe61730416b98c94e0b43fc05a751e047221ea7d851",
+  "originHash" : "49cd9d720b7335d322fd5dd6eda450623b2561150562cc403cb30d12f5fcf13d",
   "pins" : [
     {
       "identity" : "argmax-oss-swift",
@@ -26,15 +26,6 @@
       "state" : {
         "revision" : "503b4bd1bbf7220882de39fe8ae6716aae4132da",
         "version" : "0.17.7"
-      }
-    },
-    {
-      "identity" : "gemma-4-swift-mlx",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/VincentGourbin/gemma-4-swift-mlx",
-      "state" : {
-        "revision" : "bf215538e8a1a2a9b136b0423342365310709604",
-        "version" : "1.9.0"
       }
     },
     {
@@ -124,15 +115,6 @@
       "state" : {
         "revision" : "4588064a20f3fc093c95f2f7d3359999bf30cae5",
         "version" : "2.5.1"
-      }
-    },
-    {
-      "identity" : "swift-mlx-profiler",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/VincentGourbin/swift-mlx-profiler",
-      "state" : {
-        "revision" : "bfe71d834b02e19ec685122e260059bc1e9204dc",
-        "version" : "1.5.1"
       }
     },
     {

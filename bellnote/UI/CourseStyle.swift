@@ -77,9 +77,17 @@ struct StatusChip: View {
     }
 }
 
+/// A recording and the second to play from, used to open a lecture from a task.
+struct AssignmentTarget: Hashable {
+    var lecture: Lecture
+    var second: Int
+}
+
 /// One homework row. Tapping the circle marks it done.
 struct AssignmentRow: View {
     @Bindable var assignment: Assignment
+    /// Called with the second where the lecturer gave the task. Nil makes the row plain.
+    var onOpen: ((Int) -> Void)?
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 12) {
@@ -93,18 +101,46 @@ struct AssignmentRow: View {
             .buttonStyle(.plain)
             .accessibilityLabel(Text("Done"))
             .accessibilityAddTraits(assignment.done ? .isSelected : [])
-            VStack(alignment: .leading, spacing: 4) {
-                Text(assignment.text)
-                    .strikethrough(assignment.done)
-                    .foregroundStyle(assignment.done ? .secondary : .primary)
-                if let due = assignment.due {
-                    StatusChip(title: due.formatted(date: .abbreviated, time: .omitted), tint: .accentColor)
-                } else {
-                    Text("No date was spoken.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
+            if let onOpen {
+                Button { onOpen(assignment.sourceSecond) } label: { details }
+                    .buttonStyle(.plain)
+            } else {
+                details
             }
         }
+        .onAppear { assignment.fillDueIfMissing() }
+    }
+
+    private var details: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(assignment.text)
+                .strikethrough(assignment.done)
+                .foregroundStyle(assignment.done ? .secondary : .primary)
+                .multilineTextAlignment(.leading)
+            if let due = assignment.due {
+                StatusChip(title: AssignmentRow.dueTitle(due), tint: .accentColor)
+            } else {
+                Text("No date was spoken.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            if let lecture = assignment.sourceLecture {
+                Label {
+                    Text(verbatim: "\(lecture.startedAt.formatted(date: .abbreviated, time: .shortened)) · \(MediaClock.short(assignment.sourceSecond))")
+                } icon: {
+                    Image(systemName: "play.circle")
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
+    }
+
+    /// The time shows only when it is known, as for "next week" at the slot hour.
+    static func dueTitle(_ due: Date) -> String {
+        let atMidnight = Calendar.current.startOfDay(for: due) == due
+        return due.formatted(date: .abbreviated, time: atMidnight ? .omitted : .shortened)
     }
 }

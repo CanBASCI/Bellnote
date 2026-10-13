@@ -93,8 +93,12 @@ struct PendingSheet: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @State private var running = false
-    @State private var workingStage: PipelineStage?
     @State private var fluidGate = FluidAudioGate()
+
+    /// The stage of the lecture that runs now, from anywhere in the app.
+    private var workingStage: PipelineStage? {
+        lectures.compactMap { PipelineActivity.shared.stage(for: $0) }.first
+    }
 
     var body: some View {
         NavigationStack {
@@ -138,7 +142,7 @@ struct PendingSheet: View {
                     Button("Process") {
                         fluidGate.request { await process() }
                     }
-                    .disabled(lectures.isEmpty || running)
+                    .disabled(lectures.isEmpty || running || workingStage != nil)
                 }
             }
         }
@@ -148,19 +152,13 @@ struct PendingSheet: View {
 
     private func process() async {
         running = true
-        defer {
-            running = false
-            workingStage = nil
-        }
+        defer { running = false }
         for lecture in lectures {
-            workingStage = PipelineStage(rawValue: lecture.stage)?.next ?? .audio
             await LecturePipeline.advance(
                 lecture: lecture,
                 context: modelContext,
                 pageModel: AppPreferences.pageModel()
-            ) { stage in
-                workingStage = stage
-            }
+            )
         }
     }
 }
@@ -168,25 +166,18 @@ struct PendingSheet: View {
 struct AssignmentSheet: View {
     @Bindable var course: Course
     @Environment(\.dismiss) private var dismiss
+    @State private var target: AssignmentTarget?
 
     var body: some View {
         NavigationStack {
-            List(course.assignments) { assignment in
-                HStack {
-                    VStack(alignment: .leading) {
-                        Text(assignment.text)
-                        if let due = assignment.due {
-                            Text(due.formatted(date: .abbreviated, time: .omitted))
-                                .font(.caption)
-                        } else {
-                            Text("No date was spoken.")
-                                .font(.caption)
-                        }
-                    }
-                    Spacer()
-                    Toggle("Done", isOn: Bindable(assignment).done)
-                        .labelsHidden()
+            List(course.assignments.sorted { ($0.due ?? .distantFuture) < ($1.due ?? .distantFuture) }) { assignment in
+                AssignmentRow(assignment: assignment) { second in
+                    guard let lecture = assignment.sourceLecture else { return }
+                    target = AssignmentTarget(lecture: lecture, second: second)
                 }
+            }
+            .navigationDestination(item: $target) { target in
+                LecturePage(lecture: target.lecture, startSecond: target.second)
             }
             .navigationTitle("Assignments")
             .toolbar {
@@ -258,6 +249,7 @@ struct ModelsPage: View {
     @State private var supertonicInstalled = false
     @State private var supertonicPartial = false
     @State private var status: [ModelRole: String] = [:]
+    @State private var preparing: ModelRole?
     @State private var fluidStatus: String?
     @State private var supertonicStatus: String?
     @State private var pendingDelete: ModelsPageDeletePrompt?
@@ -268,8 +260,6 @@ struct ModelsPage: View {
             Section("AI models") {
                 modelRow(.tagger, title: Self.modelTitle(.tagger), bytes: ModelCatalog.taggerBytes, locked: ModelLock.taggerLocked(budget))
                 modelRow(.page, title: Self.modelTitle(.page), bytes: ModelCatalog.pageBytes, locked: ModelLock.pageLocked(budget))
-                modelRow(.gemmaSmall, title: Self.modelTitle(.gemmaSmall), bytes: ModelCatalog.gemmaSmallBytes, locked: ModelLock.gemmaSmallLocked(budget))
-                modelRow(.gemmaLarge, title: Self.modelTitle(.gemmaLarge), bytes: ModelCatalog.gemmaLargeBytes, locked: ModelLock.gemmaLargeLocked(budget))
                 if !installedTextModels.isEmpty {
                     Picker("AI correction model", selection: Binding(
                         get: { session.pageModel },
@@ -286,19 +276,12 @@ struct ModelsPage: View {
                 }
             }
             Section("Speech to text") {
-                modelRow(.asr, title: Self.modelTitle(.asr), bytes: ModelCatalog.asrBytes, locked: false)
                 modelRow(.whisper, title: Self.modelTitle(.whisper), bytes: ModelCatalog.whisperBytes, locked: ModelLock.whisperLocked(budget))
                 Picker("Transcript", selection: Binding(
                     get: { session.speechEngine },
                     set: { session.setSpeechEngine($0) }
                 )) {
                     Text("Apple Dictation").tag(SpeechEngine.apple)
-                    if installed[.asr] == true {
-                        Text("Qwen ASR").tag(SpeechEngine.qwen)
-                    }
-                    if gemmaInstalled {
-                        Text("Gemma").tag(SpeechEngine.gemma)
-                    }
                     if installed[.whisper] == true {
                         Text("Whisper").tag(SpeechEngine.whisper)
                     }
@@ -386,14 +369,8 @@ struct ModelsPage: View {
         switch pendingDelete {
         case .mlx(.page):
             String(localized: "Delete Qwen 3.5 4B?")
-        case .mlx(.asr):
-            String(localized: "Delete Qwen ASR?")
         case .mlx(.whisper):
             String(localized: "Delete Whisper?")
-        case .mlx(.gemmaSmall):
-            String(localized: "Delete Gemma 4 E2B?")
-        case .mlx(.gemmaLarge):
-            String(localized: "Delete Gemma 4 E4B?")
         case .mlx:
             String(localized: "Delete Qwen 3.5 2B?")
         case .fluidAudio:
@@ -608,7 +585,14 @@ struct ModelsPage: View {
                     }
                 }
                 Spacer(minLength: 8)
-                if downloading == role {
+                if downloading == role, preparing == role {
+                    VStack(alignment: .trailing, spacing: 4) {
+                        ProgressView()
+                        Text("Preparing…")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                } else if downloading == role {
                     VStack(alignment: .trailing, spacing: 4) {
                         ProgressView(value: downloadProgress.clamped(to: 0...1))
                             .frame(width: 96)
@@ -631,11 +615,13 @@ struct ModelsPage: View {
                         status[role] = nil
                         Task {
                             do {
-                                try await LocalModelRuntime.shared.download(role) { fraction in
+                                try await LocalModelRuntime.shared.download(role, onProgress: { fraction in
                                     Task { @MainActor in
                                         downloadProgress = max(downloadProgress, min(max(fraction, 0), 1))
                                     }
-                                }
+                                }, onPreparing: {
+                                    Task { @MainActor in preparing = role }
+                                })
                                 status[role] = String(localized: "Download finished.")
                                 Self.log.info("UI download ok role=\(role.rawValue, privacy: .public)")
                             } catch {
@@ -644,6 +630,7 @@ struct ModelsPage: View {
                                 Self.log.error("UI download failed role=\(role.rawValue, privacy: .public) domain=\(nsError.domain, privacy: .public) code=\(nsError.code) message=\(error.localizedDescription, privacy: .public)")
                             }
                             downloading = nil
+                            preparing = nil
                             downloadProgress = 0
                             await refreshInstalled()
                         }
@@ -664,9 +651,6 @@ struct ModelsPage: View {
         do {
             try await LocalModelRuntime.shared.delete(role)
             status[role] = nil
-            if role == .asr, session.speechEngine == .qwen {
-                session.setSpeechEngine(.apple)
-            }
             Self.log.info("UI delete ok role=\(role.rawValue, privacy: .public)")
         } catch {
             let nsError = error as NSError
@@ -686,35 +670,21 @@ struct ModelsPage: View {
 
     private func refreshInstalled() async {
         Self.log.info("Models page open")
+        await LocalModelRuntime.shared.removeRetiredModels()
         let tagger = await LocalModelRuntime.shared.probe(.tagger)
         let page = await LocalModelRuntime.shared.probe(.page)
-        let gemmaSmall = await LocalModelRuntime.shared.probe(.gemmaSmall)
-        let gemmaLarge = await LocalModelRuntime.shared.probe(.gemmaLarge)
-        let asr = await LocalModelRuntime.shared.probe(.asr)
         let whisper = await LocalModelRuntime.shared.probe(.whisper)
         installed[.whisper] = whisper.isReady
         leftover[.whisper] = whisper.directoryExists && !whisper.isReady
         installed[.tagger] = tagger.isReady
         installed[.page] = page.isReady
-        installed[.gemmaSmall] = gemmaSmall.isReady
-        installed[.gemmaLarge] = gemmaLarge.isReady
-        installed[.asr] = asr.isReady
         leftover[.tagger] = tagger.directoryExists && !tagger.isReady
         leftover[.page] = page.directoryExists && !page.isReady
-        leftover[.gemmaSmall] = gemmaSmall.directoryExists && !gemmaSmall.isReady
-        leftover[.gemmaLarge] = gemmaLarge.directoryExists && !gemmaLarge.isReady
-        leftover[.asr] = asr.directoryExists && !asr.isReady
         fluidInstalled = SpeakerPass.modelsAreInstalled()
         supertonicInstalled = SupertonicSpeech.isInstalled
         supertonicPartial = SupertonicSpeech.hasPartial
         if session.readAloud == .supertonic, !supertonicInstalled {
             session.setReadAloud(.apple)
-        }
-        if session.speechEngine == .qwen, !asr.isReady {
-            session.setSpeechEngine(.apple)
-        }
-        if session.speechEngine == .gemma, !gemmaInstalled {
-            session.setSpeechEngine(.apple)
         }
         if session.speechEngine == .whisper, !whisper.isReady {
             session.setSpeechEngine(.apple)
@@ -724,20 +694,14 @@ struct ModelsPage: View {
         }
     }
 
-    private var gemmaInstalled: Bool {
-        installed[.gemmaSmall] == true || installed[.gemmaLarge] == true
-    }
-
     private var transcriptHint: LocalizedStringKey {
         switch session.speechEngine {
         case .apple: "Apple Dictation writes the words."
-        case .qwen: "Qwen ASR writes the words."
-        case .gemma: "Gemma writes the words."
         case .whisper: "Whisper writes the words."
         }
     }
 
-    private static let textModelOrder: [ModelRole] = [.page, .tagger, .gemmaSmall, .gemmaLarge]
+    private static let textModelOrder: [ModelRole] = [.page, .tagger]
 
     private var installedTextModels: [ModelRole] {
         Self.textModelOrder.filter { installed[$0] == true }
@@ -746,8 +710,8 @@ struct ModelsPage: View {
     /// Text models write the AI correction, answer Ask and find homework. Speech models hear audio.
     private static func symbol(_ role: ModelRole) -> String {
         switch role {
-        case .tagger, .page, .gemmaSmall, .gemmaLarge: "sparkles"
-        case .asr, .whisper: "mic.fill"
+        case .tagger, .page: "sparkles"
+        case .whisper: "mic.fill"
         }
     }
 
@@ -763,9 +727,6 @@ struct ModelsPage: View {
         switch role {
         case .tagger: "Qwen 3.5 2B"
         case .page: "Qwen 3.5 4B"
-        case .asr: "Qwen ASR"
-        case .gemmaSmall: "Gemma 4 E2B"
-        case .gemmaLarge: "Gemma 4 E4B"
         case .whisper: "Whisper"
         }
     }
@@ -774,10 +735,7 @@ struct ModelsPage: View {
         switch role {
         case .tagger: String(localized: "Needs 2 GB free.")
         case .page: String(localized: "Needs 4 GB free and 8 GB of memory.")
-        case .gemmaSmall: String(localized: "Needs 5 GB free and 8 GB of memory.")
-        case .gemmaLarge: String(localized: "Needs 7 GB free and 8 GB of memory.")
         case .whisper: String(localized: "Needs 2 GB free.")
-        case .asr: ""
         }
     }
 }

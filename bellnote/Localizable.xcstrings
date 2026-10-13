@@ -1,8 +1,16 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
-    "" : {
-
+    "" : {},
+    "%@ %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ %2$@"
+          }
+        }
+      }
     },
     "%@ · %@" : {
       "localizations" : {
@@ -14,19 +22,7 @@
         }
       }
     },
-    "%@ %@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$@ %2$@"
-          }
-        }
-      }
-    },
-    "%lld" : {
-
-    },
+    "%lld" : {},
     "%lld min" : {
       "localizations" : {
         "en" : {
@@ -92,39 +88,6 @@
         }
       }
     },
-    "Add" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Add"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ekle"
-          }
-        }
-      }
-    },
-    "Add slot" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Add slot"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ders ekle"
-          }
-        }
-      }
-    },
     "AI correction" : {
       "localizations" : {
         "en" : {
@@ -185,6 +148,39 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "AI modelleri"
+          }
+        }
+      }
+    },
+    "Add" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ekle"
+          }
+        }
+      }
+    },
+    "Add slot" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add slot"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ders ekle"
           }
         }
       }
@@ -560,38 +556,6 @@
         }
       }
     },
-    "Delete Gemma 4 E2B?" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Delete Gemma 4 E2B?"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Gemma 4 E2B silinsin mi?"
-          }
-        }
-      }
-    },
-    "Delete Gemma 4 E4B?" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Delete Gemma 4 E4B?"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Gemma 4 E4B silinsin mi?"
-          }
-        }
-      }
-    },
     "Delete Qwen 3.5 2B?" : {
       "localizations" : {
         "en" : {
@@ -620,22 +584,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Qwen 3.5 4B silinsin mi?"
-          }
-        }
-      }
-    },
-    "Delete Qwen ASR?" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Delete Qwen ASR?"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Qwen ASR silinsin mi?"
           }
         }
       }
@@ -672,6 +620,22 @@
         }
       }
     },
+    "Delete this recording?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete this recording?"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bu kayıt silinsin mi?"
+          }
+        }
+      }
+    },
     "Done" : {
       "localizations" : {
         "en" : {
@@ -704,6 +668,22 @@
         }
       }
     },
+    "Download FluidAudio?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Download FluidAudio?"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "FluidAudio yüklensin mi?"
+          }
+        }
+      }
+    },
     "Download failed. Check your connection and try again." : {
       "localizations" : {
         "en" : {
@@ -732,22 +712,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "İndirme bitti."
-          }
-        }
-      }
-    },
-    "Download FluidAudio?" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Download FluidAudio?"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "FluidAudio yüklensin mi?"
           }
         }
       }
@@ -852,9 +816,7 @@
         }
       }
     },
-    "End" : {
-
-    },
+    "End" : {},
     "End this lecture?" : {
       "localizations" : {
         "en" : {
@@ -967,58 +929,7 @@
         }
       }
     },
-    "FluidAudio" : {
-
-    },
-    "Gemma" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Gemma"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Gemma"
-          }
-        }
-      }
-    },
-    "Gemma could not write the transcript." : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Gemma could not write the transcript."
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Gemma yazıya dökemedi."
-          }
-        }
-      }
-    },
-    "Gemma writes the words." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Gemma writes the words."
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sözleri Gemma yazar."
-          }
-        }
-      }
-    },
+    "FluidAudio" : {},
     "Given name" : {
       "localizations" : {
         "en" : {
@@ -1508,38 +1419,6 @@
         }
       }
     },
-    "Needs 5 GB free and 8 GB of memory." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Needs 5 GB free and 8 GB of memory."
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "5 GB boş alan ve 8 GB bellek gerekir."
-          }
-        }
-      }
-    },
-    "Needs 7 GB free and 8 GB of memory." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Needs 7 GB free and 8 GB of memory."
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "7 GB boş alan ve 8 GB bellek gerekir."
-          }
-        }
-      }
-    },
     "New course" : {
       "localizations" : {
         "en" : {
@@ -1768,9 +1647,7 @@
         }
       }
     },
-    "Note ready %@" : {
-
-    },
+    "Note ready %@" : {},
     "Notes" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2028,6 +1905,22 @@
         }
       }
     },
+    "Preparing…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Preparing…"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hazırlanıyor…"
+          }
+        }
+      }
+    },
     "Previous" : {
       "localizations" : {
         "en" : {
@@ -2153,55 +2046,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Sınav %1$lld/%2$lld"
-          }
-        }
-      }
-    },
-    "Qwen ASR" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Qwen ASR"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Qwen ASR"
-          }
-        }
-      }
-    },
-    "Qwen ASR cannot write yet." : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Qwen ASR could not write."
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Qwen ASR yazamadı."
-          }
-        }
-      }
-    },
-    "Qwen ASR writes the words." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Qwen ASR writes the words."
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Kelimeleri Qwen ASR yazar."
           }
         }
       }
@@ -2672,9 +2516,7 @@
         }
       }
     },
-    "Starts %@." : {
-
-    },
+    "Starts %@." : {},
     "Stay paused" : {
       "localizations" : {
         "en" : {
@@ -2837,6 +2679,22 @@
         }
       }
     },
+    "The audio, the notes and the assignments from this recording will be deleted. This cannot be undone." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The audio, the notes and the assignments from this recording will be deleted. This cannot be undone."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bu kaydın sesi, notları ve ödevleri silinecek. Bu geri alınamaz."
+          }
+        }
+      }
+    },
     "The device could not lock the notes, so the lock is off." : {
       "localizations" : {
         "en" : {
@@ -2913,6 +2771,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Kayıt kapatılamadı."
+          }
+        }
+      }
+    },
+    "The recording could not be deleted." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The recording could not be deleted."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kayıt silinemedi."
           }
         }
       }
@@ -3207,6 +3081,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ses"
+          }
+        }
+      }
+    },
+    "Wait until this recording has been processed, then delete it." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wait until this recording has been processed, then delete it."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bu kaydın işlenmesi bitsin, sonra silebilirsin."
           }
         }
       }

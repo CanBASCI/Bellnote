@@ -12,7 +12,16 @@ enum LecturePipeline {
         pageModel: ModelRole,
         onProgress: ((PipelineStage) -> Void)? = nil
     ) async {
+        let activity = PipelineActivity.shared
+        // A second tap, or a screen opened while this lecture runs, must not start it again.
+        guard !activity.isRunning(lecture) else {
+            log.info("Process skipped: this lecture is already running")
+            return
+        }
+        activity.set(PipelineStage(rawValue: lecture.stage)?.next ?? .audio, for: lecture)
+        defer { activity.clear(for: lecture) }
         func report(_ working: PipelineStage) async {
+            activity.set(working, for: lecture)
             onProgress?(working)
             await Task.yield()
         }
@@ -94,23 +103,11 @@ enum LecturePipeline {
             switch error {
             case .qualityFailed:
                 lecture.failureMessageKey = "The transcript failed the quality check."
-                lecture.neededModel = ModelRole.asr.rawValue
+                lecture.neededModel = ModelRole.whisper.rawValue
             case .assetMissing:
                 lecture.failureMessageKey = "The speech asset is not installed."
             case .unreadable:
                 lecture.failureMessageKey = "The recording could not be read."
-            case .qwenMissing:
-                lecture.failureMessageKey = "A model is not available."
-                lecture.neededModel = ModelRole.asr.rawValue
-            case .qwenNotWriting:
-                lecture.failureMessageKey = "Qwen ASR cannot write yet."
-                lecture.neededModel = nil
-            case .gemmaMissing:
-                lecture.failureMessageKey = "A model is not available."
-                lecture.neededModel = ModelRole.gemmaSmall.rawValue
-            case .gemmaNotWriting:
-                lecture.failureMessageKey = "Gemma could not write the transcript."
-                lecture.neededModel = nil
             case .whisperMissing:
                 lecture.failureMessageKey = "A model is not available."
                 lecture.neededModel = ModelRole.whisper.rawValue
@@ -174,8 +171,7 @@ enum LecturePipeline {
     private static func finishTranscript(_ lecture: Lecture, course: Course) async throws {
         guard let path = lecture.audioRelativePath else { throw TranscriptError.unreadable }
         let engine = SpeechEngine(rawValue: UserDefaults.standard.string(forKey: AppPreferences.speechEngineKey) ?? "") ?? .apple
-        let qwenReady = await LocalModelRuntime.shared.probe(.asr).isReady
-        log.info("Transcript engine=\(engine.rawValue, privacy: .public) qwenReady=\(qwenReady)")
+        log.info("Transcript engine=\(engine.rawValue, privacy: .public)")
         let url = try Vault.documents().appendingPathComponent(path)
         let locale = Locale(identifier: course.localeIdentifier)
         let runs: [SpeechRun]
@@ -198,28 +194,6 @@ enum LecturePipeline {
             } catch {
                 log.error("Whisper ASR failed message=\(error.localizedDescription, privacy: .public)")
                 throw TranscriptError.whisperNotWriting
-            }
-        } else if engine == .gemma {
-            guard GemmaASR.installedRole() != nil else { throw TranscriptError.gemmaMissing }
-            log.info("Gemma ASR writing")
-            do {
-                lines = try await GemmaASR.transcribe(url: url, locale: locale, runs: runs)
-            } catch let error as TranscriptError {
-                throw error
-            } catch {
-                log.error("Gemma ASR failed message=\(error.localizedDescription, privacy: .public)")
-                throw TranscriptError.gemmaNotWriting
-            }
-        } else if engine == .qwen {
-            guard qwenReady else { throw TranscriptError.qwenMissing }
-            log.info("Qwen ASR writing")
-            do {
-                lines = try await QwenASR.transcribe(url: url, locale: locale, runs: runs)
-            } catch let error as TranscriptError {
-                throw error
-            } catch {
-                log.error("Qwen ASR failed message=\(error.localizedDescription, privacy: .public)")
-                throw TranscriptError.qwenNotWriting
             }
         } else {
             lines = try await LectureTranscriber.transcribe(url: url, locale: locale, runs: runs)
@@ -333,8 +307,8 @@ enum LecturePipeline {
             guard let block = source.max(by: {
                 CorrectionText.overlap(task, $0.text) < CorrectionText.overlap(task, $1.text)
             }) else { continue }
-            let hint = DueDateMath.parse(task)
-            let due = hint.map { DueDateMath.due(from: lecture.startedAt, hint: $0) }
+            let due = Assignment.dueDate(for: task, lecture: lecture)
+                ?? Assignment.dueDate(for: block.text, lecture: lecture)
             context.insert(Assignment(
                 course: course,
                 text: task,
@@ -377,8 +351,7 @@ enum LecturePipeline {
         for block in lecture.blocks where block.kind == BlockKind.assignment.rawValue {
             let existing = course.assignments.filter { blockIDs.contains($0.sourceBlockID) }
             if existing.contains(where: { CorrectionText.overlap(block.text, $0.text) >= 0.5 }) { continue }
-            let hint = block.dueHintRaw.flatMap { DueDateMath.parse($0) }
-            let due = hint.map { DueDateMath.due(from: lecture.startedAt, hint: $0) }
+            let due = Assignment.dueDate(for: block.dueHintRaw ?? block.text, lecture: lecture)
             let assignment = Assignment(
                 course: course,
                 text: block.text,
