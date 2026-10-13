@@ -21,6 +21,83 @@ enum LectureTranscriber {
     static func transcribe(
         url: URL,
         locale: Locale,
+        runs: [SpeechRun]
+    ) async throws -> [TranscriptLine] {
+        let turns = speakerTurns(runs)
+        guard !turns.isEmpty else {
+            return try await transcribeFile(url: url, locale: locale, keeping: [])
+        }
+        let longest = RoleRules.longestCluster(runs) ?? 1
+        log.info("Transcript speakers=\(Set(turns.map(\.cluster)).count) turns=\(turns.count)")
+        var lines: [TranscriptLine] = []
+        var lastError: Error?
+        for turn in turns {
+            let role = RoleRules.label(turn, longestCluster: longest)
+            let slice: URL
+            do {
+                slice = try sliceAudio(url: url, from: turn.start, through: turn.end)
+            } catch {
+                lastError = error
+                continue
+            }
+            defer { try? FileManager.default.removeItem(at: slice) }
+            do {
+                let piece = try await transcribeFile(url: slice, locale: locale, keeping: [])
+                lines.append(contentsOf: piece.map { line in
+                    TranscriptLine(second: line.second + turn.start, text: line.text, role: role)
+                })
+            } catch {
+                lastError = error
+                logAttemptFailure("Speaker \(turn.cluster)", locale: locale, error: error)
+            }
+        }
+        if lines.isEmpty {
+            if let lastError { throw lastError }
+            throw TranscriptError.qualityFailed
+        }
+        return lines.sorted { $0.second < $1.second }
+    }
+
+    private static func speakerTurns(_ runs: [SpeechRun]) -> [SpeechRun] {
+        let longest = RoleRules.longestCluster(runs) ?? 1
+        return runs
+            .filter { RoleRules.label($0, longestCluster: longest) != .room }
+            .sorted { $0.start < $1.start }
+    }
+
+    private static func sliceAudio(url: URL, from start: Int, through end: Int) throws -> URL {
+        let source = try AVAudioFile(forReading: url)
+        let rate = source.processingFormat.sampleRate
+        guard rate > 0, end > start else { throw TranscriptError.unreadable }
+        let startFrame = min(source.length, AVAudioFramePosition(Double(start) * rate))
+        let endFrame = min(source.length, AVAudioFramePosition(Double(end) * rate))
+        guard endFrame > startFrame else { throw TranscriptError.unreadable }
+        let sliced = FileManager.default.temporaryDirectory
+            .appendingPathComponent("bellnote-slice-\(UUID().uuidString).caf")
+        let format = source.processingFormat
+        let output = try AVAudioFile(
+            forWriting: sliced,
+            settings: format.settings,
+            commonFormat: format.commonFormat,
+            interleaved: format.isInterleaved
+        )
+        source.framePosition = startFrame
+        let capacity: AVAudioFrameCount = 16_000
+        while source.framePosition < endFrame {
+            let frames = AVAudioFrameCount(min(AVAudioFramePosition(capacity), endFrame - source.framePosition))
+            guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frames) else {
+                throw TranscriptError.unreadable
+            }
+            try source.read(into: buffer, frameCount: frames)
+            if buffer.frameLength == 0 { break }
+            try output.write(from: buffer)
+        }
+        return sliced
+    }
+
+    private static func transcribeFile(
+        url: URL,
+        locale: Locale,
         keeping ranges: [ClosedRange<Int>]
     ) async throws -> [TranscriptLine] {
         let candidates = await localeCandidates(for: locale)

@@ -130,16 +130,15 @@ enum LecturePipeline {
         guard let path = lecture.audioRelativePath else { throw TranscriptError.unreadable }
         let url = try Vault.documents().appendingPathComponent(path)
         let locale = Locale(identifier: course.localeIdentifier)
-        let ranges: [ClosedRange<Int>]
+        let runs: [SpeechRun]
         do {
-            let runs = try await SpeakerPass.runs(url: url)
-            ranges = SpeakerPass.narratorRanges(runs)
-            log.info("Speaker ranges count=\(ranges.count)")
+            runs = try await SpeakerPass.runs(url: url)
+            log.info("Speaker runs count=\(runs.count)")
         } catch {
             log.error("Speaker pass failed message=\(error.localizedDescription, privacy: .public)")
-            ranges = []
+            runs = []
         }
-        let lines = try await LectureTranscriber.transcribe(url: url, locale: locale, keeping: ranges)
+        let lines = try await LectureTranscriber.transcribe(url: url, locale: locale, runs: runs)
         lecture.blocks.removeAll()
         for line in lines {
             let block = Block(

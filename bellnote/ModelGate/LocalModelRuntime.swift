@@ -31,7 +31,11 @@ actor LocalModelRuntime {
         do {
             try await ensure(.tagger)
             let session = try makeSession(role: .tagger, instructions: tagInstructions)
-            let response = try await session.respond(to: window, generating: WindowTag.self)
+            let response = try await session.respond(
+                to: window,
+                generating: WindowTag.self,
+                options: GenerationOptions(maximumResponseTokens: 512)
+            )
             if TagValidator.validate(response.content) {
                 Self.log.info("Tag ok kind=\(response.content.kind, privacy: .public)")
                 return response.content
@@ -199,7 +203,9 @@ actor LocalModelRuntime {
         If items are unintelligible, keep the row and set missing true. Do not invent facts.
         """
     }
-
+        speakerRole is one of narrator, question, room, unknown, lecturer. \
+        kind is one of definition, list, example, emphasis, reference, assignment, examScope, decision, other. \
+        topics has at most five short names. text is one short sentence from the window. \
     private var pageInstructions: String {
         """
         Write from the tagged notes only. Do not add facts that are not in the notes. \
