@@ -6,6 +6,16 @@ enum LectureState: String, Codable, Sendable {
     case processing
     case ready
     case failed
+
+    var title: String {
+        switch self {
+        case .recording: String(localized: "Recording")
+        case .paused: String(localized: "Paused")
+        case .processing: String(localized: "Processing")
+        case .ready: String(localized: "Ready")
+        case .failed: String(localized: "Failed")
+        }
+    }
 }
 
 enum PipelineStage: String, Codable, Sendable, CaseIterable {

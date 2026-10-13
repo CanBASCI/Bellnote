@@ -7,6 +7,7 @@ import SwiftData
 final class AppSession {
     var unlocked: Bool
     var languageCode: String
+    var appearance: AppAppearance
     var focusCourseToken: UUID?
     var focusLectureID: PersistentIdentifier?
     var showModelDownload = false
@@ -23,7 +24,14 @@ final class AppSession {
         unlocked = !lock
         let stored = defaults.string(forKey: AppPreferences.languageKey) ?? AppLanguage.system.rawValue
         languageCode = AppLanguage.resolved(preference: stored, system: Locale.current.identifier)
+        let storedAppearance = defaults.string(forKey: AppPreferences.appearanceKey) ?? AppAppearance.system.rawValue
+        appearance = AppAppearance(rawValue: storedAppearance) ?? .system
         preferTaggerForPage = defaults.bool(forKey: AppPreferences.pagePrefersTaggerKey)
+    }
+
+    func setAppearance(_ appearance: AppAppearance) {
+        UserDefaults.standard.set(appearance.rawValue, forKey: AppPreferences.appearanceKey)
+        self.appearance = appearance
     }
 
     func setLanguage(_ language: AppLanguage) {

@@ -2,50 +2,41 @@ import SwiftData
 import SwiftUI
 
 struct TermHomeView: View {
-    @Environment(\.modelContext) private var modelContext
-    @Environment(AppSession.self) private var session
     @Query(sort: \Term.createdAt) private var terms: [Term]
     @Query(sort: \Lecture.startedAt, order: .reverse) private var lectures: [Lecture]
-    @Query private var gaps: [LectureGap]
 
-    @State private var segment = 0
     @State private var showTerm = false
     @State private var showCourse = false
-    @State private var showTimetable = false
-    @State private var showModels = false
-    @State private var showSettings = false
     @State private var showPending = false
-    @State private var nowCourse: Course?
 
     private var term: Term? { terms.first { $0.isOpen } ?? terms.last }
 
     var body: some View {
-        NavigationStack {
-            Group {
-                if let term {
-                    List {
-                        if let pin = nowPin(in: term) {
-                            Section {
-                                Button(pin.courseName) { openNow(pin, in: term) }
-                            } header: {
-                                Text("Now")
-                            }
-                        }
-                        Picker("Section", selection: $segment) {
-                            Text("Courses").tag(0)
-                            Text("Exams").tag(1)
-                        }
-                        .pickerStyle(.segmented)
-                        .listRowSeparator(.hidden)
-                        if segment == 0 {
-                            courseSection(term)
-                        } else {
-                            examSection(term)
-                        }
+        Group {
+            if let term {
+                TabView {
+                    NavigationStack {
+                        TodayPage(term: term, showCourse: $showCourse, showPending: $showPending)
                     }
-                    .listStyle(.insetGrouped)
-                    .navigationTitle("Bellnote")
-                } else {
+                    .tabItem { Label("Today", systemImage: "text.rectangle.page") }
+
+                    NavigationStack {
+                        ProgramPage(term: term)
+                    }
+                    .tabItem { Label("Timetable", systemImage: "calendar.day.timeline.left") }
+
+                    NavigationStack {
+                        CalendarPage(term: term)
+                    }
+                    .tabItem { Label("Calendar", systemImage: "calendar") }
+
+                    NavigationStack {
+                        SettingsPage(terms: terms)
+                    }
+                    .tabItem { Label("Settings", systemImage: "gearshape") }
+                }
+            } else {
+                NavigationStack {
                     ContentUnavailableView {
                         Text("Bellnote")
                     } description: {
@@ -55,39 +46,12 @@ struct TermHomeView: View {
                     }
                 }
             }
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("Pending", systemImage: "clock") { showPending = true }
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Menu {
-                        Button("New term") { showTerm = true }
-                        Button("Timetable") { showTimetable = true }
-                        Button("Models") { showModels = true }
-                        Button("Settings") { showSettings = true }
-                    } label: {
-                        Image(systemName: "ellipsis.circle")
-                    }
-                }
-                ToolbarItem(placement: .bottomBar) {
-                    Button("New course", systemImage: "plus") { showCourse = true }
-                        .disabled(term == nil)
-                }
-            }
-            .navigationDestination(item: $nowCourse) { course in
-                CoursePage(course: course)
-            }
-            .sheet(isPresented: $showTerm) { TermEditor(terms: terms) }
-            .sheet(isPresented: $showCourse) {
-                if let term { CourseEditor(term: term) }
-            }
-            .sheet(isPresented: $showTimetable) {
-                if let term { TimetableSheet(term: term) }
-            }
-            .sheet(isPresented: $showModels) { ModelsSheet() }
-            .sheet(isPresented: $showSettings) { SettingsSheet() }
-            .sheet(isPresented: $showPending) { PendingSheet(lectures: pending) }
         }
+        .sheet(isPresented: $showTerm) { TermEditor(terms: terms) }
+        .sheet(isPresented: $showCourse) {
+            if let term { CourseEditor(term: term) }
+        }
+        .sheet(isPresented: $showPending) { PendingSheet(lectures: pending) }
     }
 
     private var pending: [Lecture] {
@@ -98,72 +62,113 @@ struct TermHomeView: View {
                 || (lecture.state == LectureState.paused.rawValue && lecture.audioRelativePath != nil && lecture.stage == PipelineStage.idle.rawValue)
         }
     }
+}
 
-    @ViewBuilder
-    private func courseSection(_ term: Term) -> some View {
-        Section {
-            ForEach(term.courses.sorted { $0.name.localizedCompare($1.name) == .orderedAscending }) { course in
-                NavigationLink(value: course) {
-                    VStack(alignment: .leading) {
-                        Text(course.name)
-                        Text(courseSummary(course))
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
+struct TodayPage: View {
+    @Bindable var term: Term
+    @Binding var showCourse: Bool
+    @Binding var showPending: Bool
+
+    @Environment(\.modelContext) private var modelContext
+    @Environment(AppSession.self) private var session
+    @State private var recordCourse: Course?
+    @State private var showConsent = false
+    @State private var activeLecture: Lecture?
+
+    var body: some View {
+        List {
+            if let slot = nextSlot {
+                Section {
+                    hero(slot)
+                }
+            }
+            Section("Latest notes") {
+                ForEach(orderedCourses) { course in
+                    NavigationLink(value: course) {
+                        noteRow(course)
+                    }
+                }
+                .onDelete { offsets in
+                    for index in offsets {
+                        deleteCourse(orderedCourses[index])
                     }
                 }
             }
-            .onDelete { offsets in
-                let ordered = term.courses.sorted { $0.name.localizedCompare($1.name) == .orderedAscending }
-                for index in offsets {
-                    deleteCourse(ordered[index])
+            if !examRows.isEmpty {
+                Section("Exams") {
+                    ForEach(ExamSort.markingOverlaps(examRows)) { row in
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(row.courseName)
+                            Text(examLine(row))
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                            if row.overlaps {
+                                Text("Overlaps another sitting.")
+                                    .font(.footnote)
+                            }
+                        }
+                    }
                 }
             }
         }
+        .listStyle(.insetGrouped)
+        .navigationTitle("Today")
+        .navigationSubtitle(Date.now.formatted(.dateTime.weekday(.wide).day().month(.wide)))
         .navigationDestination(for: Course.self) { course in
             CoursePage(course: course)
         }
-    }
-
-    @ViewBuilder
-    private func examSection(_ term: Term) -> some View {
-        let rows = ExamSort.markingOverlaps(examRows(term))
-        Section {
-            if rows.isEmpty {
-                Text("No exam dates yet.")
+        .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                Button("Pending", systemImage: "clock") { showPending = true }
             }
-            ForEach(rows) { row in
-                VStack(alignment: .leading) {
-                    Text(row.courseName)
-                    Text(examLine(row))
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                    if row.overlaps {
-                        Text("Overlaps another sitting.")
-                            .font(.footnote)
-                    }
+            ToolbarItem(placement: .primaryAction) {
+                Button("New course", systemImage: "plus") { showCourse = true }
+                    .labelStyle(.titleAndIcon)
+            }
+        }
+        .sheet(isPresented: $showConsent) {
+            if let recordCourse {
+                ConsentSheet(course: recordCourse) { faceID in
+                    activeLecture = LectureStarter.make(course: recordCourse, faceID: faceID, context: modelContext)
                 }
             }
         }
-    }
-
-    private func courseSummary(_ course: Course) -> String {
-        let open = course.assignments.filter { !$0.done }.count
-        let nextExam = course.sittings.compactMap(\.date).sorted().first
-        let gaps = noRecordingCount(course)
-        var parts: [String] = []
-        if let nextExam {
-            parts.append(nextExam.formatted(date: .abbreviated, time: .omitted))
+        .sheet(item: $activeLecture) { lecture in
+            RecorderSheet(lecture: lecture)
         }
-        parts.append(String(localized: "\(open) open"))
-        parts.append(String(localized: "\(gaps) without a recording"))
-        return parts.joined(separator: " · ")
     }
 
-    private func noRecordingCount(_ course: Course) -> Int {
-        gaps.filter { $0.courseID == course.token && $0.mark != GapMark.cancelled.rawValue }.count
+    private var orderedCourses: [Course] {
+        term.courses.sorted { lhs, rhs in
+            let left = lhs.lectures.map(\.startedAt).max() ?? .distantPast
+            let right = rhs.lectures.map(\.startedAt).max() ?? .distantPast
+            if left != right { return left > right }
+            return lhs.name.localizedCompare(rhs.name) == .orderedAscending
+        }
     }
 
-    private func examRows(_ term: Term) -> [ExamRow] {
+    private var nextSlot: WeeklySlot? {
+        let calendar = Calendar.current
+        let now = Date.now
+        let weekday = calendar.component(.weekday, from: now)
+        let minutes = calendar.component(.hour, from: now) * 60 + calendar.component(.minute, from: now)
+        let slots = term.slots
+        if let today = slots
+            .filter({ $0.weekday == weekday && $0.endMinutes > minutes })
+            .sorted(by: { $0.startMinutes < $1.startMinutes })
+            .first {
+            return today
+        }
+        for offset in 1...6 {
+            let day = ((weekday - 1 + offset) % 7) + 1
+            if let slot = slots.filter({ $0.weekday == day }).sorted(by: { $0.startMinutes < $1.startMinutes }).first {
+                return slot
+            }
+        }
+        return nil
+    }
+
+    private var examRows: [ExamRow] {
         term.courses.flatMap { course in
             course.sittings.map { sitting in
                 ExamRow(
@@ -178,29 +183,111 @@ struct TermHomeView: View {
         }
     }
 
+    @ViewBuilder
+    private func hero(_ slot: WeeklySlot) -> some View {
+        let soon = slot.weekday == Calendar.current.component(.weekday, from: .now)
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                if soon {
+                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                        .fill(Color.pink)
+                        .frame(width: 14, height: 14)
+                        .accessibilityHidden(true)
+                }
+                Text(status(for: slot))
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            Text(slot.course?.name ?? String(localized: "Course"))
+                .font(.title2.weight(.semibold))
+            Text(slotDetail(slot))
+                .foregroundStyle(.secondary)
+            if let course = slot.course {
+                Button("Record") { recordCourse = course; showConsent = true }
+                    .buttonStyle(.glassProminent)
+            }
+        }
+        .padding(.vertical, 4)
+    }
+
+    private func noteRow(_ course: Course) -> some View {
+        HStack(alignment: .center, spacing: 10) {
+            Capsule()
+                .fill(Color.green)
+                .frame(width: 3)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(course.name)
+                    .font(.headline)
+                Text(excerpt(course))
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(3)
+                if let meta = noteMeta(course) {
+                    Text(meta)
+                        .font(.footnote)
+                        .foregroundStyle(.tertiary)
+                }
+            }
+        }
+    }
+
+    private func status(for slot: WeeklySlot) -> String {
+        let calendar = Calendar.current
+        let weekday = calendar.component(.weekday, from: .now)
+        let minutes = calendar.component(.hour, from: .now) * 60 + calendar.component(.minute, from: .now)
+        if slot.weekday == weekday, minutes >= slot.startMinutes, minutes < slot.endMinutes {
+            return String(localized: "Now")
+        }
+        if slot.weekday == weekday, slot.startMinutes > minutes {
+            let delta = slot.startMinutes - minutes
+            if delta == 0 { return String(localized: "Now") }
+            return String(format: String(localized: "%lld min later"), delta)
+        }
+        return weekdayName(slot.weekday)
+    }
+
+    private func slotDetail(_ slot: WeeklySlot) -> String {
+        let span = "\(ReminderScheduler.clock(slot.startMinutes))–\(ReminderScheduler.clock(slot.endMinutes))"
+        guard !slot.placeName.isEmpty else { return span }
+        return "\(span) · \(slot.placeName)"
+    }
+
+    private func excerpt(_ course: Course) -> String {
+        guard let lecture = course.lectures.max(by: { $0.startedAt < $1.startedAt }) else {
+            return String(localized: "No lectures yet.")
+        }
+        let summary = lecture.summary.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !summary.isEmpty { return MediaClock.sentence(summary) }
+        if let text = lecture.blocks.sorted(by: { $0.second < $1.second }).first(where: { !$0.text.isEmpty })?.text {
+            return MediaClock.sentence(text)
+        }
+        return LectureState(rawValue: lecture.state)?.title ?? String(localized: "No lectures yet.")
+    }
+
+    private func noteMeta(_ course: Course) -> String? {
+        if let lecture = course.lectures.max(by: { $0.startedAt < $1.startedAt }) {
+            let date = lecture.startedAt.formatted(date: .abbreviated, time: .omitted)
+            guard lecture.recordedSeconds >= 60 else { return date }
+            let minutes = String(format: String(localized: "%lld min"), lecture.recordedSeconds / 60)
+            return "\(date) · \(minutes)"
+        }
+        guard let slot = term.slots.filter({ $0.course?.token == course.token }).sorted(by: { $0.startMinutes < $1.startMinutes }).first else {
+            return nil
+        }
+        return "\(weekdayName(slot.weekday)) · \(ReminderScheduler.clock(slot.startMinutes))"
+    }
+
     private func examLine(_ row: ExamRow) -> String {
         let date = row.date?.formatted(date: .abbreviated, time: .omitted) ?? String(localized: "Date not set")
         let time = row.startMinutes.map { ReminderScheduler.clock($0) } ?? String(localized: "Time not set")
         return "\(row.kind) · \(date) · \(time)"
     }
 
-    private func nowPin(in term: Term) -> SlotClock? {
-        let clocks = term.slots.compactMap { slot -> SlotClock? in
-            guard let course = slot.course else { return nil }
-            return SlotClock(
-                id: UUID(),
-                courseID: course.token,
-                courseName: course.name,
-                weekday: slot.weekday,
-                startMinutes: slot.startMinutes,
-                endMinutes: slot.endMinutes
-            )
-        }
-        return NowPin.active(slots: clocks, at: .now).first
-    }
-
-    private func openNow(_ pin: SlotClock, in term: Term) {
-        nowCourse = term.courses.first { $0.token == pin.courseID }
+    private func weekdayName(_ day: Int) -> String {
+        let symbols = Calendar.current.weekdaySymbols
+        guard symbols.indices.contains(day - 1) else { return "" }
+        return symbols[day - 1]
     }
 
     private func deleteCourse(_ course: Course) {

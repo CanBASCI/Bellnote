@@ -34,6 +34,15 @@ struct bellnoteApp: App {
                     }
                 }
             }
+            .preferredColorScheme(colorScheme)
+        }
+    }
+
+    private var colorScheme: ColorScheme? {
+        switch session.appearance {
+        case .system: nil
+        case .light: .light
+        case .dark: .dark
         }
     }
 }

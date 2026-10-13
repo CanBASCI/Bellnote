@@ -1,48 +1,51 @@
 import SwiftData
 import SwiftUI
 
+enum LectureStarter {
+    @MainActor
+    static func make(course: Course, faceID: Bool, context: ModelContext) -> Lecture {
+        let lecture = Lecture(course: course)
+        let attestation = Attestation(
+            appVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0",
+            faceIDSucceeded: faceID
+        )
+        lecture.attestation = attestation
+        context.insert(attestation)
+        context.insert(lecture)
+        course.lectures.append(lecture)
+        return lecture
+    }
+}
+
 struct CoursePage: View {
     @Bindable var course: Course
     @Environment(\.modelContext) private var modelContext
-    @Environment(AppSession.self) private var session
 
     @State private var showConsent = false
-    @State private var showRecorder = false
-    @State private var showAssignments = false
-    @State private var showStudy = false
-    @State private var studyMode: StudyMode = .ask
-    @State private var showLecturer = false
-    @State private var showInventory = false
     @State private var activeLecture: Lecture?
+    @State private var showInventory = false
 
     var body: some View {
         List {
-            Section {
-                Button {
-                    showAssignments = true
-                } label: {
-                    Text(headline)
-                        .font(.subheadline)
-                }
-                Text(attendanceLine)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
             Section("Lectures") {
+                if lectures.isEmpty {
+                    Text("No lectures yet.")
+                        .foregroundStyle(.secondary)
+                }
                 ForEach(lectures) { lecture in
                     NavigationLink {
                         LecturePage(lecture: lecture)
                     } label: {
-                        VStack(alignment: .leading) {
+                        VStack(alignment: .leading, spacing: 4) {
                             Text(lecture.startedAt.formatted(date: .abbreviated, time: .shortened))
-                            Text(lecture.state)
-                                .font(.caption)
+                            Text(LectureState(rawValue: lecture.state)?.title ?? lecture.state)
+                                .font(.subheadline)
                                 .foregroundStyle(.secondary)
                         }
                     }
                 }
             }
-            Section("Lecturer", isExpanded: $showLecturer) {
+            Section("Lecturer") {
                 if let contact = course.lecturer {
                     LecturerFields(contact: contact)
                 }
@@ -59,35 +62,17 @@ struct CoursePage: View {
         .listStyle(.insetGrouped)
         .navigationTitle(course.name)
         .toolbar {
-            ToolbarItem(placement: .bottomBar) {
-                Button("Record", systemImage: "record.circle") {
-                    beginRecord()
-                }
-            }
-            ToolbarItem(placement: .bottomBar) {
-                Picker("Study", selection: $studyMode) {
-                    Text("Ask").tag(StudyMode.ask)
-                    Text("Quiz").tag(StudyMode.quiz)
-                }
-                .pickerStyle(.segmented)
-            }
-            ToolbarItem(placement: .bottomBar) {
-                Button("Speak", systemImage: "mic") { showStudy = true }
+            ToolbarItem(placement: .primaryAction) {
+                Button("Record", systemImage: "record.circle") { showConsent = true }
             }
         }
         .sheet(isPresented: $showConsent) {
             ConsentSheet(course: course) { faceID in
-                startLecture(faceID: faceID)
+                activeLecture = LectureStarter.make(course: course, faceID: faceID, context: modelContext)
             }
         }
         .sheet(item: $activeLecture) { lecture in
             RecorderSheet(lecture: lecture)
-        }
-        .sheet(isPresented: $showAssignments) {
-            AssignmentSheet(course: course)
-        }
-        .sheet(isPresented: $showStudy) {
-            StudySheet(course: course, mode: studyMode)
         }
         .onAppear(perform: ensureLecturer)
     }
@@ -96,43 +81,12 @@ struct CoursePage: View {
         course.lectures.sorted { $0.startedAt > $1.startedAt }
     }
 
-    private var headline: String {
-        let open = course.assignments.filter { !$0.done }.count
-        if let exam = course.sittings.compactMap(\.date).sorted().first {
-            return String(localized: "\(open) open · \(exam.formatted(date: .abbreviated, time: .omitted))")
-        }
-        return String(localized: "\(open) open")
-    }
-
-    private var attendanceLine: String {
-        let recorded = course.lectures.filter { $0.state == LectureState.ready.rawValue }.count
-        return String(localized: "\(recorded) recorded")
-    }
-
     private func ensureLecturer() {
         guard course.lecturer == nil else { return }
         let created = LecturerContact()
         created.course = course
         course.lecturer = created
         modelContext.insert(created)
-    }
-
-    private func beginRecord() {
-        showConsent = true
-    }
-
-    private func startLecture(faceID: Bool) {
-        let lecture = Lecture(course: course)
-        lecture.attestation = Attestation(
-            appVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0",
-            faceIDSucceeded: faceID
-        )
-        if let attestation = lecture.attestation {
-            modelContext.insert(attestation)
-        }
-        modelContext.insert(lecture)
-        course.lectures.append(lecture)
-        activeLecture = lecture
     }
 }
 

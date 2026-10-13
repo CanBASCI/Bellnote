@@ -38,8 +38,15 @@ enum AppLanguage: String, CaseIterable, Sendable {
     }
 }
 
+enum AppAppearance: String, CaseIterable, Sendable {
+    case system
+    case light
+    case dark
+}
+
 enum AppPreferences {
     static let languageKey = "appLanguage"
+    static let appearanceKey = "appAppearance"
     static let lockEnabledKey = "lockEnabled"
     static let lecturerAskedKey = "lecturerAsked."
     static let pagePrefersTaggerKey = "pagePrefersTagger"

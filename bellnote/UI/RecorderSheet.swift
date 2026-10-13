@@ -58,25 +58,54 @@ struct RecorderSheet: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 20) {
-                Image(systemName: capture.isRunning ? "record.circle" : "pause.circle")
-                    .font(.largeTitle)
-                    .foregroundStyle(.red)
-                    .accessibilityLabel(Text("Recording"))
-                Text(elapsed.formatted())
-                    .font(.title.monospacedDigit())
-                Text(capture.isRunning ? "Recording" : "Paused")
+                VStack(spacing: 8) {
+                    RoundedRectangle(cornerRadius: 5, style: .continuous)
+                        .fill(capture.isRunning ? Color.pink : Color.secondary.opacity(0.45))
+                        .frame(width: 16, height: 16)
+                        .accessibilityLabel(Text("Recording"))
+                    Text(capture.isRunning ? "Recording" : "Paused")
+                        .foregroundStyle(.secondary)
+                    Text(MediaClock.full(elapsed))
+                        .font(.system(size: 44, weight: .semibold, design: .rounded).monospacedDigit())
+                }
+                .padding(.top, 12)
                 if let failed {
                     Text(failed)
+                        .multilineTextAlignment(.center)
                         .foregroundStyle(.secondary)
                 }
-                HStack {
-                    if capture.isRunning {
-                        Button("Pause") { pause() }
-                    } else {
-                        Button("Resume") { resume() }
+                ScrollView {
+                    if !lecture.flaggedSeconds.isEmpty {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("So far")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                            ForEach(Array(lecture.flaggedSeconds.enumerated()), id: \.offset) { _, second in
+                                HStack(alignment: .firstTextBaseline, spacing: 12) {
+                                    Text(MediaClock.short(second))
+                                        .font(.subheadline.monospacedDigit())
+                                        .foregroundStyle(.secondary)
+                                        .frame(width: 56, alignment: .leading)
+                                    Text("I didn't get this")
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    Button("Stop", role: .destructive) { askStop = true }
-                    Button("I didn't get this") { flag() }
+                }
+                VStack(spacing: 12) {
+                    HStack(spacing: 12) {
+                        Button(capture.isRunning ? "Pause" : "Resume") {
+                            capture.isRunning ? pause() : resume()
+                        }
+                        .buttonStyle(.glass)
+                        Button("I didn't get this") { flag() }
+                            .buttonStyle(.glass)
+                    }
+                    Button("Stop") { askStop = true }
+                        .buttonStyle(.glassProminent)
+                        .controlSize(.large)
                 }
             }
             .padding()
