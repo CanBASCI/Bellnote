@@ -115,6 +115,13 @@ final class LecturerContact {
         self.email = ""
         self.extra = ""
     }
+
+    var displayName: String {
+        [title, givenName, familyName]
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+    }
 }
 
 @Model
@@ -199,6 +206,7 @@ final class Lecture {
     var flaggedSeconds: [Int]
     var processedThroughSecond: Int
     var neededModel: String?
+    var speakerNames: [String] = []
     var course: Course?
 
     @Relationship(deleteRule: .cascade, inverse: \Block.lecture)
@@ -224,9 +232,25 @@ final class Lecture {
         self.summary = ""
         self.flaggedSeconds = []
         self.processedThroughSecond = 0
+        self.speakerNames = []
         self.blocks = []
         self.boardPhotos = []
         self.pauses = []
+    }
+
+    func speakerName(for cluster: Int) -> String? {
+        let prefix = "\(cluster)\t"
+        guard let line = speakerNames.first(where: { $0.hasPrefix(prefix) }) else { return nil }
+        let name = String(line.dropFirst(prefix.count)).trimmingCharacters(in: .whitespacesAndNewlines)
+        return name.isEmpty ? nil : name
+    }
+
+    func setSpeakerName(_ name: String, cluster: Int) {
+        let prefix = "\(cluster)\t"
+        speakerNames.removeAll { $0.hasPrefix(prefix) }
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        speakerNames.append(prefix + trimmed)
     }
 }
 
@@ -276,6 +300,7 @@ final class Block {
     var studentNote: String
     var timeHintRaw: String?
     var dueHintRaw: String?
+    var speaker: Int = 0
     var lecture: Lecture?
 
     @Relationship(deleteRule: .cascade, inverse: \NoteLink.from)
@@ -291,7 +316,8 @@ final class Block {
         listItems: [String] = [],
         numbers: [Double] = [],
         importance: Bool = false,
-        missing: Bool = false
+        missing: Bool = false,
+        speaker: Int = 0
     ) {
         self.token = UUID()
         self.lecture = lecture
@@ -306,6 +332,7 @@ final class Block {
         self.missing = missing
         self.userFlag = false
         self.studentNote = ""
+        self.speaker = speaker
         self.outgoing = []
     }
 }

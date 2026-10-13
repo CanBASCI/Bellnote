@@ -31,17 +31,22 @@ actor LocalModelRuntime {
         do {
             try await ensure(.tagger)
             let session = try makeSession(role: .tagger, instructions: tagInstructions)
+            let language = locale.localizedString(forIdentifier: locale.identifier) ?? locale.identifier
             let response = try await session.respond(
-                to: window,
+                to: "Lecture language: \(language). Copy the sentence in this language. Do not translate.\n\n\(window)",
                 generating: WindowTag.self,
-                options: GenerationOptions(maximumResponseTokens: 512)
+                options: GenerationOptions(maximumResponseTokens: 256)
             )
             if TagValidator.validate(response.content) {
                 Self.log.info("Tag ok kind=\(response.content.kind, privacy: .public)")
                 return response.content
             }
             Self.log.warning("Tag invalid, retrying")
-            let retry = try await session.respond(to: window, generating: WindowTag.self)
+            let retry = try await session.respond(
+                to: "Lecture language: \(language). Copy the sentence in this language. Do not translate.\n\n\(window)",
+                generating: WindowTag.self,
+                options: GenerationOptions(maximumResponseTokens: 256)
+            )
             guard TagValidator.validate(retry.content) else {
                 Self.log.error("Tag retry invalid")
                 throw LocalModelError.loadFailed
@@ -242,10 +247,12 @@ actor LocalModelRuntime {
 
     private var tagInstructions: String {
         """
-        Tag one lecture window. Use only words from the window. \
+        Tag one lecture window. Do not translate. Use only words from the window. \
         speakerRole is one of narrator, question, room, unknown, lecturer. \
         kind is one of definition, list, example, emphasis, reference, assignment, examScope, decision, other. \
-        topics has at most five short names. text is one short sentence from the window. \
+        topics has at most five short names that appear in the window. \
+        text is one sentence copied from the window, in the lecture language. \
+        numbers only if they are spoken in the window. \
         If items are unintelligible, keep the row and set missing true. Do not invent facts.
         """
     }

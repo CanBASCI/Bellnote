@@ -97,6 +97,12 @@ enum LecturePipeline {
                 lecture.failureMessageKey = "The speech asset is not installed."
             case .unreadable:
                 lecture.failureMessageKey = "The recording could not be read."
+            case .qwenMissing:
+                lecture.failureMessageKey = "A model is not available."
+                lecture.neededModel = ModelRole.asr.rawValue
+            case .qwenNotWriting:
+                lecture.failureMessageKey = "Qwen ASR cannot write yet."
+                lecture.neededModel = nil
             }
             log.error("Transcript failed stage=\(stage.rawValue, privacy: .public) error=\(String(describing: error), privacy: .public)")
         } catch let error as LocalModelError {
@@ -138,6 +144,7 @@ enum LecturePipeline {
         }
         lecture.blocks.removeAll()
         lecture.summary = ""
+        lecture.speakerNames = []
         lecture.processedThroughSecond = 0
         lecture.failureMessageKey = nil
         lecture.neededModel = nil
@@ -165,7 +172,21 @@ enum LecturePipeline {
             log.error("Speaker pass failed message=\(error.localizedDescription, privacy: .public)")
             runs = []
         }
-        let lines = try await LectureTranscriber.transcribe(url: url, locale: locale, runs: runs)
+        let lines: [TranscriptLine]
+        if engine == .qwen {
+            guard qwenReady else { throw TranscriptError.qwenMissing }
+            log.info("Qwen ASR writing")
+            do {
+                lines = try await QwenASR.transcribe(url: url, locale: locale, runs: runs)
+            } catch let error as TranscriptError {
+                throw error
+            } catch {
+                log.error("Qwen ASR failed message=\(error.localizedDescription, privacy: .public)")
+                throw TranscriptError.qwenNotWriting
+            }
+        } else {
+            lines = try await LectureTranscriber.transcribe(url: url, locale: locale, runs: runs)
+        }
         lecture.blocks.removeAll()
         for line in lines {
             let block = Block(
@@ -173,7 +194,8 @@ enum LecturePipeline {
                 second: line.second,
                 role: line.role,
                 kind: .other,
-                text: line.text
+                text: line.text,
+                speaker: line.speaker
             )
             lecture.blocks.append(block)
         }
@@ -193,17 +215,19 @@ enum LecturePipeline {
                 lecture.processedThroughSecond = block.second
                 continue
             }
+            let spoken = block.text
             block.kind = BlockKind(tag: tag.kind).rawValue
-            block.text = tag.text
-            block.topics = tag.topics
-            block.listItems = tag.listItems
-            block.numbers = tag.numbers
+            block.text = TagKeep.sentence(tag.text, spoken: spoken)
+            block.topics = TagKeep.topics(tag.topics, spoken: spoken)
+            block.listItems = TagKeep.items(tag.listItems, spoken: spoken)
+            block.numbers = TagKeep.numbers(tag.numbers, spoken: spoken)
             block.importance = tag.importanceCue
             block.missing = tag.missing
             block.role = SpeakerRole(rawValue: tag.speakerRole)?.rawValue ?? block.role
+            log.info("Tag keep model=\(tag.text, privacy: .public) spoken=\(block.text, privacy: .public)")
             if tag.kind == BlockKind.reference.rawValue || tag.kind == BlockKind.assignment.rawValue {
-                block.timeHintRaw = tag.text
-                block.dueHintRaw = tag.text
+                block.timeHintRaw = block.text
+                block.dueHintRaw = block.text
             }
             if block.role == SpeakerRole.room.rawValue {
                 continue
@@ -277,5 +301,48 @@ enum LecturePipeline {
             )
             context.insert(assignment)
         }
+    }
+}
+
+private enum TagKeep {
+    static func sentence(_ candidate: String, spoken: String) -> String {
+        let proposed = candidate.trimmingCharacters(in: .whitespacesAndNewlines)
+        let spokenCount = words(spoken).count
+        let proposedCount = words(proposed).count
+        guard proposedCount >= max(4, spokenCount / 2), shares(proposed, spoken) else { return spoken }
+        return proposed
+    }
+
+    static func topics(_ topics: [String], spoken: String) -> [String] {
+        topics.filter { topic in
+            let folded = topic.lowercased()
+            guard !folded.contains("asr_text"), !folded.contains("astr_text") else { return false }
+            return shares(topic, spoken)
+        }
+    }
+
+    static func items(_ items: [String], spoken: String) -> [String] {
+        items.filter { shares($0, spoken) }
+    }
+
+    static func numbers(_ numbers: [Double], spoken: String) -> [Double] {
+        let ints = numbers.map { Int($0.rounded()) }
+        if ints.count >= 4 {
+            let steps = zip(ints, ints.dropFirst()).filter { $1 == $0 + 1 }.count
+            if steps >= ints.count - 1 { return [] }
+        }
+        return numbers.filter { spoken.contains(String(Int($0.rounded()))) }
+    }
+
+    private static func shares(_ candidate: String, _ spoken: String) -> Bool {
+        let left = words(candidate)
+        let right = words(spoken)
+        guard !left.isEmpty else { return false }
+        let hits = left.filter { right.contains($0) }.count
+        return hits * 2 >= left.count
+    }
+
+    private static func words(_ text: String) -> Set<String> {
+        Set(text.lowercased().split { !$0.isLetter && !$0.isNumber }.map(String.init).filter { $0.count > 2 })
     }
 }

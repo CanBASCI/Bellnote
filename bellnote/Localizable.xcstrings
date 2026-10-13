@@ -146,22 +146,6 @@
         }
       }
     },
-    "Ask" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ask"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sor"
-          }
-        }
-      }
-    },
     "Apple Dictation" : {
       "localizations" : {
         "en" : {
@@ -178,6 +162,182 @@
         }
       }
     },
+    "Delete Supertonic?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete Supertonic?"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Supertonic silinsin mi?"
+          }
+        }
+      }
+    },
+    "Apple Dictation reads the notes." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple Dictation reads the notes."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notları Apple dikte okur."
+          }
+        }
+      }
+    },
+    "Supertonic reads the notes." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Supertonic reads the notes."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notları Supertonic okur."
+          }
+        }
+      }
+    },
+    "Voice" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Voice"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ses"
+          }
+        }
+      }
+    },
+    "Male %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Male %lld"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Erkek %lld"
+          }
+        }
+      }
+    },
+    "Female %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Female %lld"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kadın %lld"
+          }
+        }
+      }
+    },
+    "Listen uses this voice." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Listen uses this voice."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dinle bu sesi kullanır."
+          }
+        }
+      }
+    },
+    "Read aloud" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Read aloud"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sesli okuma"
+          }
+        }
+      }
+    },
+    "Reads notes aloud in Turkish and English." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reads notes aloud in Turkish and English."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notları Türkçe ve İngilizce sesli okur."
+          }
+        }
+      }
+    },
+    "Supertonic" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Supertonic"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Supertonic"
+          }
+        }
+      }
+    },
+    "Apple" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple"
+          }
+        }
+      }
+    },
     "Apple Dictation writes the words." : {
       "localizations" : {
         "en" : {
@@ -190,6 +350,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Kelimeleri Apple dikte yazar."
+          }
+        }
+      }
+    },
+    "Ask" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ask"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sor"
           }
         }
       }
@@ -435,22 +611,6 @@
         }
       }
     },
-    "Delete Qwen ASR?" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Delete Qwen ASR?"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Qwen ASR silinsin mi?"
-          }
-        }
-      }
-    },
     "Delete 4B?" : {
       "localizations" : {
         "en" : {
@@ -479,6 +639,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "FluidAudio silinsin mi?"
+          }
+        }
+      }
+    },
+    "Delete Qwen ASR?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete Qwen ASR?"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Qwen ASR silinsin mi?"
           }
         }
       }
@@ -959,6 +1135,22 @@
         }
       }
     },
+    "Less" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Less"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Daha az"
+          }
+        }
+      }
+    },
     "Light" : {
       "localizations" : {
         "en" : {
@@ -1086,6 +1278,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Modeller"
+          }
+        }
+      }
+    },
+    "More" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "More"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Daha fazla"
           }
         }
       }
@@ -1450,6 +1658,22 @@
         }
       }
     },
+    "Other" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Other"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diğer"
+          }
+        }
+      }
+    },
     "Other contact" : {
       "localizations" : {
         "en" : {
@@ -1478,38 +1702,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Başka bir oturumla çakışıyor."
-          }
-        }
-      }
-    },
-    "Qwen ASR" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Qwen ASR"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Qwen ASR"
-          }
-        }
-      }
-    },
-    "Qwen ASR is saved. It does not write yet." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Qwen ASR is saved. It does not write yet."
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Qwen ASR kayda geçer. Henüz cümle yazmaz."
           }
         }
       }
@@ -1751,6 +1943,55 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Sınav %1$lld/%2$lld"
+          }
+        }
+      }
+    },
+    "Qwen ASR" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Qwen ASR"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Qwen ASR"
+          }
+        }
+      }
+    },
+    "Qwen ASR cannot write yet." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Qwen ASR could not write."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Qwen ASR yazamadı."
+          }
+        }
+      }
+    },
+    "Qwen ASR writes the words." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Qwen ASR writes the words."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kelimeleri Qwen ASR yazar."
           }
         }
       }
@@ -2061,6 +2302,22 @@
         }
       }
     },
+    "Speaker %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Speaker %lld"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Konuşmacı %lld"
+          }
+        }
+      }
+    },
     "Speaker separation needs the FluidAudio models on this device. Download now?" : {
       "localizations" : {
         "en" : {
@@ -2322,22 +2579,6 @@
         }
       }
     },
-    "Transcript" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Transcript"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Transkript"
-          }
-        }
-      }
-    },
     "The recording could not be read." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2519,6 +2760,22 @@
         }
       }
     },
+    "Transcript" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Transcript"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Transkript"
+          }
+        }
+      }
+    },
     "Turkish" : {
       "localizations" : {
         "en" : {
@@ -2612,6 +2869,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Gün"
+          }
+        }
+      }
+    },
+    "Who is this?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Who is this?"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bu kim?"
           }
         }
       }

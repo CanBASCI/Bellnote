@@ -152,3 +152,8 @@ enum SpeechEngine: String, Codable, Sendable {
     case apple
     case qwen
 }
+
+enum ReadAloud: String, Codable, Sendable {
+    case apple
+    case supertonic
+}

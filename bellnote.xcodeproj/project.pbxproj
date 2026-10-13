@@ -13,6 +13,9 @@
 		DE0BLD012F0000000000006 /* HuggingFace in Frameworks */ = {isa = PBXBuildFile; productRef = DE0PKG012F0000000000006 /* HuggingFace */; };
 		DE0BLD012F0000000000007 /* Tokenizers in Frameworks */ = {isa = PBXBuildFile; productRef = DE0PKG012F0000000000007 /* Tokenizers */; };
 		DE0BLD012F0000000000008 /* FluidAudio in Frameworks */ = {isa = PBXBuildFile; productRef = DE0PKG012F0000000000008 /* FluidAudio */; };
+		DE0BLD012F0000000000009 /* MLX in Frameworks */ = {isa = PBXBuildFile; productRef = DE0PKG012F0000000000009 /* MLX */; };
+		DE0BLD012F000000000000A /* MLXNN in Frameworks */ = {isa = PBXBuildFile; productRef = DE0PKG012F000000000000A /* MLXNN */; };
+		DE0BLD012F000000000000B /* sherpa-onnx in Frameworks */ = {isa = PBXBuildFile; productRef = DE0PKG012F000000000000B /* sherpa-onnx */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -66,6 +69,9 @@
 				DE0BLD012F0000000000006 /* HuggingFace in Frameworks */,
 				DE0BLD012F0000000000007 /* Tokenizers in Frameworks */,
 				DE0BLD012F0000000000008 /* FluidAudio in Frameworks */,
+				DE0BLD012F0000000000009 /* MLX in Frameworks */,
+				DE0BLD012F000000000000A /* MLXNN in Frameworks */,
+				DE0BLD012F000000000000B /* sherpa-onnx in Frameworks */,
 			);
 		};
 		DE0183DE307D921D007402E2 /* Frameworks */ = {
@@ -125,6 +131,9 @@
 				DE0PKG012F0000000000006 /* HuggingFace */,
 				DE0PKG012F0000000000007 /* Tokenizers */,
 				DE0PKG012F0000000000008 /* FluidAudio */,
+				DE0PKG012F0000000000009 /* MLX */,
+				DE0PKG012F000000000000A /* MLXNN */,
+				DE0PKG012F000000000000B /* sherpa-onnx */,
 			);
 			productName = bellnote;
 			productReference = DE0183D2307D921C007402E2 /* bellnote.app */;
@@ -210,6 +219,8 @@
 				DE0REF012F0000000000003 /* XCRemoteSwiftPackageReference "swift-huggingface" */,
 				DE0REF012F0000000000004 /* XCRemoteSwiftPackageReference "swift-transformers" */,
 				DE0REF012F0000000000005 /* XCRemoteSwiftPackageReference "FluidAudio" */,
+				DE0REF012F0000000000009 /* XCRemoteSwiftPackageReference "mlx-swift" */,
+				DE0REF012F000000000000B /* XCRemoteSwiftPackageReference "sherpa-onnx" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = DE0183D3307D921C007402E2 /* Products */;
@@ -669,6 +680,22 @@
 				version = 1.3.5;
 			};
 		};
+		DE0REF012F0000000000009 /* XCRemoteSwiftPackageReference "mlx-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/ml-explore/mlx-swift";
+			requirement = {
+				kind = exactVersion;
+				version = 0.32.3;
+			};
+		};
+		DE0REF012F000000000000B /* XCRemoteSwiftPackageReference "sherpa-onnx" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/k2-fsa/sherpa-onnx";
+			requirement = {
+				kind = revision;
+				revision = 6e7ea3e409f90aaf1541c87f21a013c4f20b9680;
+			};
+		};
 		DE0REF012F0000000000005 /* XCRemoteSwiftPackageReference "FluidAudio" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/FluidInference/FluidAudio";
@@ -706,6 +733,21 @@
 			isa = XCSwiftPackageProductDependency;
 			package = DE0REF012F0000000000004 /* XCRemoteSwiftPackageReference "swift-transformers" */;
 			productName = Tokenizers;
+		};
+		DE0PKG012F0000000000009 /* MLX */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = DE0REF012F0000000000009 /* XCRemoteSwiftPackageReference "mlx-swift" */;
+			productName = MLX;
+		};
+		DE0PKG012F000000000000A /* MLXNN */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = DE0REF012F0000000000009 /* XCRemoteSwiftPackageReference "mlx-swift" */;
+			productName = MLXNN;
+		};
+		DE0PKG012F000000000000B /* sherpa-onnx */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = DE0REF012F000000000000B /* XCRemoteSwiftPackageReference "sherpa-onnx" */;
+			productName = "sherpa-onnx";
 		};
 		DE0PKG012F0000000000008 /* FluidAudio */ = {
 			isa = XCSwiftPackageProductDependency;

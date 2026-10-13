@@ -1,4 +1,5 @@
 import AVFoundation
+import OSLog
 import SwiftData
 import SwiftUI
 
@@ -23,6 +24,11 @@ struct LectureNote: View {
     @State private var fluidGate = FluidAudioGate()
     @State private var workingStage: PipelineStage?
     @State private var askReprocess = false
+    @State private var namingSpeaker: Int?
+    @State private var choosingSpeaker = false
+    @State private var typingSpeaker = false
+    @State private var typedSpeakerName = ""
+    @State private var summaryExpanded = false
 
     var body: some View {
         List {
@@ -54,7 +60,17 @@ struct LectureNote: View {
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
-                Text(bodyText)
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(bodyText)
+                        .lineLimit(summaryExpanded ? nil as Int? : 5)
+                    if isLongSummary {
+                        Button(summaryExpanded ? "Less" : "More") {
+                            withAnimation { summaryExpanded.toggle() }
+                        }
+                        .font(.subheadline)
+                        .buttonStyle(.borderless)
+                    }
+                }
                 if let course = lecture.course {
                     HStack(spacing: 8) {
                         Button("Ask") {
@@ -67,8 +83,14 @@ struct LectureNote: View {
                             showStudy = true
                         }
                         .buttonStyle(.bordered)
-                        Button("Listen") { listen(course) }
-                            .buttonStyle(.bordered)
+                        Button(reader.isSpeaking ? "Stop" : "Listen") {
+                            if reader.isSpeaking {
+                                reader.stop()
+                            } else {
+                                listen(course)
+                            }
+                        }
+                        .buttonStyle(.bordered)
                     }
                     .padding(.top, 4)
                 }
@@ -76,12 +98,7 @@ struct LectureNote: View {
             if !chapters.isEmpty || !lecture.flaggedSeconds.isEmpty {
                 Section("Chapters") {
                     ForEach(chapters) { block in
-                        Button {
-                            audio.seek(to: block.second, play: true)
-                        } label: {
-                            chapterLabel(block)
-                        }
-                        .buttonStyle(.plain)
+                        chapterLabel(block)
                     }
                     ForEach(Array(orphanFlags.enumerated()), id: \.offset) { _, second in
                         Button {
@@ -149,6 +166,25 @@ struct LectureNote: View {
             }
         }
         .fluidAudioGate(fluidGate)
+        .confirmationDialog("Who is this?", isPresented: $choosingSpeaker, titleVisibility: .visible) {
+            if let name = lecturerName {
+                Button {
+                    assignSpeaker(name)
+                } label: {
+                    Text(verbatim: name)
+                }
+            }
+            Button("Other") {
+                typedSpeakerName = ""
+                typingSpeaker = true
+            }
+            Button("Cancel", role: .cancel) { namingSpeaker = nil }
+        }
+        .alert("Who is this?", isPresented: $typingSpeaker) {
+            TextField("Name", text: $typedSpeakerName)
+            Button("Save") { assignSpeaker(typedSpeakerName) }
+            Button("Cancel", role: .cancel) { namingSpeaker = nil }
+        }
         .confirmationDialog("Process again?", isPresented: $askReprocess, titleVisibility: .visible) {
             Button("Process again", role: .destructive) {
                 fluidGate.request { await process() }
@@ -184,6 +220,10 @@ struct LectureNote: View {
         .background(.bar)
     }
 
+    private var isLongSummary: Bool {
+        bodyText.count > 160 || bodyText.contains("\n")
+    }
+
     private var bodyText: String {
         let summary = lecture.summary.trimmingCharacters(in: .whitespacesAndNewlines)
         if !summary.isEmpty { return summary }
@@ -209,15 +249,37 @@ struct LectureNote: View {
         let current = isCurrent(block)
         return VStack(alignment: .leading, spacing: 2) {
             HStack(alignment: .firstTextBaseline, spacing: 12) {
-                Text(MediaClock.short(block.second))
-                    .font(.subheadline.monospacedDigit())
-                    .foregroundStyle(current ? Color.accentColor : Color.secondary)
-                    .frame(width: 52, alignment: .leading)
+                Button {
+                    audio.seek(to: block.second, play: true)
+                } label: {
+                    Text(MediaClock.short(block.second))
+                        .font(.subheadline.monospacedDigit())
+                        .foregroundStyle(current ? Color.accentColor : Color.secondary)
+                        .frame(width: 52, alignment: .leading)
+                }
+                .buttonStyle(.plain)
+                if block.speaker > 0 {
+                    Button {
+                        beginNaming(block.speaker)
+                    } label: {
+                        Text(speakerTitle(block.speaker))
+                            .font(.subheadline)
+                            .foregroundStyle(Color.accentColor)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            Button {
+                audio.seek(to: block.second, play: true)
+            } label: {
                 Text(MediaClock.sentence(block.text))
                     .foregroundStyle(.primary)
                     .fontWeight(current ? .semibold : .regular)
                     .multilineTextAlignment(.leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
+            .buttonStyle(.plain)
+            .padding(.leading, 64)
             if block.missing || block.userFlag {
                 Text("Missing")
                     .font(.caption)
@@ -225,6 +287,33 @@ struct LectureNote: View {
                     .padding(.leading, 64)
             }
         }
+    }
+
+    private var lecturerName: String? {
+        let name = lecture.course?.lecturer?.displayName ?? ""
+        return name.isEmpty ? nil : name
+    }
+
+    private func speakerTitle(_ cluster: Int) -> String {
+        if let name = lecture.speakerName(for: cluster) { return name }
+        return String(format: String(localized: "Speaker %lld"), cluster)
+    }
+
+    private func beginNaming(_ cluster: Int) {
+        namingSpeaker = cluster
+        typedSpeakerName = ""
+        if lecturerName == nil {
+            typingSpeaker = true
+        } else {
+            choosingSpeaker = true
+        }
+    }
+
+    private func assignSpeaker(_ name: String) {
+        guard let cluster = namingSpeaker else { return }
+        lecture.setSpeakerName(name, cluster: cluster)
+        try? lecture.modelContext?.save()
+        namingSpeaker = nil
     }
 
     private func isCurrent(_ block: Block) -> Bool {
@@ -249,6 +338,9 @@ struct LectureNote: View {
 
     private func listen(_ course: Course) {
         let text = lecture.summary.isEmpty ? chapters.map(\.text).joined(separator: "\n") : lecture.summary
+        Logger(subsystem: "app.bellnote", category: "listen").info(
+            "Listen tap characters=\(text.count) locale=\(course.localeIdentifier, privacy: .public) speaking=\(reader.isSpeaking)"
+        )
         reader.read(text, locale: Locale(identifier: course.localeIdentifier))
     }
 

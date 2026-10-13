@@ -28,10 +28,12 @@ enum ModelCatalog {
     static let taggerRepo = "mlx-community/Qwen3.5-2B-4bit"
     static let pageRepo = "mlx-community/Qwen3.5-4B-4bit"
     static let asrRepo = "mlx-community/Qwen3-ASR-0.6B-4bit"
+    static let supertonicRepo = "csukuangfj2/sherpa-onnx-supertonic-3-tts-int8-2026-05-11"
 
     static let taggerBytes: Int64 = 1_610_612_736
     static let pageBytes: Int64 = 3_114_000_000
     static let asrBytes: Int64 = 419_430_400
+    static let supertonicBytes: Int64 = 145_295_768
     /// Offline diarizer (FluidAudio); approximate download size.
     static let diarizerBytes: Int64 = 157_286_400
 }

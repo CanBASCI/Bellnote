@@ -240,6 +240,7 @@ struct SettingsPage: View {
 private enum ModelsPageDeletePrompt: Equatable {
     case mlx(ModelRole)
     case fluidAudio
+    case supertonic
 }
 
 struct ModelsPage: View {
@@ -248,12 +249,16 @@ struct ModelsPage: View {
     @State private var budget = DeviceBudget(freeDiskBytes: 0, physicalMemoryBytes: 0)
     @State private var downloading: ModelRole?
     @State private var downloadingFluid = false
+    @State private var downloadingSupertonic = false
     @State private var downloadProgress: Double = 0
     @State private var installed: [ModelRole: Bool] = [:]
     @State private var leftover: [ModelRole: Bool] = [:]
     @State private var fluidInstalled = false
+    @State private var supertonicInstalled = false
+    @State private var supertonicPartial = false
     @State private var status: [ModelRole: String] = [:]
     @State private var fluidStatus: String?
+    @State private var supertonicStatus: String?
     @State private var pendingDelete: ModelsPageDeletePrompt?
 
     var body: some View {
@@ -261,6 +266,7 @@ struct ModelsPage: View {
             modelRow(.tagger, title: "2B", bytes: ModelCatalog.taggerBytes, locked: ModelLock.taggerLocked(budget))
             modelRow(.page, title: "4B", bytes: ModelCatalog.pageBytes, locked: ModelLock.pageLocked(budget))
             modelRow(.asr, title: "Qwen ASR", bytes: ModelCatalog.asrBytes, locked: false)
+            supertonicRow()
             fluidAudioRow()
             Section {
                 Picker("Transcript", selection: Binding(
@@ -274,10 +280,42 @@ struct ModelsPage: View {
                 }
                 .pickerStyle(.segmented)
                 Text(session.speechEngine == .qwen
-                    ? "Qwen ASR is saved. It does not write yet."
+                    ? "Qwen ASR writes the words."
                     : "Apple Dictation writes the words.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+            }
+            Section {
+                Picker("Read aloud", selection: Binding(
+                    get: { session.readAloud },
+                    set: { session.setReadAloud($0) }
+                )) {
+                    Text("Apple Dictation").tag(ReadAloud.apple)
+                    if supertonicInstalled {
+                        Text("Supertonic").tag(ReadAloud.supertonic)
+                    }
+                }
+                .pickerStyle(.segmented)
+                Text(session.readAloud == .supertonic
+                    ? "Supertonic reads the notes."
+                    : "Apple Dictation reads the notes.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                if session.readAloud == .supertonic, supertonicInstalled {
+                    Picker("Voice", selection: Binding(
+                        get: { session.supertonicVoice },
+                        set: { session.setSupertonicVoice($0) }
+                    )) {
+                        ForEach(0..<5, id: \.self) { index in
+                            Text(verbatim: String(format: String(localized: "Male %lld"), index + 1))
+                                .tag(index)
+                        }
+                        ForEach(0..<5, id: \.self) { index in
+                            Text(verbatim: String(format: String(localized: "Female %lld"), index + 1))
+                                .tag(index + 5)
+                        }
+                    }
+                }
             }
             if installed[.tagger] == true || installed[.page] == true {
                 Section {
@@ -320,6 +358,8 @@ struct ModelsPage: View {
                     Task { await delete(role) }
                 case .fluidAudio:
                     Task { await deleteFluidAudio() }
+                case .supertonic:
+                    Task { await deleteSupertonic() }
                 }
             }
             Button("Cancel", role: .cancel) { pendingDelete = nil }
@@ -336,6 +376,8 @@ struct ModelsPage: View {
             String(localized: "Delete 2B?")
         case .fluidAudio:
             String(localized: "Delete FluidAudio?")
+        case .supertonic:
+            String(localized: "Delete Supertonic?")
         case nil:
             ""
         }
@@ -345,7 +387,7 @@ struct ModelsPage: View {
     private func fluidAudioRow() -> some View {
         let bytes = fluidInstalled ? SpeakerPass.installedByteCount() : ModelCatalog.diarizerBytes
         let ready = fluidInstalled
-        let anyDownload = downloading != nil || downloadingFluid
+        let anyDownload = downloading != nil || downloadingFluid || downloadingSupertonic
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .center, spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) {
@@ -415,6 +457,100 @@ struct ModelsPage: View {
         }
     }
 
+    @ViewBuilder
+    private func supertonicRow() -> some View {
+        let bytes = supertonicInstalled ? SupertonicSpeech.installedByteCount() : ModelCatalog.supertonicBytes
+        let ready = supertonicInstalled
+        let anyDownload = downloading != nil || downloadingFluid || downloadingSupertonic
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .center, spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Supertonic")
+                    Text(bytes.formatted(.byteCount(style: .file)))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text("Reads notes aloud in Turkish and English.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    if supertonicPartial, !ready {
+                        Text("Incompletely installed")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else if ready, !downloadingSupertonic {
+                        Text("Installed")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                Spacer(minLength: 8)
+                if downloadingSupertonic {
+                    VStack(alignment: .trailing, spacing: 4) {
+                        ProgressView(value: downloadProgress.clamped(to: 0...1))
+                            .frame(width: 96)
+                        Text(downloadProgress.clamped(to: 0...1), format: .percent.precision(.fractionLength(0)))
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                } else if ready || supertonicPartial {
+                    Button("Delete", role: .destructive) {
+                        Self.log.info("UI delete tap supertonic")
+                        pendingDelete = .supertonic
+                    }
+                    .buttonStyle(.borderless)
+                    .disabled(anyDownload)
+                } else {
+                    Button("Download") {
+                        Self.log.info("UI download tap supertonic")
+                        downloadingSupertonic = true
+                        downloadProgress = 0
+                        supertonicStatus = nil
+                        Task {
+                            do {
+                                try await SupertonicSpeech.download { fraction in
+                                    Task { @MainActor in
+                                        downloadProgress = max(downloadProgress, min(max(fraction, 0), 1))
+                                    }
+                                }
+                                supertonicStatus = String(localized: "Download finished.")
+                                Self.log.info("UI download ok supertonic")
+                            } catch {
+                                let nsError = error as NSError
+                                supertonicStatus = String(localized: "A model is not available.")
+                                Self.log.error("UI download failed supertonic domain=\(nsError.domain, privacy: .public) code=\(nsError.code) message=\(error.localizedDescription, privacy: .public)")
+                            }
+                            downloadingSupertonic = false
+                            downloadProgress = 0
+                            await refreshInstalled()
+                        }
+                    }
+                    .buttonStyle(.borderless)
+                    .disabled(anyDownload)
+                }
+            }
+            if let supertonicStatus {
+                Text(supertonicStatus)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func deleteSupertonic() async {
+        do {
+            try SupertonicSpeech.delete()
+            supertonicStatus = nil
+            if session.readAloud == .supertonic {
+                session.setReadAloud(.apple)
+            }
+            Self.log.info("UI delete ok supertonic")
+        } catch {
+            let nsError = error as NSError
+            supertonicStatus = String(localized: "A model is not available.")
+            Self.log.error("UI delete failed supertonic domain=\(nsError.domain, privacy: .public) code=\(nsError.code) message=\(error.localizedDescription, privacy: .public)")
+        }
+        await refreshInstalled()
+    }
+
     private func deleteFluidAudio() async {
         SpeakerPass.deleteModels()
         fluidStatus = nil
@@ -461,7 +597,7 @@ struct ModelsPage: View {
                         pendingDelete = .mlx(role)
                     }
                     .buttonStyle(.borderless)
-                    .disabled(downloading != nil || downloadingFluid)
+                    .disabled(downloading != nil || downloadingFluid || downloadingSupertonic)
                 } else if !locked {
                     Button("Download") {
                         Self.log.info("UI download tap role=\(role.rawValue, privacy: .public) title=\(title, privacy: .public)")
@@ -488,7 +624,7 @@ struct ModelsPage: View {
                         }
                     }
                     .buttonStyle(.borderless)
-                    .disabled(downloading != nil || downloadingFluid)
+                    .disabled(downloading != nil || downloadingFluid || downloadingSupertonic)
                 }
             }
             if let status = status[role] {
@@ -541,6 +677,11 @@ struct ModelsPage: View {
         leftover[.page] = page.directoryExists && !page.isReady
         leftover[.asr] = asr.directoryExists && !asr.isReady
         fluidInstalled = SpeakerPass.modelsAreInstalled()
+        supertonicInstalled = SupertonicSpeech.isInstalled
+        supertonicPartial = SupertonicSpeech.hasPartial
+        if session.readAloud == .supertonic, !supertonicInstalled {
+            session.setReadAloud(.apple)
+        }
         if session.speechEngine == .qwen, !asr.isReady {
             session.setSpeechEngine(.apple)
         }
@@ -1033,6 +1174,12 @@ struct ProgramPage: View {
     }
 }
 
+private enum SlotCourseChoice: Hashable {
+    case none
+    case existing(UUID)
+    case new
+}
+
 struct SlotEditor: View {
     @Bindable var term: Term
     var weekday: Int
@@ -1041,15 +1188,20 @@ struct SlotEditor: View {
     @State private var day: Int
     @State private var start = Date()
     @State private var end = Date()
-    @State private var courseToken: UUID?
+    @State private var choice: SlotCourseChoice
+    @State private var newName = ""
+    @State private var language = AppLanguage.deviceCourseDefault
     @State private var place = ""
 
     init(term: Term, weekday: Int) {
         self.term = term
         self.weekday = weekday
         _day = State(initialValue: weekday)
-        let onlyCourse = term.courses.count == 1 ? term.courses.first?.token : nil
-        _courseToken = State(initialValue: onlyCourse)
+        if term.courses.count == 1, let token = term.courses.first?.token {
+            _choice = State(initialValue: .existing(token))
+        } else {
+            _choice = State(initialValue: .none)
+        }
         let hour = Calendar.current.dateInterval(of: .hour, for: .now)?.end ?? .now
         _start = State(initialValue: hour)
         _end = State(initialValue: hour.addingTimeInterval(90 * 60))
@@ -1058,11 +1210,21 @@ struct SlotEditor: View {
     var body: some View {
         NavigationStack {
             Form {
-                Picker("Course", selection: $courseToken) {
-                    Text("None").tag(UUID?.none)
+                Picker("Course", selection: $choice) {
+                    Text("None").tag(SlotCourseChoice.none)
+                    Text("New course").tag(SlotCourseChoice.new)
                     ForEach(term.courses) { course in
-                        Text(course.name).tag(Optional(course.token))
+                        Text(course.name).tag(SlotCourseChoice.existing(course.token))
                     }
+                }
+                if choice == .new {
+                    TextField("Course", text: $newName)
+                    Picker("Language", selection: $language) {
+                        ForEach(AppLanguage.courseChoices, id: \.self) { item in
+                            Text(LocalizedStringKey(item.title)).tag(item)
+                        }
+                    }
+                    .pickerStyle(.menu)
                 }
                 Picker("Weekday", selection: $day) {
                     ForEach(1...7, id: \.self) { value in
@@ -1079,15 +1241,27 @@ struct SlotEditor: View {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") { save() }
-                        .disabled(courseToken == nil || minutes(end) <= minutes(start))
+                        .disabled(!canSave)
                 }
             }
         }
         .presentationDetents([.medium, .large])
     }
 
+    private var canSave: Bool {
+        guard minutes(end) > minutes(start) else { return false }
+        switch choice {
+        case .none:
+            return false
+        case .existing:
+            return true
+        case .new:
+            return !newName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+    }
+
     private func save() {
-        let course = term.courses.first { $0.token == courseToken }
+        let course = courseForSlot()
         let slot = WeeklySlot(
             weekday: day,
             startMinutes: minutes(start),
@@ -1099,6 +1273,22 @@ struct SlotEditor: View {
         modelContext.insert(slot)
         term.slots.append(slot)
         dismiss()
+    }
+
+    private func courseForSlot() -> Course? {
+        switch choice {
+        case .none:
+            return nil
+        case let .existing(token):
+            return term.courses.first { $0.token == token }
+        case .new:
+            let name = newName.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !name.isEmpty else { return nil }
+            let course = Course(name: name, localeIdentifier: language.speechLocaleIdentifier, term: term)
+            modelContext.insert(course)
+            term.courses.append(course)
+            return course
+        }
     }
 
     private func minutes(_ date: Date) -> Int {
@@ -1131,8 +1321,12 @@ struct StudySheet: View {
                 if !answer.isEmpty {
                     Section {
                         Text(answer)
-                        Button("Listen") {
-                            reader.read(answer, locale: Locale(identifier: course.localeIdentifier))
+                        Button(reader.isSpeaking ? "Stop" : "Listen") {
+                            if reader.isSpeaking {
+                                reader.stop()
+                            } else {
+                                reader.read(answer, locale: Locale(identifier: course.localeIdentifier))
+                            }
                         }
                     }
                 }
