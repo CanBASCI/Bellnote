@@ -271,7 +271,7 @@ struct TodayPage: View {
         if let text = lecture.blocks.sorted(by: { $0.second < $1.second }).first(where: { !$0.text.isEmpty })?.text {
             return MediaClock.sentence(text)
         }
-        return LectureState(rawValue: lecture.state)?.title ?? String(localized: "No lectures yet.")
+        return lecture.statusTitle
     }
 
     private func noteMeta(_ course: Course) -> String? {

@@ -27,6 +27,26 @@ extension LectureState {
     }
 }
 
+extension Lecture {
+    /// A recording that was stopped and not processed yet is stored as `paused`.
+    /// The student sees that as "Recorded", not "Paused".
+    var isRecordedOnly: Bool {
+        state == LectureState.paused.rawValue
+            && audioRelativePath != nil
+            && stage == PipelineStage.idle.rawValue
+    }
+
+    var statusTitle: String {
+        if isRecordedOnly { return String(localized: "Recorded") }
+        return LectureState(rawValue: state)?.title ?? state
+    }
+
+    var statusTint: Color {
+        if isRecordedOnly { return .blue }
+        return LectureState(rawValue: state)?.tint ?? .gray
+    }
+}
+
 /// A rounded square with the course initial.
 struct CourseBadge: View {
     var name: String

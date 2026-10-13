@@ -107,7 +107,7 @@ struct PendingSheet: View {
                         Text(lecture.startedAt.formatted(date: .abbreviated, time: .shortened))
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
-                        Text(LectureState(rawValue: lecture.state)?.title ?? lecture.state)
+                        Text(lecture.statusTitle)
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                         if let failure = lecture.failureMessageKey, !failure.isEmpty {
@@ -953,7 +953,7 @@ struct CalendarPage: View {
         let parts = Calendar.current.dateComponents([.hour, .minute], from: lecture.startedAt)
         let start = (parts.hour ?? 0) * 60 + (parts.minute ?? 0)
         let clock = ReminderScheduler.clock(start)
-        let state = LectureState(rawValue: lecture.state)?.title
+        let state: String? = lecture.statusTitle
         var partsDetail: [String] = [clock]
         if lecture.recordedSeconds >= 60 {
             partsDetail.append(String(format: String(localized: "%lld min"), lecture.recordedSeconds / 60))

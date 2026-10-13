@@ -144,7 +144,6 @@ struct CoursePage: View {
     }
 
     private func lectureRow(_ lecture: Lecture) -> some View {
-        let state = LectureState(rawValue: lecture.state)
         return VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text(lecture.startedAt.formatted(.dateTime.day().month(.abbreviated).hour().minute()))
@@ -155,7 +154,7 @@ struct CoursePage: View {
                         .foregroundStyle(.secondary)
                 }
                 Spacer(minLength: 8)
-                StatusChip(title: state?.title ?? lecture.state, tint: state?.tint ?? .gray)
+                StatusChip(title: lecture.statusTitle, tint: lecture.statusTint)
             }
             let excerpt = preview(lecture)
             if !excerpt.isEmpty {
