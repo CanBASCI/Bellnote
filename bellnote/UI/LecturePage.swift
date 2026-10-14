@@ -169,7 +169,7 @@ struct LectureNote: View {
             Button("Save") { assignSpeaker(typedSpeakerName) }
             Button("Cancel", role: .cancel) { namingSpeaker = nil }
         }
-        .confirmationDialog("Process again?", isPresented: $askReprocess, titleVisibility: .visible) {
+        .alert("Process again?", isPresented: $askReprocess) {
             Button("Process again", role: .destructive) {
                 start()
             }
@@ -244,9 +244,7 @@ struct LectureNote: View {
                 AssignmentRow(assignment: assignment) { second in
                     audio.seek(to: second, play: true)
                 }
-            }
-            .onDelete { offsets in
-                pendingAssignment = offsets.first.map { own[$0] }
+                .askToDeleteSwipe { pendingAssignment = assignment }
             }
         }
     }

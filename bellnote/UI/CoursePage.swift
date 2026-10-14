@@ -21,7 +21,7 @@ enum LectureStarter {
 struct CoursePage: View {
     @Bindable var course: Course
     @Environment(\.modelContext) private var modelContext
-
+    @Environment(\.colorScheme) private var colorScheme
     @State private var showConsent = false
     @State private var activeLecture: Lecture?
     @State private var showLecturer = false
@@ -31,51 +31,58 @@ struct CoursePage: View {
     @State private var pendingItem: InventoryItem?
     @State private var pendingAssignment: Assignment?
     @State private var deleteNotice: String?
+    @State private var selectedWeek = CoursePage.currentWeekStart
 
-    var body: some View {
+    private func statList(_ proxy: ScrollViewProxy) -> some View {
         List {
             Section {
+                EmptyView()
+            } header: {
+                // No glass container here: it fuses neighbours and rounds their outer corners.
                 HStack(spacing: 10) {
-                    statTile(value: lectures.count, title: "Recordings")
-                    statTile(value: course.assignments.filter { !$0.done && !$0.cancelled }.count, title: "Assignments")
-                    statTile(value: course.sittings.count, title: "Exams")
+                    statTile(value: visibleLectures.count, title: "Recordings", tint: CourseStyle.recordingsTint, details: lectureBreakdown(of: visibleLectures)) {
+                        scrollToRecordings(proxy)
+                    }
+                    statTile(value: visibleAssignments.count, title: "Assignments", tint: CourseStyle.assignmentsTint, details: assignmentBreakdown(of: visibleAssignments)) {
+                        scrollToAssignments(proxy)
+                    }
+                    statTile(value: visibleSittings.count, title: "Exams", tint: CourseStyle.examsTint)
                 }
-                .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
-                .listRowBackground(Color.clear)
-                .listRowSeparator(.hidden)
+                // A header gets the same side space as its title, which is 16 pt more than the cards below.
+                .padding(.horizontal, -16)
+                // The header ends about 10 pt farther from the next title than the other sections do.
+                .padding(.bottom, -10)
+                .textCase(nil)
+                .foregroundStyle(.primary)
             }
-            if lectures.isEmpty {
-                Section("Lectures") {
+            Section {
+                if visibleLectures.isEmpty {
                     Text("No lectures yet.")
                         .foregroundStyle(.secondary)
+                        .id(Self.emptyLecturesID)
                 }
-            }
-            ForEach(lectureWeeks, id: \.start) { week in
-                Section(weekTitle(week.start)) {
-                    ForEach(week.lectures) { lecture in
-                        NavigationLink {
-                            LecturePage(lecture: lecture)
-                        } label: {
-                            lectureRow(lecture)
-                        }
+                ForEach(visibleLectures) { lecture in
+                    NavigationLink {
+                        LecturePage(lecture: lecture)
+                    } label: {
+                        lectureRow(lecture)
                     }
-                    .onDelete { offsets in
-                        if let index = offsets.first { askDelete(week.lectures[index]) }
-                    }
+                    .askToDeleteSwipe { askDelete(lecture) }
                 }
+            } header: {
+                Text(verbatim: weekTitle(selectedWeek))
             }
-            if !course.assignments.isEmpty {
-                Section("Assignments") {
-                    let sorted = course.assignments.sorted { ($0.due ?? .distantFuture) < ($1.due ?? .distantFuture) }
-                    ForEach(sorted) { assignment in
+            if !visibleAssignments.isEmpty {
+                Section {
+                    ForEach(visibleAssignments) { assignment in
                         AssignmentRow(assignment: assignment) { second in
                             guard let lecture = assignment.sourceLecture else { return }
                             assignmentTarget = AssignmentTarget(lecture: lecture, second: second)
                         }
+                        .askToDeleteSwipe { pendingAssignment = assignment }
                     }
-                    .onDelete { offsets in
-                        pendingAssignment = offsets.first.map { sorted[$0] }
-                    }
+                } header: {
+                    Text("Assignments")
                 }
             }
             // Nothing fills the inventory yet, so the section shows only when a row exists.
@@ -83,32 +90,39 @@ struct CoursePage: View {
                 Section("Inventory", isExpanded: $showInventory) {
                     ForEach(course.inventory) { item in
                         Text(item.title)
-                    }
-                    .onDelete { offsets in
-                        pendingItem = offsets.first.map { course.inventory[$0] }
+                            .askToDeleteSwipe { pendingItem = item }
                     }
                 }
             }
         }
         .listStyle(.insetGrouped)
+    }
+
+    var body: some View {
+        ScrollViewReader { proxy in
+            statList(proxy)
+        }
         .confirmAssignmentDelete($pendingAssignment)
         .navigationDestination(item: $assignmentTarget) { target in
             LecturePage(lecture: target.lecture, startSecond: target.second)
         }
         .navigationTitle(course.name)
-        .navigationSubtitle(lecturerName)
+        .navigationSubtitle(
+            selectedWeek == Self.currentWeekStart ? lecturerName : "\(lecturerName) · \(weekTitle(selectedWeek))"
+        )
         .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                weekMenu
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 Button("Lecturer", systemImage: "person.crop.circle") { showLecturer = true }
                     .labelStyle(.iconOnly)
             }
             ToolbarItem(placement: .primaryAction) {
                 Button("Record", systemImage: "record.circle") { showConsent = true }
-            }
-        }
-        .sheet(isPresented: $showConsent) {
-            ConsentSheet(course: course) { faceID in
-                activeLecture = LectureStarter.make(course: course, faceID: faceID, context: modelContext)
+                    .consentFlow(course: course, asPopover: true, isPresented: $showConsent) { course, faceID in
+                        activeLecture = LectureStarter.make(course: course, faceID: faceID, context: modelContext)
+                    }
             }
         }
         .sheet(item: $activeLecture) { lecture in
@@ -119,13 +133,12 @@ struct CoursePage: View {
                 LecturerEditor(contact: contact)
             }
         }
-        .confirmationDialog(
+        .alert(
             "Delete this recording?",
             isPresented: Binding(
                 get: { pendingDelete != nil },
                 set: { if !$0 { pendingDelete = nil } }
-            ),
-            titleVisibility: .visible
+            )
         ) {
             Button("Delete", role: .destructive) {
                 if let lecture = pendingDelete { delete(lecture) }
@@ -135,13 +148,12 @@ struct CoursePage: View {
         } message: {
             Text("The audio, the notes and the assignments from this recording will be deleted. This cannot be undone.")
         }
-        .confirmationDialog(
+        .alert(
             "Delete this item?",
             isPresented: Binding(
                 get: { pendingItem != nil },
                 set: { if !$0 { pendingItem = nil } }
-            ),
-            titleVisibility: .visible
+            )
         ) {
             Button("Delete", role: .destructive) {
                 if let item = pendingItem { modelContext.delete(item) }
@@ -162,6 +174,65 @@ struct CoursePage: View {
         }
         .onAppear(perform: ensureLecturer)
     }
+
+    /// Icon only. The icon changes when the page shows a week other than this one.
+    private var weekMenu: some View {
+        Menu {
+            Picker("Week", selection: $selectedWeek) {
+                ForEach(weekChoices, id: \.self) { start in
+                    Text(verbatim: weekTitle(start))
+                        .tag(start)
+                }
+            }
+            #if DEBUG
+            Divider()
+            Button { addSampleWeeks() } label: { Text(verbatim: "Add sample past weeks (debug)") }
+            Button(role: .destructive) { removeSampleWeeks() } label: { Text(verbatim: "Remove samples (debug)") }
+            #endif
+        } label: {
+            Image(systemName: selectedWeek == Self.currentWeekStart ? "calendar" : "calendar.badge.clock")
+        }
+        .accessibilityLabel(Text("Week"))
+    }
+
+    #if DEBUG
+    /// Debug builds only. These recordings carry a fixed title, so they can be told apart and removed again.
+    private static let sampleTitle = "Sample (debug)"
+
+    private func addSampleWeeks() {
+        let calendar = Calendar.current
+        for weeksAgo in 1...5 {
+            for index in 0..<(weeksAgo % 3 + 1) {
+                guard let weekDate = calendar.date(byAdding: .weekOfYear, value: -weeksAgo, to: .now),
+                      let date = calendar.date(byAdding: .day, value: -index, to: weekDate) else { continue }
+                let lecture = Lecture(course: course, startedAt: date, title: Self.sampleTitle)
+                lecture.state = LectureState.ready.rawValue
+                lecture.stage = PipelineStage.ready.rawValue
+                modelContext.insert(lecture)
+                course.lectures.append(lecture)
+            }
+        }
+        saveSamples()
+    }
+
+    private func removeSampleWeeks() {
+        for lecture in course.lectures where lecture.title == Self.sampleTitle {
+            modelContext.delete(lecture)
+        }
+        selectedWeek = Self.currentWeekStart
+        saveSamples()
+    }
+
+    private func saveSamples() {
+        do {
+            try modelContext.save()
+        } catch {
+            Logger(subsystem: "app.bellnote", category: "debug").error(
+                "Sample recordings could not be saved: \(error.localizedDescription, privacy: .public)"
+            )
+        }
+    }
+    #endif
 
     private func askDelete(_ lecture: Lecture) {
         guard LectureRemoval.canDelete(lecture) else {
@@ -220,19 +291,139 @@ struct CoursePage: View {
         return "\(first) – \(last)"
     }
 
-    private func statTile(value: Int, title: LocalizedStringKey) -> some View {
+    /// Counts of recordings per status, such as "9 Ready".
+    private func lectureBreakdown(of lectures: [Lecture]) -> [String] {
+        let processed = lectures.filter { !$0.isRecordedOnly }
+        func count(_ state: LectureState) -> Int {
+            processed.filter { $0.state == state.rawValue }.count
+        }
+        let entries: [(title: String, count: Int)] = [
+            (LectureState.ready.title, count(.ready)),
+            (String(localized: "Recorded"), lectures.filter(\.isRecordedOnly).count),
+            (LectureState.processing.title, count(.processing)),
+            (LectureState.failed.title, count(.failed)),
+            (LectureState.recording.title, count(.recording)),
+            (LectureState.paused.title, count(.paused))
+        ]
+        // Ready, Recorded and Processing always show, even at 0. The rarer ones show only when a recording has them.
+        let always = [LectureState.ready.title, String(localized: "Recorded"), LectureState.processing.title]
+        return entries
+            .filter { $0.count > 0 || always.contains($0.title) }
+            .map { "\($0.count) \($0.title)" }
+    }
+
+    /// Done, cancelled and pending assignments. The big number on the tile is the total of all three.
+    private func assignmentBreakdown(of assignments: [Assignment]) -> [String] {
+        let pending = assignments.filter { !$0.done && !$0.cancelled }.count
+        let done = assignments.filter { $0.done && !$0.cancelled }.count
+        let cancelled = assignments.filter(\.cancelled).count
+        return [
+            "\(done) \(String(localized: "Done"))",
+            "\(cancelled) \(String(localized: "Cancelled"))",
+            "\(pending) \(String(localized: "Pending"))"
+        ]
+    }
+
+    /// Assignments in the order the list shows them: by due date, undated ones last.
+    private var sortedAssignments: [Assignment] {
+        course.assignments.sorted { ($0.due ?? .distantFuture) < ($1.due ?? .distantFuture) }
+    }
+
+    /// The first day of this week. A new recording always lands in this week.
+    private static var currentWeekStart: Date {
+        Calendar.current.dateInterval(of: .weekOfYear, for: .now)?.start ?? .now
+    }
+
+    /// The recordings of the chosen week, newest first.
+    private var visibleLectures: [Lecture] {
+        lectureWeeks.first { $0.start == selectedWeek }?.lectures ?? []
+    }
+
+    /// The assignments of the chosen week: the ones that came out of its recordings.
+    /// An assignment without a recording belongs to this week.
+    private var visibleAssignments: [Assignment] {
+        let calendar = Calendar.current
+        return sortedAssignments.filter { assignment in
+            let start = assignment.sourceLecture.flatMap {
+                calendar.dateInterval(of: .weekOfYear, for: $0.startedAt)?.start
+            } ?? Self.currentWeekStart
+            return start == selectedWeek
+        }
+    }
+
+    /// The exams that fall in the chosen week. An exam without a date is in no week.
+    private var visibleSittings: [ExamSitting] {
+        let calendar = Calendar.current
+        return course.sittings.filter { sitting in
+            guard let date = sitting.date else { return false }
+            return calendar.dateInterval(of: .weekOfYear, for: date)?.start == selectedWeek
+        }
+    }
+
+    /// The weeks the menu offers: this week, and every week that has a recording.
+    private var weekChoices: [Date] {
+        var starts = Set(lectureWeeks.map(\.start))
+        starts.insert(Self.currentWeekStart)
+        return starts.sorted(by: >)
+    }
+
+    private static let emptyLecturesID = "emptyLectures"
+    private static let detailLineRoom = 3
+
+    private func scrollToRecordings(_ proxy: ScrollViewProxy) {
+        if let first = visibleLectures.first {
+            withAnimation { proxy.scrollTo(first.id, anchor: .top) }
+        } else {
+            withAnimation { proxy.scrollTo(Self.emptyLecturesID, anchor: .top) }
+        }
+    }
+
+    private func scrollToAssignments(_ proxy: ScrollViewProxy) {
+        guard let first = visibleAssignments.first else { return }
+        withAnimation { proxy.scrollTo(first.id, anchor: .top) }
+    }
+
+    /// A tile is a button when it has an action, so a tap can take the student to its list.
+    @ViewBuilder
+    private func statTile(value: Int, title: LocalizedStringKey, tint: Color, details: [String] = [], action: (() -> Void)? = nil) -> some View {
+        if let action {
+            Button(action: action) {
+                statTileBody(value: value, title: title, tint: tint, details: details)
+            }
+            .buttonStyle(.plain)
+        } else {
+            statTileBody(value: value, title: title, tint: tint, details: details)
+        }
+    }
+
+    private func statTileBody(value: Int, title: LocalizedStringKey, tint: Color, details: [String]) -> some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(value, format: .number)
-                .font(.title2.weight(.bold).monospacedDigit())
             Text(title)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(.primary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
+            Text(value, format: .number)
+                .font(.title2.weight(.bold).monospacedDigit())
+            ForEach(details, id: \.self) { line in
+                Text(verbatim: line)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+            }
+            // Empty lines keep room for three detail lines, so the tiles do not grow and shrink with the data.
+            ForEach(0..<max(0, Self.detailLineRoom - details.count), id: \.self) { _ in
+                Text(verbatim: " ")
+                    .font(.caption)
+                    .hidden()
+            }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        // The tiles share one row, so they grow to the tallest one and stay the same height.
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .padding(12)
-        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        // The tint reads weaker on a dark background, so it needs more opacity to look like the light one.
+        .glassEffect(.regular.tint(tint.opacity(colorScheme == .dark ? 0.5 : 0.28)), in: .rect(cornerRadius: 16))
         .accessibilityElement(children: .combine)
     }
 

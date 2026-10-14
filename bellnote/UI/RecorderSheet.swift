@@ -9,20 +9,15 @@ struct ConsentSheet: View {
     @State private var allowed = false
     @State private var permitted = false
 
-    private var later: Bool { course.lectures.contains { $0.attestation != nil } }
-
+    /// Only the first recording of a course opens this sheet. Later ones use the confirm dialog in `ConsentFlow`.
     var body: some View {
         NavigationStack {
             Form {
-                if later {
-                    Text("Record this class for \(course.name)?")
-                } else {
-                    Toggle("I am allowed to record this class", isOn: $allowed)
-                    Toggle("The lecturer or school permitted recording", isOn: $permitted)
-                    Text("This is your confirmation, not proof that the lecturer consented.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
+                Toggle("I am allowed to record this class", isOn: $allowed)
+                Toggle("The lecturer or school permitted recording", isOn: $permitted)
+                Text("This is your confirmation, not proof that the lecturer consented.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
             }
             .navigationTitle("Recording")
             .navigationBarTitleDisplayMode(.inline)
@@ -35,7 +30,7 @@ struct ConsentSheet: View {
                         onConfirm(false)
                         dismiss()
                     }
-                    .disabled(!later && !ConsentGate(allowed: allowed, permitted: permitted).canStart)
+                    .disabled(!ConsentGate(allowed: allowed, permitted: permitted).canStart)
                 }
             }
         }
@@ -129,11 +124,11 @@ struct RecorderSheet: View {
         .interactiveDismissDisabled(true)
         .task { await begin() }
         .onDisappear { ticker?.invalidate() }
-        .confirmationDialog("End this lecture?", isPresented: $askStop) {
+        .alert("End this lecture?", isPresented: $askStop) {
             Button("Yes", role: .destructive) { Task { await finish() } }
             Button("No", role: .cancel) { pause() }
         }
-        .confirmationDialog("Resume recording?", isPresented: $askResume) {
+        .alert("Resume recording?", isPresented: $askResume) {
             Button("Resume") { Task { await resume() } }
             Button("Stay paused", role: .cancel) {}
         }

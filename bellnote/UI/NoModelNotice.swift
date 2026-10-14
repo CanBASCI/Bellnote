@@ -7,10 +7,9 @@ private struct NoModelNotice: ViewModifier {
     var proceed: () -> Void
 
     func body(content: Content) -> some View {
-        content.confirmationDialog(
+        content.alert(
             "No AI model installed",
-            isPresented: $isPresented,
-            titleVisibility: .visible
+            isPresented: $isPresented
         ) {
             Button("Process anyway") { proceed() }
             Button("Cancel", role: .cancel) {}

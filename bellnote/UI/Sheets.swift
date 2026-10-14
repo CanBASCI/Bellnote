@@ -4,13 +4,51 @@ import SwiftUI
 
 struct TermEditor: View {
     var terms: [Term]
+    /// The term being changed. With none, the form makes a new term.
+    var editing: Term?
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
-    @State private var year = 1
-    @State private var termNumber = 1
+    @State private var year: Int
+    @State private var termNumber: Int
     @State private var name = ""
-    @State private var start = Date()
-    @State private var end = Calendar.current.date(byAdding: .month, value: 4, to: Date()) ?? Date()
+    @State private var start: Date
+    @State private var end: Date
+
+    /// Starts on the term that comes after the latest one, so the first screen is not already a duplicate.
+    /// The dates start after the last term that has not ended yet, so they do not overlap it either.
+    /// With a term to edit, the fields start with what the term has now.
+    init(terms: [Term], editing: Term? = nil) {
+        self.terms = terms
+        self.editing = editing
+        if let editing {
+            _year = State(initialValue: editing.yearOfStudy)
+            _termNumber = State(initialValue: editing.termNumber)
+            _name = State(initialValue: editing.customName)
+            _start = State(initialValue: editing.startsOn)
+            _end = State(initialValue: editing.endsOn)
+            return
+        }
+        let calendar = Calendar.current
+        var first = calendar.startOfDay(for: .now)
+        if let lastEnd = terms.map(\.endsOn).max(),
+           let dayAfter = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: lastEnd)),
+           dayAfter > first {
+            first = dayAfter
+        }
+        _start = State(initialValue: first)
+        _end = State(initialValue: calendar.date(byAdding: .month, value: 4, to: first) ?? first)
+        let latest = terms.max { ($0.yearOfStudy, $0.termNumber) < ($1.yearOfStudy, $1.termNumber) }
+        if let latest {
+            let next = latest.termNumber < 2
+                ? (year: latest.yearOfStudy, number: latest.termNumber + 1)
+                : (year: min(latest.yearOfStudy + 1, 12), number: 1)
+            _year = State(initialValue: next.year)
+            _termNumber = State(initialValue: next.number)
+        } else {
+            _year = State(initialValue: 1)
+            _termNumber = State(initialValue: 1)
+        }
+    }
 
     var body: some View {
         NavigationStack {
@@ -22,69 +60,95 @@ struct TermEditor: View {
                 Stepper(value: $termNumber, in: 1...2) {
                     Text("Term \(termNumber)")
                 }
-                TextField("Name", text: $name)
+                if alreadyExists {
+                    Text("This year and term already exist.")
+                        .font(.footnote)
+                        .foregroundStyle(.red)
+                }
+                LabeledContent("Name") {
+                    TextField("Name", text: $name, prompt: Text("Optional"))
+                        .multilineTextAlignment(.trailing)
+                }
                 DatePicker("Starts", selection: $start, displayedComponents: .date)
                 DatePicker("Ends", selection: $end, displayedComponents: .date)
+                if endsBeforeStart {
+                    Text("The end cannot be before the start.")
+                        .font(.footnote)
+                        .foregroundStyle(.red)
+                } else if overlapsAnotherTerm {
+                    Text("These dates overlap another term.")
+                        .font(.footnote)
+                        .foregroundStyle(.red)
+                }
             }
             .navigationTitle("Term")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") { save() }
+                        .disabled(!canSave)
                 }
             }
         }
         .presentationDetents([.medium, .large])
     }
 
+    /// The other terms. A term being edited does not count against itself.
+    private var others: [Term] {
+        guard let editing else { return terms }
+        return terms.filter { $0.persistentModelID != editing.persistentModelID }
+    }
+
+    /// Two terms with the same year and number would look the same in the term menu.
+    private var alreadyExists: Bool {
+        others.contains { $0.yearOfStudy == year && $0.termNumber == termNumber }
+    }
+
+    private var endsBeforeStart: Bool {
+        Calendar.current.startOfDay(for: end) < Calendar.current.startOfDay(for: start)
+    }
+
+    /// The app opens the term whose dates include today, so two terms cannot share a day.
+    /// Both ends count: a term that ends on a day and one that starts on that day overlap.
+    private var overlapsAnotherTerm: Bool {
+        let calendar = Calendar.current
+        let newStart = calendar.startOfDay(for: start)
+        let newEnd = calendar.startOfDay(for: end)
+        return others.contains { item in
+            newStart <= calendar.startOfDay(for: item.endsOn) && calendar.startOfDay(for: item.startsOn) <= newEnd
+        }
+    }
+
+    private var canSave: Bool {
+        !alreadyExists && !endsBeforeStart && !overlapsAnotherTerm
+    }
+
+    private var trimmedName: String {
+        name.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     private func save() {
+        guard canSave else { return }
+        if let editing {
+            editing.yearOfStudy = year
+            editing.termNumber = termNumber
+            editing.customName = trimmedName
+            editing.startsOn = start
+            editing.endsOn = end
+            dismiss()
+            return
+        }
         for term in terms { term.isOpen = false }
         let term = Term(
             yearOfStudy: year,
             termNumber: termNumber,
-            customName: name,
+            customName: trimmedName,
             startsOn: start,
             endsOn: end,
             isOpen: true
         )
         modelContext.insert(term)
         dismiss()
-    }
-}
-
-struct CourseEditor: View {
-    var term: Term
-    @Environment(\.modelContext) private var modelContext
-    @Environment(\.dismiss) private var dismiss
-    @State private var name = ""
-    @State private var language = AppLanguage.deviceCourseDefault
-
-    var body: some View {
-        NavigationStack {
-            Form {
-                TextField("Course", text: $name)
-                Picker("Language", selection: $language) {
-                    ForEach(AppLanguage.courseChoices, id: \.self) { item in
-                        Text(LocalizedStringKey(item.title)).tag(item)
-                    }
-                }
-                .pickerStyle(.menu)
-            }
-            .navigationTitle("Course")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
-                        let course = Course(name: name, localeIdentifier: language.speechLocaleIdentifier, term: term)
-                        modelContext.insert(course)
-                        term.courses.append(course)
-                        dismiss()
-                    }
-                    .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
-                }
-            }
-        }
-        .presentationDetents([.medium])
     }
 }
 
@@ -174,7 +238,6 @@ struct PendingSheet: View {
 }
 
 struct SettingsPage: View {
-    var terms: [Term]
     @Environment(AppSession.self) private var session
     @State private var choice: AppLanguage = {
         let stored = UserDefaults.standard.string(forKey: AppPreferences.languageKey) ?? AppLanguage.system.rawValue
@@ -184,7 +247,6 @@ struct SettingsPage: View {
         let stored = UserDefaults.standard.string(forKey: AppPreferences.appearanceKey) ?? AppAppearance.system.rawValue
         return AppAppearance(rawValue: stored) ?? .system
     }()
-    @State private var showTerm = false
 
     var body: some View {
         Form {
@@ -207,10 +269,8 @@ struct SettingsPage: View {
             NavigationLink("Models") {
                 ModelsPage()
             }
-            Button("New term") { showTerm = true }
         }
         .navigationTitle("Settings")
-        .sheet(isPresented: $showTerm) { TermEditor(terms: terms) }
     }
 }
 
@@ -326,13 +386,12 @@ struct ModelsPage: View {
             refreshBudget()
             await refreshInstalled()
         }
-        .confirmationDialog(
+        .alert(
             deletePromptTitle,
             isPresented: Binding(
                 get: { pendingDelete != nil },
                 set: { if !$0 { pendingDelete = nil } }
-            ),
-            titleVisibility: .visible
+            )
         ) {
             Button("Delete", role: .destructive) {
                 guard let target = pendingDelete else { return }
@@ -1045,13 +1104,12 @@ struct ProgramPage: View {
         .sheet(isPresented: $showEditor) {
             SlotEditor(term: term, weekday: day)
         }
-        .confirmationDialog(
+        .alert(
             "Delete this time from the timetable?",
             isPresented: Binding(
                 get: { pendingSlot != nil },
                 set: { if !$0 { pendingSlot = nil } }
-            ),
-            titleVisibility: .visible
+            )
         ) {
             Button("Delete", role: .destructive) {
                 if let slot = pendingSlot { modelContext.delete(slot) }
@@ -1248,6 +1306,9 @@ struct SlotEditor: View {
         _day = State(initialValue: weekday)
         if term.courses.count == 1, let token = term.courses.first?.token {
             _choice = State(initialValue: .existing(token))
+        } else if term.courses.isEmpty {
+            // The term has no course yet, so the first thing to do is to make one.
+            _choice = State(initialValue: .new)
         } else {
             _choice = State(initialValue: .none)
         }

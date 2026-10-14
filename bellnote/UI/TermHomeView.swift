@@ -8,8 +8,9 @@ struct TermHomeView: View {
     @Query(sort: \Lecture.startedAt, order: .reverse) private var lectures: [Lecture]
 
     @State private var showTerm = false
-    @State private var showCourse = false
+    @State private var showSlot = false
     @State private var showPending = false
+    @State private var openedByDate = false
 
     private var term: Term? { terms.first { $0.isOpen } ?? terms.last }
 
@@ -18,9 +19,15 @@ struct TermHomeView: View {
             if let term {
                 TabView {
                     NavigationStack {
-                        TodayPage(term: term, showCourse: $showCourse, showPending: $showPending)
+                        TodayPage(
+                            term: term,
+                            terms: terms,
+                            showSlot: $showSlot,
+                            showTerm: $showTerm,
+                            showPending: $showPending
+                        )
                     }
-                    .tabItem { Label("Today", systemImage: "text.rectangle.page") }
+                    .tabItem { Label("Home", systemImage: "text.rectangle.page") }
 
                     NavigationStack {
                         ProgramPage(term: term)
@@ -33,7 +40,7 @@ struct TermHomeView: View {
                     .tabItem { Label("Calendar", systemImage: "calendar") }
 
                     NavigationStack {
-                        SettingsPage(terms: terms)
+                        SettingsPage()
                     }
                     .tabItem { Label("Settings", systemImage: "gearshape") }
                 }
@@ -55,11 +62,32 @@ struct TermHomeView: View {
                 }
             }
         }
+        .task { openCurrentTermOnLaunch() }
         .sheet(isPresented: $showTerm) { TermEditor(terms: terms) }
-        .sheet(isPresented: $showCourse) {
-            if let term { CourseEditor(term: term) }
+        .sheet(isPresented: $showSlot) {
+            // The same sheet as "Add slot" in the timetable. A new course is made there, with its language.
+            if let term { SlotEditor(term: term, weekday: Calendar.current.component(.weekday, from: .now)) }
         }
         .sheet(isPresented: $showPending) { PendingSheet(lectures: pending) }
+    }
+
+    /// When the app starts, the term whose dates include today opens. Later picks in the menu stay until the next start.
+    /// With no such term the open one stays. When two terms overlap, the one that started last wins.
+    private func openCurrentTermOnLaunch() {
+        guard !openedByDate else { return }
+        openedByDate = true
+        let calendar = Calendar.current
+        let today = Date.now
+        let current = terms
+            .filter { item in
+                guard let dayAfterEnd = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: item.endsOn)) else {
+                    return false
+                }
+                return calendar.startOfDay(for: item.startsOn) <= today && today < dayAfterEnd
+            }
+            .max { ($0.startsOn, $0.createdAt) < ($1.startsOn, $1.createdAt) }
+        guard let current, !current.isOpen else { return }
+        for item in terms { item.isOpen = item.persistentModelID == current.persistentModelID }
     }
 
     private var pending: [Lecture] {
@@ -74,7 +102,9 @@ struct TermHomeView: View {
 
 struct TodayPage: View {
     @Bindable var term: Term
-    @Binding var showCourse: Bool
+    var terms: [Term]
+    @Binding var showSlot: Bool
+    @Binding var showTerm: Bool
     @Binding var showPending: Bool
 
     @Environment(\.modelContext) private var modelContext
@@ -83,6 +113,9 @@ struct TodayPage: View {
     @State private var showConsent = false
     @State private var activeLecture: Lecture?
     @State private var pendingCourse: Course?
+    @State private var pendingTermDelete = false
+    @State private var showEditTerm = false
+    @State private var openedCourse: Course?
     @State private var deleteNotice: String?
 
     var body: some View {
@@ -92,22 +125,43 @@ struct TodayPage: View {
                     hero(slot)
                 }
             }
-            Section("Latest notes") {
-                ForEach(orderedCourses) { course in
-                    NavigationLink(value: course) {
-                        noteRow(course)
+            // Two glass cards per row. They sit in the section header, like the stat tiles of a course:
+            // a list row would clip the glass shadow and draw a grey band under the cards.
+            // The delete moves to the long press menu of each card.
+            Section {
+                EmptyView()
+            } header: {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Courses")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                    if orderedCourses.isEmpty {
+                        VStack(spacing: 12) {
+                            Text("No courses yet")
+                                .foregroundStyle(.secondary)
+                            Button("New course", systemImage: "plus") { showSlot = true }
+                                .buttonStyle(.glass)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 24)
                     }
-                    // Each note is its own glass card. The list keeps the swipe to delete.
-                    .listRowBackground(
-                        RoundedRectangle(cornerRadius: 26, style: .continuous)
-                            .fill(.clear)
-                            .glassEffect(.regular, in: .rect(cornerRadius: 26))
-                    )
-                    .listRowSeparator(.hidden)
+                    LazyVGrid(columns: Self.noteColumns, spacing: Self.noteSpacing) {
+                        ForEach(orderedCourses) { course in
+                            Button {
+                                openedCourse = course
+                            } label: {
+                                noteCard(course)
+                            }
+                            .buttonStyle(.plain)
+                            .contextMenu {
+                                Button("Delete", systemImage: "trash", role: .destructive) { askDelete(course) }
+                            }
+                        }
+                    }
+                    .padding(.horizontal, -16)
                 }
-                .onDelete { offsets in
-                    if let index = offsets.first { askDelete(orderedCourses[index]) }
-                }
+                .textCase(nil)
+                .foregroundStyle(.primary)
             }
             if !examRows.isEmpty {
                 Section("Exams") {
@@ -128,9 +182,9 @@ struct TodayPage: View {
         }
         .listStyle(.insetGrouped)
         .listRowSpacing(4)
-        .navigationTitle("Today")
-        .navigationSubtitle(Date.now.formatted(.dateTime.weekday(.wide).day().month(.wide)))
-        .navigationDestination(for: Course.self) { course in
+        .navigationTitle(termTitle)
+        .navigationSubtitle(Date.now.formatted(.dateTime.weekday(.wide).day().month(.wide).locale(session.locale)))
+        .navigationDestination(item: $openedCourse) { course in
             CoursePage(course: course)
         }
         .toolbar {
@@ -138,27 +192,19 @@ struct TodayPage: View {
                 Button("Pending", systemImage: "clock") { showPending = true }
             }
             ToolbarItem(placement: .primaryAction) {
-                Button("New course", systemImage: "plus") { showCourse = true }
-                    .labelStyle(.iconOnly)
+                termMenu
             }
         }
-        .sheet(isPresented: $showConsent) {
-            if let recordCourse {
-                ConsentSheet(course: recordCourse) { faceID in
-                    activeLecture = LectureStarter.make(course: recordCourse, faceID: faceID, context: modelContext)
-                }
-            }
-        }
+        .sheet(isPresented: $showEditTerm) { TermEditor(terms: terms, editing: term) }
         .sheet(item: $activeLecture) { lecture in
             RecorderSheet(lecture: lecture)
         }
-        .confirmationDialog(
+        .alert(
             "Delete this course?",
             isPresented: Binding(
                 get: { pendingCourse != nil },
                 set: { if !$0 { pendingCourse = nil } }
-            ),
-            titleVisibility: .visible
+            )
         ) {
             Button("Delete", role: .destructive) {
                 if let course = pendingCourse { deleteCourse(course) }
@@ -167,6 +213,12 @@ struct TodayPage: View {
             Button("Cancel", role: .cancel) { pendingCourse = nil }
         } message: {
             Text("All recordings, notes, assignments and exams of this course will be deleted. This cannot be undone.")
+        }
+        .alert("Delete this term?", isPresented: $pendingTermDelete) {
+            Button("Delete", role: .destructive) { deleteTerm() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("All courses, recordings, notes, assignments and exams of this term will be deleted. This cannot be undone.")
         }
         .alert(
             deleteNotice ?? "",
@@ -177,6 +229,47 @@ struct TodayPage: View {
         ) {
             Button("OK", role: .cancel) {}
         }
+    }
+
+    /// "Year 1 · Term 2" in the language of the app. Built from Text so the app language picks the words,
+    /// not only the system language.
+    private func yearAndTerm(_ item: Term) -> Text {
+        Text("\(Text("Year \(item.yearOfStudy)")) · \(Text("Term \(item.termNumber)"))")
+    }
+
+    /// "Year 1 · Term 2", with the name the student gave the term in front of it when there is one.
+    private var termTitle: Text {
+        let name = term.customName.trimmingCharacters(in: .whitespacesAndNewlines)
+        return name.isEmpty ? yearAndTerm(term) : Text("\(Text(verbatim: name)) · \(yearAndTerm(term))")
+    }
+
+    /// Icon only. Picks which term the app shows. Opening one closes the others; no term is deleted.
+    private var termMenu: some View {
+        Menu {
+            Picker("Term", selection: openTerm) {
+                ForEach(terms.sorted { ($0.yearOfStudy, $0.termNumber) > ($1.yearOfStudy, $1.termNumber) }) { item in
+                    yearAndTerm(item).tag(item.persistentModelID)
+                }
+            }
+            .pickerStyle(.inline)
+            Divider()
+            Button("New term", systemImage: "calendar.badge.plus") { showTerm = true }
+            Button("Edit term", systemImage: "pencil") { showEditTerm = true }
+            Divider()
+            Button("Delete term", systemImage: "trash", role: .destructive) { askDeleteTerm() }
+        } label: {
+            Image(systemName: "graduationcap")
+        }
+        .accessibilityLabel(Text("Term"))
+    }
+
+    private var openTerm: Binding<PersistentIdentifier> {
+        Binding(
+            get: { term.persistentModelID },
+            set: { id in
+                for item in terms { item.isOpen = item.persistentModelID == id }
+            }
+        )
     }
 
     private var orderedCourses: [Course] {
@@ -255,6 +348,9 @@ struct TodayPage: View {
                 .buttonStyle(.glassProminent)
                 .controlSize(.large)
                 .tint(.red)
+                .consentFlow(course: recordCourse, isPresented: $showConsent) { course, faceID in
+                    activeLecture = LectureStarter.make(course: course, faceID: faceID, context: modelContext)
+                }
                 .padding(.top, 4)
             }
         }
@@ -267,24 +363,71 @@ struct TodayPage: View {
         )
     }
 
-    private func noteRow(_ course: Course) -> some View {
-        HStack(alignment: .top, spacing: 12) {
-            CourseBadge(name: course.name)
-            VStack(alignment: .leading, spacing: 3) {
+    private static let noteColumns = [
+        GridItem(.flexible(), spacing: noteSpacing),
+        GridItem(.flexible(), spacing: noteSpacing),
+    ]
+    private static let noteSpacing: CGFloat = 10
+
+    /// One course as a glass card. The three numbers are the totals of the whole course, not of one week.
+    private func noteCard(_ course: Course) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                CourseBadge(name: course.name, size: 34)
                 Text(course.name)
                     .font(.headline)
-                Text(excerpt(course))
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
                     .lineLimit(2)
-                if let meta = noteMeta(course) {
-                    Text(meta)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            // Extra height of a taller neighbour goes here, between the name and the rest, so the lecturer,
+            // the totals and the times keep the same distance in every card.
+            Spacer(minLength: 4)
+            if let lecturer = course.lecturer?.displayName, !lecturer.isEmpty {
+                HStack(spacing: 4) {
+                    Image(systemName: "person.crop.circle")
+                    Text(verbatim: lecturer)
+                        .lineLimit(1)
+                }
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+            }
+            HStack(spacing: 10) {
+                total(course.lectures.count, "waveform", "Recordings")
+                total(course.assignments.count, "checklist", "Assignments")
+                total(course.sittings.count, "calendar", "Exams")
+            }
+            // The days and times of the course in the timetable, one line each.
+            VStack(alignment: .leading, spacing: 2) {
+                ForEach(scheduleLines(course), id: \.self) { line in
+                    Text(verbatim: line)
                         .font(.footnote)
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
                 }
             }
         }
-        .padding(.vertical, 2)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .padding(12)
+        // The glass is a background, not a modifier of the texts. Otherwise the glass changes the text colours
+        // and they no longer match the grey of the Start recording card.
+        .background {
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .fill(.clear)
+                .glassEffect(.regular, in: .rect(cornerRadius: 22))
+        }
+        .contentShape(.rect(cornerRadius: 22))
+    }
+
+    private func total(_ count: Int, _ symbol: String, _ name: LocalizedStringKey) -> some View {
+        HStack(spacing: 3) {
+            Image(systemName: symbol)
+            Text(count, format: .number)
+        }
+        .font(.caption.weight(.medium))
+        .foregroundStyle(.secondary)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(name))
+        .accessibilityValue(Text(count, format: .number))
     }
 
     private func status(for slot: WeeklySlot) -> String {
@@ -308,29 +451,22 @@ struct TodayPage: View {
         return "\(span) · \(slot.placeName)"
     }
 
-    private func excerpt(_ course: Course) -> String {
-        guard let lecture = course.lectures.max(by: { $0.startedAt < $1.startedAt }) else {
-            return String(localized: "No lectures yet.")
-        }
-        let summary = lecture.summary.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !summary.isEmpty { return MediaClock.sentence(CorrectionText.plain(summary)) }
-        if let text = lecture.blocks.sorted(by: { $0.second < $1.second }).first(where: { !$0.text.isEmpty })?.text {
-            return MediaClock.sentence(text)
-        }
-        return lecture.statusTitle
-    }
-
-    private func noteMeta(_ course: Course) -> String? {
-        if let lecture = course.lectures.max(by: { $0.startedAt < $1.startedAt }) {
-            let date = lecture.startedAt.formatted(date: .abbreviated, time: .omitted)
-            guard lecture.recordedSeconds >= 60 else { return date }
-            let minutes = String(format: String(localized: "%lld min"), lecture.recordedSeconds / 60)
-            return "\(date) · \(minutes)"
-        }
-        guard let slot = term.slots.filter({ $0.course?.token == course.token }).sorted(by: { $0.startMinutes < $1.startMinutes }).first else {
-            return nil
-        }
-        return "\(weekdayName(slot.weekday)) · \(ReminderScheduler.clock(slot.startMinutes))"
+    /// One line per weekly slot of the course, in the order of the week: "Mon 09:00–10:30".
+    private func scheduleLines(_ course: Course) -> [String] {
+        let calendar = Calendar.current
+        let symbols = calendar.shortWeekdaySymbols
+        func position(_ slot: WeeklySlot) -> Int { (slot.weekday - calendar.firstWeekday + 7) % 7 }
+        return term.slots
+            .filter { $0.course?.token == course.token }
+            .sorted { lhs, rhs in
+                if position(lhs) != position(rhs) { return position(lhs) < position(rhs) }
+                return lhs.startMinutes < rhs.startMinutes
+            }
+            .compactMap { slot in
+                guard symbols.indices.contains(slot.weekday - 1) else { return nil }
+                let span = "\(ReminderScheduler.clock(slot.startMinutes))–\(ReminderScheduler.clock(slot.endMinutes))"
+                return "\(symbols[slot.weekday - 1]) \(span)"
+            }
     }
 
     private func examLine(_ row: ExamRow) -> String {
@@ -351,6 +487,36 @@ struct TodayPage: View {
             return
         }
         pendingCourse = course
+    }
+
+    /// Deletes the term that is open now, with everything under it.
+    private func askDeleteTerm() {
+        let lectures = term.courses.flatMap(\.lectures)
+        guard lectures.allSatisfy(LectureRemoval.canDelete) else {
+            deleteNotice = String(localized: "Wait until the recordings of this term have been processed, then delete it.")
+            return
+        }
+        pendingTermDelete = true
+    }
+
+    private func deleteTerm() {
+        do {
+            for course in term.courses {
+                try Vault.removeCourseDirectory(id: course.token)
+                if session.focusCourseToken == course.token { session.focusCourseToken = nil }
+            }
+            // The latest term that is left opens in its place.
+            let next = terms
+                .filter { $0.persistentModelID != term.persistentModelID }
+                .max { ($0.yearOfStudy, $0.termNumber) < ($1.yearOfStudy, $1.termNumber) }
+            modelContext.delete(term)
+            next?.isOpen = true
+        } catch {
+            Logger(subsystem: "app.bellnote", category: "delete").error(
+                "Term delete failed: \(error.localizedDescription, privacy: .public)"
+            )
+            deleteNotice = String(localized: "The term could not be deleted.")
+        }
     }
 
     private func deleteCourse(_ course: Course) {

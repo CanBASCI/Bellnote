@@ -12,6 +12,11 @@ enum CourseStyle {
         return palette[sum % palette.count]
     }
 
+    /// Tints of the three count tiles on the course page: #3B5FDB, #2EC98A, #F0A0B5.
+    static let recordingsTint = Color(red: 59 / 255, green: 95 / 255, blue: 219 / 255)
+    static let assignmentsTint = Color(red: 46 / 255, green: 201 / 255, blue: 138 / 255)
+    static let examsTint = Color(red: 240 / 255, green: 160 / 255, blue: 181 / 255)
+
     static func initial(of name: String) -> String {
         name.trimmingCharacters(in: .whitespaces).first.map { String($0).uppercased() } ?? "?"
     }
@@ -45,6 +50,19 @@ extension Lecture {
     var statusTint: Color {
         if isRecordedOnly { return .blue }
         return LectureState(rawValue: state)?.tint ?? .gray
+    }
+}
+
+extension View {
+    /// The swipe from the right that only asks. `onDelete` takes the row out of the list the moment the
+    /// student swipes, before the confirm. This button leaves the row where it is until the confirm says yes.
+    func askToDeleteSwipe(_ ask: @escaping () -> Void) -> some View {
+        swipeActions(edge: .trailing, allowsFullSwipe: true) {
+            Button(action: ask) {
+                Label("Delete", systemImage: "trash")
+            }
+            .tint(.red)
+        }
     }
 }
 
@@ -84,13 +102,12 @@ private struct AssignmentDeleteDialog: ViewModifier {
     @Environment(\.modelContext) private var modelContext
 
     func body(content: Content) -> some View {
-        content.confirmationDialog(
+        content.alert(
             "Delete this assignment?",
             isPresented: Binding(
                 get: { pending != nil },
                 set: { if !$0 { pending = nil } }
-            ),
-            titleVisibility: .visible
+            )
         ) {
             Button("Delete", role: .destructive) {
                 if let assignment = pending { modelContext.delete(assignment) }

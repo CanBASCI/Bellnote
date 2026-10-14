@@ -65,10 +65,9 @@ struct FluidAudioGateModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .confirmationDialog(
+            .alert(
                 String(localized: "Download FluidAudio?"),
-                isPresented: $gate.showConfirm,
-                titleVisibility: .visible
+                isPresented: $gate.showConfirm
             ) {
                 Button(String(localized: "OK")) { gate.confirmInstall() }
                 Button(String(localized: "Cancel"), role: .cancel) { gate.cancelConfirm() }
