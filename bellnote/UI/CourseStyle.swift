@@ -31,6 +31,16 @@ extension LectureState {
         case .ready: .green
         }
     }
+
+    var symbol: String {
+        switch self {
+        case .recording: "circle.fill"
+        case .paused: "pause"
+        case .processing: "hourglass"
+        case .ready: "checkmark"
+        case .failed: "exclamationmark"
+        }
+    }
 }
 
 extension Lecture {
@@ -50,6 +60,11 @@ extension Lecture {
     var statusTint: Color {
         if isRecordedOnly { return .blue }
         return LectureState(rawValue: state)?.tint ?? .gray
+    }
+
+    var statusSymbol: String {
+        if isRecordedOnly { return "waveform" }
+        return LectureState(rawValue: state)?.symbol ?? "questionmark.circle"
     }
 }
 
@@ -78,6 +93,65 @@ struct CourseBadge: View {
             .frame(width: size, height: size)
             .background(CourseStyle.color(for: name).gradient, in: RoundedRectangle(cornerRadius: size * 0.27, style: .continuous))
             .accessibilityHidden(true)
+    }
+}
+
+/// The day of a recording as a small square, where Apple Music shows the cover of a song.
+/// It has the colour of the course, the month on top and the day number under it.
+struct DateCover: View {
+    var date: Date
+    var courseName: String
+    var size: CGFloat = 48
+    @Environment(\.locale) private var locale
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Text(date.formatted(.dateTime.month(.abbreviated).locale(locale)).localizedUppercase)
+                .font(.system(size: size * 0.22, weight: .semibold, design: .rounded))
+            Text(date.formatted(.dateTime.day().locale(locale)))
+                .font(.system(size: size * 0.45, weight: .bold, design: .rounded))
+        }
+        .foregroundStyle(.primary)
+        .frame(width: size, height: size)
+        // A plain square with no fill, only a border in the secondary colour, so it follows light and dark mode.
+        .overlay {
+            RoundedRectangle(cornerRadius: size * 0.2, style: .continuous)
+                .strokeBorder(.secondary, lineWidth: 1)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(verbatim: date.formatted(.dateTime.day().month(.wide).locale(locale))))
+    }
+}
+
+/// A small Liquid Glass circle with a symbol, tinted with a status colour like the date cover.
+/// Without a symbol it is an empty circle. Without a tint it is plain glass.
+struct GlassBadge: View {
+    var systemName: String?
+    var tint: Color?
+    /// The width and height of the circle. Nil takes a size that follows the text size.
+    var side: CGFloat?
+    @ScaledMetric(relativeTo: .subheadline) private var defaultSide: CGFloat = 24
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        let diameter = side ?? defaultSide
+        Group {
+            if let systemName {
+                // The symbol follows the circle, so a smaller circle keeps the same look.
+                Image(systemName: systemName)
+                    .font(.system(size: diameter * 0.5, weight: .bold))
+            } else {
+                Color.clear
+            }
+        }
+        .foregroundStyle(.primary)
+        .frame(width: diameter, height: diameter)
+        .glassEffect(glass, in: .circle)
+    }
+
+    private var glass: Glass {
+        guard let tint else { return .regular }
+        return .regular.tint(tint.opacity(colorScheme == .dark ? 0.5 : 0.28))
     }
 }
 
@@ -126,40 +200,58 @@ extension View {
     }
 }
 
-/// A recording and the second to play from, used to open a lecture from a task.
-struct AssignmentTarget: Hashable {
-    var lecture: Lecture
-    var second: Int
-}
-
 /// One homework row. Tapping the circle marks it done.
 struct AssignmentRow: View {
     @Bindable var assignment: Assignment
+    /// The width the circle is centered in. Nil keeps the width of the circle itself.
+    /// The course page gives it the width of a date cover, so the circle sits where the cover sits.
+    var markWidth: CGFloat?
+    /// The space between the circle and the text.
+    var markGap: CGFloat = 12
+    /// The lines under the task as plain text, in the font of the summary line of a recording row,
+    /// not as a chip and in the caption font.
+    var plainDetails = false
     /// Called with the second where the lecturer gave the task. Nil makes the row plain.
     var onOpen: ((Int) -> Void)?
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 12) {
+        // With a column width the circle is like a cover, so it is centered on the height of the row.
+        // Without it the circle sits on the first line of the text.
+        HStack(alignment: markWidth == nil ? .firstTextBaseline : .center, spacing: markGap) {
             Button {
                 assignment.done.toggle()
             } label: {
-                Image(
-                    systemName: assignment.cancelled
-                        ? "xmark.circle"
-                        : (assignment.done ? "checkmark.circle.fill" : "circle")
-                )
-                .font(.title3)
-                .foregroundStyle(assignment.done && !assignment.cancelled ? Color.green : Color.secondary)
+                if markWidth == nil {
+                    Image(
+                        systemName: assignment.cancelled
+                            ? "xmark.circle"
+                            : (assignment.done ? "checkmark.circle.fill" : "circle")
+                    )
+                    .font(.title3)
+                    .foregroundStyle(assignment.done && !assignment.cancelled ? Color.green : Color.secondary)
+                } else {
+                    // In the course page the circle is a glass circle like the date covers: an empty one, a green
+                    // one with a check when done, a plain one with a cross when cancelled.
+                    GlassBadge(
+                        systemName: assignment.cancelled ? "xmark" : (assignment.done ? "checkmark" : nil),
+                        tint: assignment.done && !assignment.cancelled ? .green : nil
+                    )
+                    .frame(width: markWidth)
+                }
             }
             .buttonStyle(.plain)
             .disabled(assignment.cancelled)
             .accessibilityLabel(Text("Done"))
             .accessibilityAddTraits(assignment.done ? .isSelected : [])
+            // The separator of the row starts at the task text, not under the circle. The list would pick the
+            // first text it finds, which is a different place in a row with the play line.
             if let onOpen {
                 Button { onOpen(assignment.sourceSecond) } label: { details }
                     .buttonStyle(.plain)
+                    .alignmentGuide(.listRowSeparatorLeading) { $0[.leading] }
             } else {
                 details
+                    .alignmentGuide(.listRowSeparatorLeading) { $0[.leading] }
             }
         }
         .onAppear { assignment.fillDueIfMissing() }
@@ -182,21 +274,46 @@ struct AssignmentRow: View {
                 .foregroundStyle(assignment.done || assignment.cancelled ? .secondary : .primary)
                 .multilineTextAlignment(.leading)
             if assignment.cancelled {
-                StatusChip(title: String(localized: "Cancelled"), tint: .orange)
+                if plainDetails {
+                    Text("Cancelled")
+                        .font(.subheadline)
+                        .foregroundStyle(.orange)
+                } else {
+                    StatusChip(title: String(localized: "Cancelled"), tint: .orange)
+                }
             } else if let due = assignment.due {
-                StatusChip(title: AssignmentRow.dueTitle(due), tint: .accentColor)
+                if plainDetails {
+                    Text(AssignmentRow.dueTitle(due))
+                        .font(.subheadline)
+                        .foregroundStyle(Color.accentColor)
+                } else {
+                    StatusChip(title: AssignmentRow.dueTitle(due), tint: .accentColor)
+                }
             } else {
                 Text("No date was spoken.")
-                    .font(.caption)
+                    .font(plainDetails ? .subheadline : .caption)
                     .foregroundStyle(.secondary)
             }
             if let lecture = assignment.sourceLecture {
-                Label {
-                    Text(verbatim: "\(lecture.startedAt.formatted(date: .abbreviated, time: .shortened)) · \(MediaClock.short(assignment.sourceSecond))")
-                } icon: {
-                    Image(systemName: "play.circle")
+                let source = "\(lecture.startedAt.formatted(date: .abbreviated, time: .shortened)) · \(MediaClock.short(assignment.sourceSecond))"
+                Group {
+                    if plainDetails {
+                        // A label puts a wide space of its own between the icon and the text. The dot is the same
+                        // one that stands between the date and the time in the text.
+                        HStack(spacing: 0) {
+                            Image(systemName: "play.circle")
+                            Text(verbatim: " · ")
+                            Text(verbatim: source)
+                        }
+                    } else {
+                        Label {
+                            Text(verbatim: source)
+                        } icon: {
+                            Image(systemName: "play.circle")
+                        }
+                    }
                 }
-                .font(.caption)
+                .font(plainDetails ? .subheadline : .caption)
                 .foregroundStyle(.secondary)
             }
         }

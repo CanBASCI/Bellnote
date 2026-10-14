@@ -100,6 +100,13 @@ struct TermHomeView: View {
     }
 }
 
+/// The label of the button as it is. The system plain style fades the label while the button is held down.
+private struct UnfadedCardStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+    }
+}
+
 struct TodayPage: View {
     @Bindable var term: Term
     var terms: [Term]
@@ -127,7 +134,7 @@ struct TodayPage: View {
             }
             // Two glass cards per row. They sit in the section header, like the stat tiles of a course:
             // a list row would clip the glass shadow and draw a grey band under the cards.
-            // The delete moves to the long press menu of each card.
+            // The delete of a course is in the menu icon at the end of the name row of its card.
             if !orderedCourses.isEmpty {
                 Section {
                     EmptyView()
@@ -138,22 +145,18 @@ struct TodayPage: View {
                             .foregroundStyle(.secondary)
                         LazyVGrid(columns: Self.noteColumns, spacing: Self.noteSpacing) {
                             ForEach(orderedCourses) { course in
-                                // A tap opens the course. A long press shows the menu with Favourite and Delete.
-                                // A contextMenu on a button does not show inside a list header, a menu with a primary action does.
-                                Menu {
-                                    Button(
-                                        course.isFavorite ? "Remove from favorites" : "Add to favorites",
-                                        systemImage: course.isFavorite ? "star.slash" : "star"
-                                    ) {
-                                        course.isFavorite.toggle()
-                                    }
-                                    Button("Delete", systemImage: "trash", role: .destructive) { askDelete(course) }
+                                // The card does not fade while it is held down.
+                                // The menu is not inside the label of that button but above it, so both stay tappable.
+                                Button {
+                                    openedCourse = course
                                 } label: {
                                     noteCard(course)
-                                } primaryAction: {
-                                    openedCourse = course
                                 }
-                                .buttonStyle(.plain)
+                                .buttonStyle(UnfadedCardStyle())
+                                .overlay(alignment: .topTrailing) {
+                                    courseMenu(course)
+                                        .padding(Self.cardPadding)
+                                }
                             }
                         }
                         .padding(.horizontal, -16)
@@ -163,7 +166,7 @@ struct TodayPage: View {
                 }
             }
             if !examRows.isEmpty {
-                Section("Exams") {
+                Section {
                     ForEach(ExamSort.markingOverlaps(examRows)) { row in
                         VStack(alignment: .leading, spacing: 4) {
                             Text(row.courseName)
@@ -176,6 +179,8 @@ struct TodayPage: View {
                             }
                         }
                     }
+                } header: {
+                    Text("Exams")
                 }
             }
         }
@@ -380,6 +385,29 @@ struct TodayPage: View {
         GridItem(.flexible(), spacing: noteSpacing),
     ]
     private static let noteSpacing: CGFloat = 10
+    private static let cardPadding: CGFloat = 12
+    /// The same height as the course badge, so the icon is centred on the name row.
+    private static let menuSize: CGFloat = 34
+
+    /// The menu icon at the far end of the name row of a card. The favourite and the delete of the course are in it.
+    private func courseMenu(_ course: Course) -> some View {
+        Menu {
+            Button(
+                course.isFavorite ? "Remove from favorites" : "Add to favorites",
+                systemImage: course.isFavorite ? "star.slash" : "star"
+            ) {
+                course.isFavorite.toggle()
+            }
+            Button("Delete", systemImage: "trash", role: .destructive) { askDelete(course) }
+        } label: {
+            Image(systemName: "ellipsis")
+                .font(.body.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .frame(width: Self.menuSize, height: Self.menuSize)
+                .contentShape(.rect)
+        }
+        .menuIndicator(.hidden)
+    }
 
     /// One course as a glass card. The three numbers are the totals of the whole course, not of one week.
     private func noteCard(_ course: Course) -> some View {
@@ -390,6 +418,8 @@ struct TodayPage: View {
                     .font(.headline)
                     .lineLimit(2)
                     .frame(maxWidth: .infinity, alignment: .leading)
+                // Room for the menu icon, which sits above the card at the far end of this row.
+                Color.clear.frame(width: Self.menuSize, height: Self.menuSize)
             }
             // Extra height of a taller neighbour goes here, between the name and the rest, so the lecturer,
             // the totals and the times keep the same distance in every card.
@@ -416,10 +446,18 @@ struct TodayPage: View {
                 total(course.lectures.count, "waveform", "Recordings")
                 total(course.assignments.count, "checklist", "Assignments")
                 total(course.sittings.count, "calendar", "Exams")
+                Spacer(minLength: 0)
+                // A favourite course has a star at the far end of the totals.
+                if course.isFavorite {
+                    Image(systemName: "star.fill")
+                        .font(.caption)
+                        .foregroundStyle(.yellow)
+                        .accessibilityLabel(Text("Favorite"))
+                }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .padding(12)
+        .padding(Self.cardPadding)
         // The glass is a background, not a modifier of the texts. Otherwise the glass changes the text colours
         // and they no longer match the grey of the Start recording card.
         .background {

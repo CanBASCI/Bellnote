@@ -22,11 +22,11 @@ struct CoursePage: View {
     @Bindable var course: Course
     @Environment(\.modelContext) private var modelContext
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.locale) private var locale
     @State private var showConsent = false
     @State private var activeLecture: Lecture?
     @State private var showLecturer = false
     @State private var showInventory = false
-    @State private var assignmentTarget: AssignmentTarget?
     @State private var pendingDelete: Lecture?
     @State private var pendingItem: InventoryItem?
     @State private var pendingAssignment: Assignment?
@@ -36,8 +36,8 @@ struct CoursePage: View {
     private func statList(_ proxy: ScrollViewProxy) -> some View {
         List {
             Section {
-                EmptyView()
-            } header: {
+                // The tiles are the first row of the list, not a section header. A header of a plain list stays
+                // at the top while the list scrolls. A row takes the side space of the other rows by itself.
                 // No glass container here: it fuses neighbours and rounds their outer corners.
                 HStack(spacing: 10) {
                     statTile(value: visibleLectures.count, title: "Recordings", tint: CourseStyle.recordingsTint, details: lectureBreakdown(of: visibleLectures)) {
@@ -48,12 +48,11 @@ struct CoursePage: View {
                     }
                     statTile(value: visibleSittings.count, title: "Exams", tint: CourseStyle.examsTint)
                 }
-                // A header gets the same side space as its title, which is 16 pt more than the cards below.
-                .padding(.horizontal, -16)
-                // The header ends about 10 pt farther from the next title than the other sections do.
-                .padding(.bottom, -10)
-                .textCase(nil)
-                .foregroundStyle(.primary)
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color.clear)
+                // No space under the tiles from the row itself, so the gap to the "This week" title is only the
+                // top space of that title.
+                .listRowInsets(.bottom, 0)
             }
             Section {
                 if visibleLectures.isEmpty {
@@ -68,22 +67,50 @@ struct CoursePage: View {
                         lectureRow(lecture)
                     }
                     .askToDeleteSwipe { askDelete(lecture) }
+                    // Top and bottom only. The side space stays the one the list gives. Each row has 8 pt above and
+                    // 8 pt under it.
+                    .listRowInsets(.vertical, 8)
                 }
             } header: {
                 Text(verbatim: weekTitle(selectedWeek))
             }
+            // TEMPORARY comparison, switched off: the same recordings with the old row. Remove the comment marks to
+            // see it again. Delete it, with `oldLectureRow`, after the look is decided.
+            // Section {
+            //     ForEach(visibleLectures) { lecture in
+            //         NavigationLink {
+            //             LecturePage(lecture: lecture)
+            //         } label: {
+            //             oldLectureRow(lecture)
+            //         }
+            //     }
+            // } header: {
+            //     Text(verbatim: "\(weekTitle(selectedWeek)) (old)")
+            // }
             if !visibleAssignments.isEmpty {
                 Section {
                     ForEach(visibleAssignments) { assignment in
-                        AssignmentRow(assignment: assignment) { second in
-                            guard let lecture = assignment.sourceLecture else { return }
-                            assignmentTarget = AssignmentTarget(lecture: lecture, second: second)
-                        }
+                        assignmentLink(assignment)
+                        // The same text as the time of a recording row: medium, and the small Dynamic Type size.
+                        // The lines under it keep the caption font they set themselves.
+                        .font(.body.weight(.medium))
+                        .dynamicTypeSize(.small)
                         .askToDeleteSwipe { pendingAssignment = assignment }
+                        // Top and bottom only, the same as the recording rows.
+                        .listRowInsets(.vertical, 8)
                     }
                 } header: {
                     Text("Assignments")
                 }
+                // TEMPORARY comparison, switched off: the same tasks with the old row. Remove the comment marks to
+                // see it again. Delete it after the look is decided.
+                // Section {
+                //     ForEach(visibleAssignments) { assignment in
+                //         AssignmentRow(assignment: assignment)
+                //     }
+                // } header: {
+                //     Text(verbatim: "Assignments (old)")
+                // }
             }
             // Nothing fills the inventory yet, so the section shows only when a row exists.
             if !course.inventory.isEmpty {
@@ -95,7 +122,34 @@ struct CoursePage: View {
                 }
             }
         }
-        .listStyle(.insetGrouped)
+        // A plain list, like the lists of Apple Music: no rounded groups, rows run from edge to edge.
+        .listStyle(.plain)
+        // Space between the navigation bar and the tiles. A Spacer does not work in a list, the margin of the
+        // scroll content does, and it scrolls away with the list.
+        .contentMargins(.top, 16, for: .scrollContent)
+    }
+
+    /// A task with a recording is a link to it, so the list draws its arrow and keeps the same space at the end as
+    /// the recording rows. The circle sits in the column of the date covers, and the text starts where the text of a
+    /// recording starts.
+    @ViewBuilder
+    private func assignmentLink(_ assignment: Assignment) -> some View {
+        let row = AssignmentRow(
+            assignment: assignment,
+            markWidth: Self.coverSize,
+            markGap: Self.coverGap,
+            plainDetails: true,
+            onOpen: nil
+        )
+        if let lecture = assignment.sourceLecture {
+            NavigationLink {
+                LecturePage(lecture: lecture, startSecond: assignment.sourceSecond)
+            } label: {
+                row
+            }
+        } else {
+            row
+        }
     }
 
     var body: some View {
@@ -103,10 +157,8 @@ struct CoursePage: View {
             statList(proxy)
         }
         .confirmAssignmentDelete($pendingAssignment)
-        .navigationDestination(item: $assignmentTarget) { target in
-            LecturePage(lecture: target.lecture, startSecond: target.second)
-        }
         .navigationTitle(course.name)
+        .navigationBarTitleDisplayMode(.inline)
         .navigationSubtitle(
             selectedWeek == Self.currentWeekStart ? lecturerName : "\(lecturerName) · \(weekTitle(selectedWeek))"
         )
@@ -368,6 +420,9 @@ struct CoursePage: View {
     }
 
     private static let emptyLecturesID = "emptyLectures"
+    /// The date cover of a recording and the space between it and the text. The separator line starts after both.
+    private static let coverSize: CGFloat = 56
+    private static let coverGap: CGFloat = 12
     private static let detailLineRoom = 3
 
     private func scrollToRecordings(_ proxy: ScrollViewProxy) {
@@ -428,27 +483,78 @@ struct CoursePage: View {
     }
 
     private func lectureRow(_ lecture: Lecture) -> some View {
-        return VStack(alignment: .leading, spacing: 6) {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text(lecture.startedAt.formatted(.dateTime.day().month(.abbreviated).hour().minute()))
-                    .font(.headline)
-                if lecture.recordedSeconds >= 60 {
-                    Text(String(format: String(localized: "%lld min"), lecture.recordedSeconds / 60))
+        // The day is the cover on the left, like the cover of a song in Apple Music. The title is the time of day.
+        let separatorStart = Self.coverSize + Self.coverGap
+        return HStack(spacing: Self.coverGap) {
+            DateCover(date: lecture.startedAt, courseName: course.name, size: Self.coverSize)
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(lecture.startedAt.formatted(.dateTime.hour().minute().locale(locale)))
+                        // `body` at the small Dynamic Type size, 1 pt under the medium size.
+                        .font(.body.weight(.medium))
+                        .dynamicTypeSize(.small)
+                    Text(lecture.statusTitle)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(lecture.statusTint)
+                    if lecture.recordedSeconds >= 60 {
+                        Text(String(format: String(localized: "%lld min"), lecture.recordedSeconds / 60))
+                            .font(.subheadline)
+                            .dynamicTypeSize(.medium)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer(minLength: 0)
+                }
+                let excerpt = preview(lecture)
+                if !excerpt.isEmpty {
+                    // `subheadline` at the medium Dynamic Type size, 1 pt under the size of the system.
+                    Text(excerpt)
+                        .font(.subheadline)
+                        .dynamicTypeSize(.medium)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                }
+            }
+        }
+        // The separator line starts at the text, not under the cover, like the song rows of Apple Music.
+        // The value is measured from the left edge of the row content, where the cover starts, so it is the
+        // distance to the text and does not add the default start of the line.
+        // The closure is Sendable, so it gets a copy of the value, not the main actor property.
+        .alignmentGuide(.listRowSeparatorLeading) { [separatorStart] _ in
+            separatorStart
+        }
+    }
+
+    // TEMPORARY comparison: the recording row as it was before the date cover. Delete with the old sections.
+    private func oldLectureRow(_ lecture: Lecture) -> some View {
+        let separatorStart = Self.coverSize + Self.coverGap
+        return HStack(spacing: Self.coverGap) {
+            DateCover(date: lecture.startedAt, courseName: course.name, size: Self.coverSize)
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(lecture.startedAt.formatted(.dateTime.hour().minute().locale(locale)))
+                        .font(.headline)
+                    if lecture.recordedSeconds >= 60 {
+                        Text(String(format: String(localized: "%lld min"), lecture.recordedSeconds / 60))
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer(minLength: 8)
+                    StatusChip(title: lecture.statusTitle, tint: lecture.statusTint)
+                }
+                let excerpt = preview(lecture)
+                if !excerpt.isEmpty {
+                    Text(excerpt)
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
+                        .lineLimit(2)
                 }
-                Spacer(minLength: 8)
-                StatusChip(title: lecture.statusTitle, tint: lecture.statusTint)
-            }
-            let excerpt = preview(lecture)
-            if !excerpt.isEmpty {
-                Text(excerpt)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
             }
         }
         .padding(.vertical, 2)
+        // The separator starts at the text, not under the cover, the same as in the row above.
+        .alignmentGuide(.listRowSeparatorLeading) { [separatorStart] _ in
+            separatorStart
+        }
     }
 
     private func preview(_ lecture: Lecture) -> String {
