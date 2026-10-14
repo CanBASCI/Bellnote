@@ -138,15 +138,16 @@ struct TodayPage: View {
                             .foregroundStyle(.secondary)
                         LazyVGrid(columns: Self.noteColumns, spacing: Self.noteSpacing) {
                             ForEach(orderedCourses) { course in
-                                Button {
-                                    openedCourse = course
+                                // A tap opens the course. A long press shows the menu with Delete.
+                                // A contextMenu on a button does not show inside a list header, a menu with a primary action does.
+                                Menu {
+                                    Button("Delete", systemImage: "trash", role: .destructive) { askDelete(course) }
                                 } label: {
                                     noteCard(course)
+                                } primaryAction: {
+                                    openedCourse = course
                                 }
                                 .buttonStyle(.plain)
-                                .contextMenu {
-                                    Button("Delete", systemImage: "trash", role: .destructive) { askDelete(course) }
-                                }
                             }
                         }
                         .padding(.horizontal, -16)

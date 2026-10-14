@@ -151,7 +151,8 @@ struct LectureNote: View {
         }
         .confirmAssignmentDelete($pendingAssignment)
         .confirmationDialog("Who is this?", isPresented: $choosingSpeaker, titleVisibility: .visible) {
-            if let name = lecturerName {
+            // The lecturer and every name already given to a speaker of this recording.
+            ForEach(namingSuggestions, id: \.self) { name in
                 Button {
                     assignSpeaker(name)
                 } label: {
@@ -207,7 +208,7 @@ struct LectureNote: View {
                     .foregroundStyle(.secondary)
             }
         } else {
-            if speakerClusters.count > 1 {
+            if speakerTagGroups.count > 1 {
                 Section { speakerTags }
             }
             Section {
@@ -362,8 +363,38 @@ struct LectureNote: View {
     }
 
     /// The chosen speakers that this recording still has. After a new run an old choice can vanish.
+    /// With fewer than two tags there is nothing to choose from, so nothing is filtered.
     private var activeSpeakers: Set<Int> {
-        chosenSpeakers.intersection(speakerClusters)
+        speakerTagGroups.count > 1 ? chosenSpeakers.intersection(speakerClusters) : []
+    }
+
+    /// One tag of the speaker filter. Speakers that carry the same name share a tag.
+    private struct SpeakerTag: Identifiable {
+        let title: String
+        var clusters: [Int]
+        var id: Int { clusters.first ?? 0 }
+    }
+
+    /// Two names are the same when they differ only in case, accents or spaces around them.
+    private static func nameKey(_ name: String) -> String {
+        name.trimmingCharacters(in: .whitespacesAndNewlines)
+            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
+    }
+
+    private var speakerTagGroups: [SpeakerTag] {
+        var tags: [SpeakerTag] = []
+        var position: [String: Int] = [:]
+        for cluster in speakerClusters {
+            let title = speakerTitle(cluster)
+            let key = Self.nameKey(title)
+            if let index = position[key] {
+                tags[index].clusters.append(cluster)
+            } else {
+                position[key] = tags.count
+                tags.append(SpeakerTag(title: title, clusters: [cluster]))
+            }
+        }
+        return tags
     }
 
     /// One tag per speaker above the list. A tag shows the name the student gave. No tag chosen
@@ -372,16 +403,16 @@ struct LectureNote: View {
         ScrollView(.horizontal, showsIndicators: false) {
             GlassEffectContainer(spacing: 8) {
                 HStack(spacing: 8) {
-                    ForEach(speakerClusters, id: \.self) { cluster in
-                        let chosen = chosenSpeakers.contains(cluster)
+                    ForEach(speakerTagGroups) { tag in
+                        let chosen = Set(tag.clusters).isSubset(of: chosenSpeakers)
                         Button {
                             if chosen {
-                                chosenSpeakers.remove(cluster)
+                                chosenSpeakers.subtract(tag.clusters)
                             } else {
-                                chosenSpeakers.insert(cluster)
+                                chosenSpeakers.formUnion(tag.clusters)
                             }
                         } label: {
-                            Text(verbatim: speakerTitle(cluster))
+                            Text(verbatim: tag.title)
                                 .lineLimit(1)
                         }
                         .buttonStyle(.glass)
@@ -409,16 +440,34 @@ struct LectureNote: View {
     private func beginNaming(_ cluster: Int) {
         namingSpeaker = cluster
         typedSpeakerName = ""
-        if lecturerName == nil {
+        if nameSuggestions(for: cluster).isEmpty {
             typingSpeaker = true
         } else {
             choosingSpeaker = true
         }
     }
 
+    /// The lecturer first, then the names already given to the other speakers of this recording,
+    /// each name once, so the student does not type the same name again.
+    private func nameSuggestions(for cluster: Int) -> [String] {
+        let given = speakerClusters.filter { $0 != cluster }.compactMap { lecture.speakerName(for: $0) }
+        var seen = Set<String>()
+        var result: [String] = []
+        for name in (lecturerName.map { [$0] } ?? []) + given where seen.insert(Self.nameKey(name)).inserted {
+            result.append(name)
+        }
+        return result
+    }
+
+    private var namingSuggestions: [String] {
+        namingSpeaker.map(nameSuggestions(for:)) ?? []
+    }
+
     private func assignSpeaker(_ name: String) {
         guard let cluster = namingSpeaker else { return }
         lecture.setSpeakerName(name, cluster: cluster)
+        // Tags can merge or split with a new name, so an old filter choice could point at nothing.
+        chosenSpeakers = []
         do {
             try lecture.modelContext?.save()
         } catch {
