@@ -138,9 +138,15 @@ struct TodayPage: View {
                             .foregroundStyle(.secondary)
                         LazyVGrid(columns: Self.noteColumns, spacing: Self.noteSpacing) {
                             ForEach(orderedCourses) { course in
-                                // A tap opens the course. A long press shows the menu with Delete.
+                                // A tap opens the course. A long press shows the menu with Favourite and Delete.
                                 // A contextMenu on a button does not show inside a list header, a menu with a primary action does.
                                 Menu {
+                                    Button(
+                                        course.isFavorite ? "Remove from favorites" : "Add to favorites",
+                                        systemImage: course.isFavorite ? "star.slash" : "star"
+                                    ) {
+                                        course.isFavorite.toggle()
+                                    }
                                     Button("Delete", systemImage: "trash", role: .destructive) { askDelete(course) }
                                 } label: {
                                     noteCard(course)
@@ -279,6 +285,7 @@ struct TodayPage: View {
 
     private var orderedCourses: [Course] {
         term.courses.sorted { lhs, rhs in
+            if lhs.isFavorite != rhs.isFavorite { return lhs.isFavorite }
             let left = lhs.lectures.map(\.startedAt).max() ?? .distantPast
             let right = rhs.lectures.map(\.startedAt).max() ?? .distantPast
             if left != right { return left > right }

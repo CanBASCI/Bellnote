@@ -1,0 +1,14 @@
+---
+description: Ask before building, running tests, or writing throwaway demo code
+alwaysApply: true
+---
+
+# Ask first
+
+Do not do any of these on your own. If one is really needed, ask the user first.
+
+- Do not build the project.
+- Do not run the tests, including UI tests.
+- Do not write a temporary demo view, harness, launch argument, or test file to try a change on screen.
+
+Write the code with care instead. When a change was not built or run, say so in the reply.

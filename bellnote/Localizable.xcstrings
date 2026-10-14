@@ -125,6 +125,22 @@
         }
       }
     },
+    "Add to favorites" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add to favorites"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Favorilere ekle"
+          }
+        }
+      }
+    },
     "AI correction" : {
       "localizations" : {
         "en" : {
@@ -2609,6 +2625,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Kayıtlar"
+          }
+        }
+      }
+    },
+    "Remove from favorites" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove from favorites"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Favorilerden çıkar"
           }
         }
       }

@@ -50,6 +50,8 @@ final class Course {
     var name: String
     var localeIdentifier: String
     var createdAt: Date
+    /// Favourite courses come first on Home. The default value lets stores from before this field open.
+    var isFavorite: Bool = false
 
     var term: Term?
 
@@ -85,6 +87,7 @@ final class Course {
         self.name = name
         self.localeIdentifier = localeIdentifier
         self.createdAt = Date()
+        self.isFavorite = false
         self.term = term
         self.lectures = []
         self.voiceprints = []
