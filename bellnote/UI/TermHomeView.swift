@@ -128,40 +128,32 @@ struct TodayPage: View {
             // Two glass cards per row. They sit in the section header, like the stat tiles of a course:
             // a list row would clip the glass shadow and draw a grey band under the cards.
             // The delete moves to the long press menu of each card.
-            Section {
-                EmptyView()
-            } header: {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Courses")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                    if orderedCourses.isEmpty {
-                        VStack(spacing: 12) {
-                            Text("No courses yet")
-                                .foregroundStyle(.secondary)
-                            Button("New course", systemImage: "plus") { showSlot = true }
-                                .buttonStyle(.glass)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 24)
-                    }
-                    LazyVGrid(columns: Self.noteColumns, spacing: Self.noteSpacing) {
-                        ForEach(orderedCourses) { course in
-                            Button {
-                                openedCourse = course
-                            } label: {
-                                noteCard(course)
-                            }
-                            .buttonStyle(.plain)
-                            .contextMenu {
-                                Button("Delete", systemImage: "trash", role: .destructive) { askDelete(course) }
+            if !orderedCourses.isEmpty {
+                Section {
+                    EmptyView()
+                } header: {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Courses")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                        LazyVGrid(columns: Self.noteColumns, spacing: Self.noteSpacing) {
+                            ForEach(orderedCourses) { course in
+                                Button {
+                                    openedCourse = course
+                                } label: {
+                                    noteCard(course)
+                                }
+                                .buttonStyle(.plain)
+                                .contextMenu {
+                                    Button("Delete", systemImage: "trash", role: .destructive) { askDelete(course) }
+                                }
                             }
                         }
+                        .padding(.horizontal, -16)
                     }
-                    .padding(.horizontal, -16)
+                    .textCase(nil)
+                    .foregroundStyle(.primary)
                 }
-                .textCase(nil)
-                .foregroundStyle(.primary)
             }
             if !examRows.isEmpty {
                 Section("Exams") {
@@ -182,6 +174,17 @@ struct TodayPage: View {
         }
         .listStyle(.insetGrouped)
         .listRowSpacing(4)
+        .overlay {
+            // A term with no course shows only this, in the middle of the screen.
+            if orderedCourses.isEmpty {
+                VStack(spacing: 12) {
+                    Text("No courses yet")
+                        .foregroundStyle(.secondary)
+                    Button("New course", systemImage: "plus") { showSlot = true }
+                        .buttonStyle(.glass)
+                }
+            }
+        }
         .navigationTitle(termTitle)
         .navigationSubtitle(Date.now.formatted(.dateTime.weekday(.wide).day().month(.wide).locale(session.locale)))
         .navigationDestination(item: $openedCourse) { course in
@@ -253,6 +256,7 @@ struct TodayPage: View {
             }
             .pickerStyle(.inline)
             Divider()
+            Button("New course", systemImage: "plus") { showSlot = true }
             Button("New term", systemImage: "calendar.badge.plus") { showTerm = true }
             Button("Edit term", systemImage: "pencil") { showEditTerm = true }
             Divider()
@@ -391,11 +395,6 @@ struct TodayPage: View {
                 .font(.footnote)
                 .foregroundStyle(.secondary)
             }
-            HStack(spacing: 10) {
-                total(course.lectures.count, "waveform", "Recordings")
-                total(course.assignments.count, "checklist", "Assignments")
-                total(course.sittings.count, "calendar", "Exams")
-            }
             // The days and times of the course in the timetable, one line each.
             VStack(alignment: .leading, spacing: 2) {
                 ForEach(scheduleLines(course), id: \.self) { line in
@@ -404,6 +403,11 @@ struct TodayPage: View {
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
+            }
+            HStack(spacing: 10) {
+                total(course.lectures.count, "waveform", "Recordings")
+                total(course.assignments.count, "checklist", "Assignments")
+                total(course.sittings.count, "calendar", "Exams")
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
