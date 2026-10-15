@@ -107,13 +107,9 @@ struct CoursePage: View {
             if !visibleAssignments.isEmpty {
                 Section {
                     ForEach(visibleAssignments) { assignment in
+                        // The same row as the assignments of a recording: the same fonts, circle and spaces.
                         assignmentLink(assignment)
-                        // The same text as the time of a recording row: `subheadline`, medium.
-                        // The lines under it keep the caption font they set themselves.
-                        .font(.subheadline.weight(.medium))
-                        .askToDeleteSwipe { pendingAssignment = assignment }
-                        // Top and bottom only, the same as the recording rows.
-                        .listRowInsets(.vertical, 8)
+                            .askToDeleteSwipe { pendingAssignment = assignment }
                     }
                 } header: {
                     Text("Assignments")
@@ -145,18 +141,12 @@ struct CoursePage: View {
         .contentMargins(.top, 16, for: .scrollContent)
     }
 
-    /// A task with a recording is a link to it, so the list draws its arrow and keeps the same space at the end as
-    /// the recording rows. The circle sits in the column of the date covers, and the text starts where the text of a
-    /// recording starts.
+    /// A task with a recording is a link to it, so the list draws its arrow. The row itself is the same as the
+    /// one in the assignments of a recording.
     @ViewBuilder
     private func assignmentLink(_ assignment: Assignment) -> some View {
-        let row = AssignmentRow(
-            assignment: assignment,
-            markWidth: Self.coverSize,
-            markGap: Self.coverGap,
-            plainDetails: true,
-            onOpen: nil
-        )
+        // The task text keeps the size it had here: `subheadline`, medium.
+        let row = AssignmentRow(assignment: assignment, smallTitle: true, onOpen: nil)
         if let lecture = assignment.sourceLecture {
             NavigationLink {
                 LecturePage(lecture: lecture, startSecond: assignment.sourceSecond)

@@ -212,39 +212,35 @@ struct AssignmentRow: View {
     /// The lines under the task in the font of the summary line of a recording row, not in the caption font.
     /// The date and "Cancelled" stay a chip.
     var plainDetails = false
+    /// The task text in `subheadline`, medium, like the time of a recording row. False keeps the body font.
+    var smallTitle = false
     /// Called with the second where the lecturer gave the task. Nil makes the row plain.
     var onOpen: ((Int) -> Void)?
 
     /// The height of one line of the task text (`body`). Without a column width the circle is centered in
     /// a box of this height at the top of the row, so it sits in the middle of the first line. Aligning on the
     /// text baseline put it a little too high, because the circle is bigger than the text.
-    @ScaledMetric(relativeTo: .body) private var firstLineHeight: CGFloat = 22
+    @ScaledMetric(relativeTo: .body) private var bodyLineHeight: CGFloat = 22
+    /// The same for the course page, where the task text is `subheadline`.
+    @ScaledMetric(relativeTo: .subheadline) private var subheadlineLineHeight: CGFloat = 20
 
     var body: some View {
-        // With a column width the circle is like a cover, so it is centered on the height of the row.
-        // Without it the circle is centered on the first line of the text.
-        HStack(alignment: markWidth == nil ? .top : .center, spacing: markGap) {
+        // The circle is centered on the first line of the text, in the lecture page and in the course page.
+        HStack(alignment: .top, spacing: markGap) {
             Button {
                 assignment.done.toggle()
             } label: {
-                if markWidth == nil {
-                    Image(
-                        systemName: assignment.cancelled
-                            ? "xmark.circle"
-                            : (assignment.done ? "checkmark.circle.fill" : "circle")
-                    )
-                    .font(.title3)
-                    .foregroundStyle(assignment.done && !assignment.cancelled ? Color.green : Color.secondary)
-                    .frame(height: firstLineHeight)
-                } else {
-                    // In the course page the circle is a glass circle like the date covers: an empty one, a green
-                    // one with a check when done, a plain one with a cross when cancelled.
-                    GlassBadge(
-                        systemName: assignment.cancelled ? "xmark" : (assignment.done ? "checkmark" : nil),
-                        tint: assignment.done && !assignment.cancelled ? .green : nil
-                    )
-                    .frame(width: markWidth)
-                }
+                // The same plain circle everywhere, no glass. With a column width the circle is centered in
+                // that width, so on the course page it sits where the date covers sit.
+                Image(
+                    systemName: assignment.cancelled
+                        ? "xmark.circle"
+                        : (assignment.done ? "checkmark.circle.fill" : "circle")
+                )
+                .font(.title3)
+                .foregroundStyle(assignment.done && !assignment.cancelled ? Color.green : Color.secondary)
+                .frame(height: smallTitle ? subheadlineLineHeight : bodyLineHeight)
+                .frame(width: markWidth)
             }
             .buttonStyle(.plain)
             .disabled(assignment.cancelled)
@@ -277,6 +273,7 @@ struct AssignmentRow: View {
     private var details: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(assignment.text)
+                .font(smallTitle ? .subheadline.weight(.medium) : nil)
                 .strikethrough(assignment.done || assignment.cancelled)
                 .foregroundStyle(assignment.done || assignment.cancelled ? .secondary : .primary)
                 .multilineTextAlignment(.leading)

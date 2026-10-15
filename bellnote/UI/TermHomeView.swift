@@ -142,9 +142,15 @@ struct TodayPage: View {
                     EmptyView()
                 } header: {
                     VStack(alignment: .leading, spacing: 8) {
+                        // Looks like the section titles of the course page ("This week", "Assignments"), which the
+                        // system draws in a plain list. This header sits in a grouped list, so the look is set by hand
+                        // here. Change the font in this one place if the two do not match.
                         Text("Courses")
-                            .font(.subheadline.weight(.semibold))
+                            .font(.headline)
                             .foregroundStyle(.secondary)
+                            // The cards go 16 pt out to the sides (below). The title goes out the same, so it
+                            // starts at the left edge of the cards, like "This week" on the course page.
+                            .padding(.leading, -16)
                         LazyVGrid(columns: Self.noteColumns, spacing: Self.noteSpacing) {
                             ForEach(orderedCourses) { course in
                                 // The card does not fade while it is held down.

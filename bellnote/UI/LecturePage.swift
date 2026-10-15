@@ -326,11 +326,20 @@ struct LectureNote: View {
             }
             ForEach(own) { assignment in
                 AssignmentRow(assignment: assignment) { second in
-                    audio.seek(to: second, play: true)
+                    // Plays the sentence where the task was given and pauses there. The play button goes on.
+                    audio.seek(to: second, play: true, until: endSecond(of: assignment))
                 }
                 .askToDeleteSwipe { pendingAssignment = assignment }
             }
         }
+    }
+
+    /// Where the block of a task ends: the start of the next block of this recording. Nil for the last block,
+    /// which then plays to the end of the recording.
+    private func endSecond(of assignment: Assignment) -> Int? {
+        let ordered = lecture.blocks.sorted { $0.second < $1.second }
+        let start = ordered.first { $0.token == assignment.sourceBlockID }?.second ?? assignment.sourceSecond
+        return ordered.first { $0.second > start }?.second
     }
 
     /// Homework that came from this lecture's own text.
@@ -677,12 +686,14 @@ final class LectureAudio {
         Task { await togglePlayback() }
     }
 
-    func seek(to second: Int, play: Bool) {
+    /// `until` is a second where the player pauses by itself. The student can go on from the play button.
+    /// Without it the recording plays to its end.
+    func seek(to second: Int, play: Bool, until: Int? = nil) {
         // The shown second moves at once, so the slider does not wait for the player.
         currentSecond = min(max(0, second), max(duration, 0))
         pendingSeeks += 1
         Task {
-            await seekPlayback(to: second, play: play)
+            await seekPlayback(to: second, play: play, until: until)
             pendingSeeks -= 1
         }
     }
@@ -712,10 +723,12 @@ final class LectureAudio {
         isPlaying = await engine.play()
     }
 
-    private func seekPlayback(to second: Int, play: Bool) async {
+    private func seekPlayback(to second: Int, play: Bool, until: Int?) async {
         let clamped = min(max(0, second), max(duration, 0))
         if play {
-            isPlaying = await engine.play(from: TimeInterval(clamped))
+            // A stop at or before the start would pause at once, so it is ignored.
+            let stop = until.flatMap { $0 > clamped ? TimeInterval($0) : nil }
+            isPlaying = await engine.play(from: TimeInterval(clamped), until: stop)
         } else {
             await engine.setCurrentTime(TimeInterval(clamped))
         }
@@ -727,6 +740,8 @@ private final class LecturePlaybackEngine: @unchecked Sendable {
     private let queue = DispatchQueue(label: "app.bellnote.lecture-playback", qos: .userInitiated)
     private var player: AVAudioPlayer?
     private var sessionReady = false
+    /// The pause that is waiting for the end of a task sentence. Only used on `queue`.
+    private var stopItem: DispatchWorkItem?
 
     struct Snapshot: Sendable {
         var timeSeconds: Int
@@ -735,6 +750,8 @@ private final class LecturePlaybackEngine: @unchecked Sendable {
 
     func reset() async {
         await onQueue { [self] in
+            stopItem?.cancel()
+            stopItem = nil
             player?.stop()
             player = nil
             sessionReady = false
@@ -759,11 +776,17 @@ private final class LecturePlaybackEngine: @unchecked Sendable {
     }
 
     func pause() async {
-        await onQueue { [self] in player?.pause() }
+        await onQueue { [self] in
+            stopItem?.cancel()
+            stopItem = nil
+            player?.pause()
+        }
     }
 
     func stop() async {
         await onQueue { [self] in
+            stopItem?.cancel()
+            stopItem = nil
             player?.stop()
             sessionReady = false
         }
@@ -774,16 +797,27 @@ private final class LecturePlaybackEngine: @unchecked Sendable {
         await onQueue { [self] in player?.currentTime = time }
     }
 
-    func play(from time: TimeInterval? = nil) async -> Bool {
+    /// Plays from `time`, or from where it is. With `until` the player pauses at that second by itself.
+    /// Any other play, pause, stop or reset cancels an earlier stop, so the play button always goes on.
+    func play(from time: TimeInterval? = nil, until: TimeInterval? = nil) async -> Bool {
         guard await ensureSession() else { return false }
         return await onQueue { [self] in
+            stopItem?.cancel()
+            stopItem = nil
             guard let player else {
                 Logger(subsystem: "app.bellnote", category: "player").error("Play asked with no player")
                 return false
             }
             if let time { player.currentTime = time }
             player.prepareToPlay()
-            return player.play()
+            let started = player.play()
+            if started, let until {
+                // The item runs on `queue` too, so it reads the player there. It holds the engine, not the player.
+                let item = DispatchWorkItem { [weak self] in self?.player?.pause() }
+                stopItem = item
+                queue.asyncAfter(deadline: .now() + max(0, until - player.currentTime), execute: item)
+            }
+            return started
         }
     }
 
