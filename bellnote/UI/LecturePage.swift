@@ -8,10 +8,45 @@ struct LecturePage: View {
     /// Plays from this second once the recording is loaded.
     var startSecond: Int?
 
+    @State private var editingTitle = false
+    @State private var titleDraft = ""
+
     var body: some View {
-        LectureNote(lecture: lecture, showsDate: false, startSecond: startSecond)
-            .navigationTitle(lecture.startedAt.formatted(date: .abbreviated, time: .shortened))
+        LectureNote(lecture: lecture, showsDate: false, startSecond: startSecond) {
+            titleDraft = lecture.title
+            editingTitle = true
+        }
+            .navigationTitle(barTitle)
             .navigationSubtitle(subtitle)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                // The headline takes two lines in the middle of the bar.
+                ToolbarItem(placement: .principal) {
+                    Text(barTitle)
+                        .font(.subheadline.weight(.semibold))
+                        .lineLimit(2)
+                        .multilineTextAlignment(.center)
+                }
+            }
+            .alert("Title", isPresented: $editingTitle) {
+                TextField("Title", text: $titleDraft)
+                Button("Save") { saveTitle() }
+                Button("Cancel", role: .cancel) {}
+            }
+    }
+
+    /// The headline the model wrote from the AI correction, or the date while there is none.
+    private var barTitle: String {
+        lecture.title.isEmpty
+            ? lecture.startedAt.formatted(date: .abbreviated, time: .shortened)
+            : lecture.title
+    }
+
+    /// An empty title goes back to the date, and the model writes a new headline at the next run.
+    private func saveTitle() {
+        let trimmed = titleDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        lecture.title = trimmed
+        lecture.titleEdited = !trimmed.isEmpty
     }
 
     private var subtitle: String {
@@ -30,6 +65,8 @@ struct LectureNote: View {
     @Bindable var lecture: Lecture
     var showsDate: Bool
     var startSecond: Int?
+    /// When set, the bar has a pencil to the left of the Process button that calls this.
+    var onEditTitle: (() -> Void)?
 
     @Environment(AppSession.self) private var session
     @State private var audio = LectureAudio()
@@ -45,6 +82,7 @@ struct LectureNote: View {
     @State private var choosingSpeaker = false
     @State private var typingSpeaker = false
     @State private var typedSpeakerName = ""
+    @State private var showCancel = false
     @State private var tab: LectureTab = .correction
     /// Speakers chosen in the Raw tab. Empty means everyone.
     @State private var chosenSpeakers: Set<Int> = []
@@ -63,17 +101,6 @@ struct LectureNote: View {
                 // centres the message on the page.
                 EmptyView()
             } else {
-                Section {
-                    Picker("", selection: $tab) {
-                        Text("AI correction").tag(LectureTab.correction)
-                        Text("Raw").tag(LectureTab.raw)
-                        Text("Assignments").tag(LectureTab.assignments)
-                    }
-                    .pickerStyle(.segmented)
-                    .labelsHidden()
-                    .listRowBackground(Color.clear)
-                    .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
-                }
                 switch tab {
                 case .correction:
                     correctionSections
@@ -85,10 +112,32 @@ struct LectureNote: View {
             }
         }
         .listStyle(.insetGrouped)
+        // The tabs sit under the navigation bar, in the middle, and the list scrolls under them.
+        .safeAreaBar(edge: .top) {
+            if !(lecture.isRecordedOnly && workingStage == nil) {
+                VStack(spacing: 12) {
+                    Picker("", selection: $tab) {
+                        Text("AI correction").tag(LectureTab.correction)
+                        Text("Raw").tag(LectureTab.raw)
+                        Text("Assignments").tag(LectureTab.assignments)
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .scenePadding(.horizontal)
+                    // The speaker tags belong to the Raw tab. They are not a row of the list.
+                    if tab == .raw, speakerTagGroups.count > 1,
+                       !(lecture.blocks.isEmpty && lecture.flaggedSeconds.isEmpty) {
+                        speakerTags
+                    }
+                }
+                // Space under the tabs, so the bar reaches a little lower than the tabs.
+                .padding(.bottom, 12)
+            }
+        }
         .overlay {
             // While the lecture is processed, the ring takes the screen. The notes come back when it ends.
             if let workingStep {
-                ProcessingCircle(step: workingStep)
+                ProcessingCircle(step: workingStep, isStopping: PipelineActivity.shared.isStopping(lecture))
             } else if lecture.isRecordedOnly {
                 NotProcessedView { start() }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -96,8 +145,39 @@ struct LectureNote: View {
             }
         }
         .toolbar {
-            // A recording that was never processed has its own Process button in the middle.
-            if lecture.audioRelativePath != nil, !(lecture.isRecordedOnly && workingStage == nil) {
+            if let onEditTitle {
+                ToolbarItem(placement: .primaryAction) {
+                    Button("Edit title", systemImage: "pencil", action: onEditTitle)
+                        .labelStyle(.iconOnly)
+                        .disabled(workingStage != nil)
+                }
+            }
+            if workingStage != nil {
+                // Only while the lecture is processed. It opens a small popover with one red button.
+                ToolbarItem(placement: .primaryAction) {
+                    Button("Cancel processing", systemImage: "xmark") {
+                        showCancel = true
+                    }
+                    .labelStyle(.iconOnly)
+                    // Once asked, the run ends when the step it is in lets go.
+                    .disabled(PipelineActivity.shared.isStopping(lecture))
+                    .popover(isPresented: $showCancel) {
+                        // The red button of the recorder: prominent glass, tinted red.
+                        Button {
+                            showCancel = false
+                            PipelineActivity.shared.stop(lecture)
+                        } label: {
+                            Label("Cancel processing", systemImage: "xmark")
+                        }
+                        .buttonStyle(.glassProminent)
+                        .controlSize(.large)
+                        .tint(.red)
+                        .padding()
+                        .presentationCompactAdaptation(.popover)
+                    }
+                }
+            } else if lecture.audioRelativePath != nil, !lecture.isRecordedOnly {
+                // A recording that was never processed has its own Process button in the middle.
                 ToolbarItem(placement: .primaryAction) {
                     let again = lecture.state == LectureState.ready.rawValue
                     Button(
@@ -111,13 +191,13 @@ struct LectureNote: View {
                         }
                     }
                     .labelStyle(.iconOnly)
-                    .disabled(workingStage != nil)
                 }
             }
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             // Pinned, so the buttons stay put while the page scrolls. The player is in the tab bar's accessory.
-            if tab == .correction, hasCorrection, let course = lecture.course {
+            // Only when the whole run is over. The correction is written before the last stages end.
+            if tab == .correction, hasCorrection, workingStage == nil, let course = lecture.course {
                 studyBar(course)
             }
         }
@@ -127,9 +207,9 @@ struct LectureNote: View {
                 audio.seek(to: startSecond, play: true)
             }
         }
-        .onChange(of: audio.duration) { _, duration in
-            if duration > 0 { session.player = audio }
-        }
+        .onChange(of: audio.duration) { syncPlayer() }
+        // The player leaves while the lecture is processed and comes back when the whole run is over.
+        .onChange(of: workingStage == nil) { syncPlayer() }
         .onDisappear {
             audio.stop()
             if session.player === audio { session.player = nil }
@@ -171,12 +251,12 @@ struct LectureNote: View {
             Button("Cancel", role: .cancel) { namingSpeaker = nil }
         }
         .alert("Process again?", isPresented: $askReprocess) {
-            Button("Process again", role: .destructive) {
+            Button("Delete and process again", role: .destructive) {
                 start()
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("The written notes will be deleted. The recording stays.")
+            Text("The raw text, the AI correction, the assignments and the title are deleted at once. Cancelling the processing does not bring them back. The recording stays.")
         }
     }
 
@@ -208,9 +288,6 @@ struct LectureNote: View {
                     .foregroundStyle(.secondary)
             }
         } else {
-            if speakerTagGroups.count > 1 {
-                Section { speakerTags }
-            }
             Section {
                 ForEach(blocks) { block in
                     chapterLabel(block)
@@ -288,6 +365,17 @@ struct LectureNote: View {
         // 21 pt from each edge, the same as the tab bar and the player accessory below.
         .padding(.horizontal, 21)
         .padding(.bottom, 8)
+    }
+
+    /// Puts the player in the tab bar's accessory when the recording is loaded and no run is going.
+    /// A run that starts takes it away and stops the sound, so no sound plays without its controls.
+    private func syncPlayer() {
+        if workingStage == nil, audio.duration > 0 {
+            session.player = audio
+        } else if session.player === audio {
+            if workingStage != nil { audio.stop() }
+            session.player = nil
+        }
     }
 
     private var hasCorrection: Bool {
@@ -401,30 +489,33 @@ struct LectureNote: View {
     /// shows every speaker.
     private var speakerTags: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            GlassEffectContainer(spacing: 8) {
-                HStack(spacing: 8) {
-                    ForEach(speakerTagGroups) { tag in
-                        let chosen = Set(tag.clusters).isSubset(of: chosenSpeakers)
-                        Button {
-                            if chosen {
-                                chosenSpeakers.subtract(tag.clusters)
-                            } else {
-                                chosenSpeakers.formUnion(tag.clusters)
-                            }
-                        } label: {
-                            Text(verbatim: tag.title)
-                                .lineLimit(1)
+            HStack {
+                ForEach(speakerTagGroups) { tag in
+                    let chosen = Set(tag.clusters).isSubset(of: chosenSpeakers)
+                    Button {
+                        if chosen {
+                            chosenSpeakers.subtract(tag.clusters)
+                        } else {
+                            chosenSpeakers.formUnion(tag.clusters)
                         }
-                        .buttonStyle(.glass)
-                        .tint(chosen ? Color.accentColor : nil)
-                        .accessibilityAddTraits(chosen ? .isSelected : [])
+                    } label: {
+                        Text(verbatim: tag.title)
+                            .font(.subheadline)
+                            .lineLimit(1)
+                            // Only the text changes when the tag is chosen: the accent colour.
+                            .foregroundStyle(chosen ? Color.accentColor : Color.primary)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
                     }
+                    // Plain style with a glass capsule that is not interactive. The `.glass` button style
+                    // grows and shrinks under the finger, and this does not.
+                    .buttonStyle(.plain)
+                    .glassEffect(.regular, in: .capsule)
+                    .accessibilityAddTraits(chosen ? .isSelected : [])
                 }
-                .padding(.horizontal, 16)
             }
+            .padding(.horizontal, 16)
         }
-        .listRowInsets(EdgeInsets())
-        .listRowBackground(Color.clear)
     }
 
     private var lecturerName: String? {

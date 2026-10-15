@@ -20,6 +20,22 @@ enum LecturePipeline {
         }
         activity.set(PipelineStage(rawValue: lecture.stage)?.next ?? .audio, for: lecture)
         defer { activity.clear(for: lecture) }
+        // The work runs in a task of its own that the activity keeps, so Stop can cancel it.
+        let work = Task {
+            await run(lecture: lecture, context: context, pageModel: pageModel, onProgress: onProgress)
+        }
+        activity.register(work, for: lecture)
+        await work.value
+        log.info("Run ended stopping=\(activity.isStopping(lecture)) state=\(lecture.state, privacy: .public) stage=\(lecture.stage, privacy: .public)")
+    }
+
+    private static func run(
+        lecture: Lecture,
+        context: ModelContext,
+        pageModel: ModelRole,
+        onProgress: ((PipelineStage) -> Void)?
+    ) async {
+        let activity = PipelineActivity.shared
         func report(_ working: PipelineStage) async {
             activity.set(working, for: lecture)
             onProgress?(working)
@@ -43,6 +59,7 @@ enum LecturePipeline {
         log.info("Process start course=\(course.name, privacy: .public) stage=\(stage.rawValue, privacy: .public) audio=\(lecture.audioRelativePath ?? "none", privacy: .public)")
         do {
             if stage == .idle || stage == .audio {
+                try Task.checkCancellation()
                 log.info("Stage audio")
                 await report(.audio)
                 try await finishAudio(lecture)
@@ -51,6 +68,7 @@ enum LecturePipeline {
                 try context.save()
             }
             if stage == .audio {
+                try Task.checkCancellation()
                 log.info("Stage speakers")
                 await report(.speakers)
                 try await finishSpeakers(lecture)
@@ -59,6 +77,7 @@ enum LecturePipeline {
                 try context.save()
             }
             if stage == .speakers {
+                try Task.checkCancellation()
                 log.info("Stage transcript")
                 await report(.transcript)
                 try await finishTranscript(lecture, course: course)
@@ -68,6 +87,7 @@ enum LecturePipeline {
                 log.info("Transcript blocks=\(lecture.blocks.count)")
             }
             if stage == .transcript {
+                try Task.checkCancellation()
                 // The transcript is saved. Stopping here keeps it, and a later run resumes at the tags.
                 guard await LocalModelRuntime.shared.hasTextModel() else {
                     log.error("Tags stopped: no text model is installed, the transcript is kept")
@@ -76,21 +96,27 @@ enum LecturePipeline {
                 log.info("Stage tags model=\(ModelCatalog.repo(for: pageModel), privacy: .public)")
                 await report(.tags)
                 try await finishTags(lecture, course: course)
+                try Task.checkCancellation()
                 stage = .tags
                 lecture.stage = stage.rawValue
                 try context.save()
                 log.info("Tags blocks=\(lecture.blocks.count)")
             }
             if stage == .tags {
+                try Task.checkCancellation()
                 log.info("Stage page model=\(ModelCatalog.repo(for: pageModel), privacy: .public)")
                 await report(.page)
                 await finishPage(lecture, course: course, context: context)
+                await finishHeadline(lecture)
+                // A stop during these two steps drops their half result.
+                try Task.checkCancellation()
                 stage = .page
                 lecture.stage = stage.rawValue
                 try context.save()
                 log.info("AI correction characters=\(lecture.summary.count)")
             }
             if stage == .page {
+                try Task.checkCancellation()
                 log.info("Stage links")
                 await report(.links)
                 finishLinks(lecture, course: course, context: context)
@@ -102,6 +128,10 @@ enum LecturePipeline {
                 log.info("Process ready")
                 await LocalModelRuntime.shared.unloadAll()
             }
+        } catch where activity.isStopping(lecture) || error is CancellationError {
+            // Stopped by the student. A step that fails because it was cancelled lands here too.
+            log.info("Stop caught completed=\(stage.rawValue, privacy: .public) isStopping=\(activity.isStopping(lecture)) isCancelled=\(Task.isCancelled) errorType=\(String(describing: type(of: error)), privacy: .public) error=\(String(describing: error), privacy: .public)")
+            await markStopped(lecture, completed: stage, context: context)
         } catch let error as TranscriptError {
             lecture.state = LectureState.failed.rawValue
             lecture.stage = stage.rawValue
@@ -146,6 +176,27 @@ enum LecturePipeline {
         }
     }
 
+    /// The run was stopped. The steps that finished stay, and Process resumes after them. The text of a
+    /// step that was cut half way is dropped, so no half correction stays on the page.
+    private static func markStopped(_ lecture: Lecture, completed: PipelineStage, context: ModelContext) async {
+        let correctionDone = completed == .page || completed == .links || completed == .ready
+        if !correctionDone {
+            lecture.summary = ""
+            if !lecture.titleEdited { lecture.title = "" }
+        }
+        lecture.stage = completed.rawValue
+        lecture.state = LectureState.paused.rawValue
+        lecture.failureMessageKey = nil
+        lecture.neededModel = nil
+        do {
+            try context.save()
+        } catch {
+            log.error("Stop save failed message=\(error.localizedDescription, privacy: .public)")
+        }
+        await LocalModelRuntime.shared.unloadAll()
+        log.info("Process stopped by the student, completed=\(completed.rawValue, privacy: .public)")
+    }
+
     private static func finishAudio(_ lecture: Lecture) async throws {
         guard let path = lecture.audioRelativePath else { throw TranscriptError.unreadable }
         let url = try Vault.documents().appendingPathComponent(path)
@@ -164,6 +215,10 @@ enum LecturePipeline {
         }
         lecture.blocks.removeAll()
         lecture.summary = ""
+        // The notes are written again, so the headline goes too, a typed one as well. Until the model
+        // writes a new one, the bar shows the date.
+        lecture.title = ""
+        lecture.titleEdited = false
         lecture.speakerNames = []
         lecture.processedThroughSecond = 0
         lecture.failureMessageKey = nil
@@ -216,6 +271,8 @@ enum LecturePipeline {
                 }
             } catch let error as TranscriptError {
                 throw error
+            } catch is CancellationError {
+                throw CancellationError()
             } catch {
                 log.error("Whisper ASR failed message=\(error.localizedDescription, privacy: .public)")
                 throw TranscriptError.whisperNotWriting
@@ -327,7 +384,11 @@ enum LecturePipeline {
         var tasks: [String] = []
         for chunk in CorrectionText.chunks(source.map(\.text)) {
             do {
-                let output = try await LocalModelRuntime.shared.correct(chunk)
+                let output = try await LocalModelRuntime.shared.correct(
+                    chunk,
+                    lectureName: course.name,
+                    localeIdentifier: course.localeIdentifier
+                )
                 let parts = CorrectionText.split(output)
                 let faithful = CorrectionText.isFaithful(parts.body, to: chunk)
                 let kept = CorrectionText.overlap(chunk, CorrectionText.plain(parts.body))
@@ -355,6 +416,25 @@ enum LecturePipeline {
         lecture.summary = paragraphs.joined(separator: "\n\n")
         log.info("Correction final characters=\(lecture.summary.count) paragraphs=\(paragraphs.count) tasks=\(tasks.count)")
         addAssignments(tasks, lecture: lecture, course: course, source: source, context: context)
+    }
+
+    /// Writes the headline of the lecture from its AI correction. A title the student typed is kept.
+    /// If the model fails or its words are not from the text, the lecture just has no headline.
+    private static func finishHeadline(_ lecture: Lecture) async {
+        guard !lecture.titleEdited else { return }
+        let text = CorrectionText.plain(lecture.summary).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return }
+        do {
+            let raw = try await LocalModelRuntime.shared.headline(for: String(text.prefix(3000)))
+            if let headline = CorrectionText.headline(raw, from: text) {
+                lecture.title = headline
+                log.info("Headline kept characters=\(headline.count)")
+            } else {
+                log.warning("Headline rejected, the lecture has no headline")
+            }
+        } catch {
+            log.error("Headline failed, the lecture has no headline message=\(error.localizedDescription, privacy: .public)")
+        }
     }
 
     private static func addAssignments(

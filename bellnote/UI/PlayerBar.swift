@@ -48,12 +48,14 @@ struct StudyButton: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 4) {
-                Image(systemName: systemImage)
-                    .foregroundStyle(Color.accentColor)
+            // A label, so the system sets the space between the icon and the text.
+            Label {
                 title
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
+            } icon: {
+                Image(systemName: systemImage)
+                    .foregroundStyle(Color.accentColor)
             }
             // The label fills the button, so a row of three splits its width evenly.
             // The minimum height keeps the button as tall as one with the body font.

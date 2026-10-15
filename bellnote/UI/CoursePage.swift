@@ -1,6 +1,7 @@
 import OSLog
 import SwiftData
 import SwiftUI
+import UIKit
 
 enum LectureStarter {
     @MainActor
@@ -421,8 +422,14 @@ struct CoursePage: View {
 
     private static let emptyLecturesID = "emptyLectures"
     /// The date cover of a recording and the space between it and the text. The separator line starts after both.
-    private static let coverSize: CGFloat = 56
+    private static let coverSize: CGFloat = 48
     private static let coverGap: CGFloat = 12
+    /// The height of the digits of the time text (`body`, small Dynamic Type size). The status symbol is at most this
+    /// tall. This is the height of the capital letters, not the height of the whole line.
+    private static let timeDigitHeight: CGFloat = UIFont.preferredFont(
+        forTextStyle: .body,
+        compatibleWith: UITraitCollection(preferredContentSizeCategory: .small)
+    ).capHeight
     private static let detailLineRoom = 3
 
     private func scrollToRecordings(_ proxy: ScrollViewProxy) {
@@ -453,8 +460,9 @@ struct CoursePage: View {
 
     private func statTileBody(value: Int, title: LocalizedStringKey, tint: Color, details: [String]) -> some View {
         VStack(alignment: .leading, spacing: 2) {
+            // The same fonts as the recording rows: the title like the time, the lines like the summary.
             Text(title)
-                .font(.footnote.weight(.semibold))
+                .font(.callout.weight(.medium))
                 .foregroundStyle(.primary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
@@ -462,7 +470,7 @@ struct CoursePage: View {
                 .font(.title2.weight(.bold).monospacedDigit())
             ForEach(details, id: \.self) { line in
                 Text(verbatim: line)
-                    .font(.caption)
+                    .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.85)
@@ -470,10 +478,12 @@ struct CoursePage: View {
             // Empty lines keep room for three detail lines, so the tiles do not grow and shrink with the data.
             ForEach(0..<max(0, Self.detailLineRoom - details.count), id: \.self) { _ in
                 Text(verbatim: " ")
-                    .font(.caption)
+                    .font(.subheadline)
                     .hidden()
             }
         }
+        // The same Dynamic Type size as the recording rows.
+        .dynamicTypeSize(.medium)
         // The tiles share one row, so they grow to the tallest one and stay the same height.
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .padding(12)
@@ -487,33 +497,48 @@ struct CoursePage: View {
         let separatorStart = Self.coverSize + Self.coverGap
         return HStack(spacing: Self.coverGap) {
             DateCover(date: lecture.startedAt, courseName: course.name, size: Self.coverSize)
+                .accessibilityValue(Text(lecture.statusTitle))
+            // The time and the length on the first line, the summary under them.
             VStack(alignment: .leading, spacing: 2) {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Text(lecture.startedAt.formatted(.dateTime.hour().minute().locale(locale)))
-                        // `body` at the small Dynamic Type size, 1 pt under the medium size.
+                        // `body` at the small Dynamic Type size, about 15 pt.
                         .font(.body.weight(.medium))
                         .dynamicTypeSize(.small)
-                    Text(lecture.statusTitle)
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(lecture.statusTint)
+                        .foregroundStyle(.secondary)
+                    Image(systemName: lecture.statusSymbol)
+                        // The same weight as the time. The symbol is scaled so that it is at most as tall as the digits
+                        // of the time. A wide symbol is lower than that, it never goes above it.
+                        .resizable()
+                        .scaledToFit()
+                        .frame(maxHeight: Self.timeDigitHeight)
+                        .font(.body.weight(.medium))
+                        .dynamicTypeSize(.small)
+                        // The system colours are bright. On the light background a small symbol in them is hard to
+                        // see, so there they are mixed with black. On the dark background they stay as they are.
+                        .foregroundStyle(
+                            colorScheme == .dark ? lecture.statusTint : lecture.statusTint.mix(with: .black, by: 0.3)
+                        )
+                        // The cover already tells the status to VoiceOver.
+                        .accessibilityHidden(true)
                     if lecture.recordedSeconds >= 60 {
                         Text(String(format: String(localized: "%lld min"), lecture.recordedSeconds / 60))
                             .font(.subheadline)
                             .dynamicTypeSize(.medium)
                             .foregroundStyle(.secondary)
                     }
-                    Spacer(minLength: 0)
                 }
                 let excerpt = preview(lecture)
                 if !excerpt.isEmpty {
-                    // `subheadline` at the medium Dynamic Type size, 1 pt under the size of the system.
+                    // `subheadline` at the medium Dynamic Type size, about 14 pt.
                     Text(excerpt)
                         .font(.subheadline)
                         .dynamicTypeSize(.medium)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.primary)
                         .lineLimit(2)
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
         // The separator line starts at the text, not under the cover, like the song rows of Apple Music.
         // The value is measured from the left edge of the row content, where the cover starts, so it is the
@@ -557,7 +582,11 @@ struct CoursePage: View {
         }
     }
 
+    /// The headline of the lecture. A lecture from before the headlines has none, and shows the start of
+    /// its AI correction instead.
     private func preview(_ lecture: Lecture) -> String {
+        let title = lecture.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !title.isEmpty { return title }
         let summary = lecture.summary.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !summary.isEmpty else { return "" }
         return CorrectionText.plain(summary)

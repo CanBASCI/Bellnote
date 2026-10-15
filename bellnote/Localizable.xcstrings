@@ -431,6 +431,38 @@
         }
       }
     },
+    "Cancelling…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cancelling…"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "İptal ediliyor…"
+          }
+        }
+      }
+    },
+    "Cancel processing" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cancel processing"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "İşlemi iptal et"
+          }
+        }
+      }
+    },
     "Cancelled" : {
       "localizations" : {
         "en" : {
@@ -943,6 +975,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Dönemi düzenle"
+          }
+        }
+      }
+    },
+    "Edit title" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edit title"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Başlığı düzenle"
           }
         }
       }
@@ -2322,6 +2370,22 @@
         }
       }
     },
+    "Delete and process again" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete and process again"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sil ve tekrar işle"
+          }
+        }
+      }
+    },
     "Process again" : {
       "localizations" : {
         "en" : {
@@ -3407,6 +3471,22 @@
         }
       }
     },
+    "The step that is running has to end first. Then the work stops." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The step that is running has to end first. Then the work stops."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Çalışan adımın önce bitmesi gerekiyor. Sonra işlem durur."
+          }
+        }
+      }
+    },
     "The term could not be deleted." : {
       "localizations" : {
         "en" : {
@@ -3457,18 +3537,18 @@
         }
       }
     },
-    "The written notes will be deleted. The recording stays." : {
+    "The raw text, the AI correction, the assignments and the title are deleted at once. Cancelling the processing does not bring them back. The recording stays." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "The written notes will be deleted. The recording stays."
+            "value" : "The raw text, the AI correction, the assignments and the title are deleted at once. Cancelling the processing does not bring them back. The recording stays."
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Yazılan metin silinir. Ses kaydı durur."
+            "value" : "Ham metin, AI düzeltme, ödevler ve başlık hemen silinir. İşlemi iptal etsen bile geri gelmezler. Ses kaydı kalır."
           }
         }
       }

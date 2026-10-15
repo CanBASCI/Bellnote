@@ -36,7 +36,7 @@ extension LectureState {
         switch self {
         case .recording: "circle.fill"
         case .paused: "pause"
-        case .processing: "hourglass"
+        case .processing: "circle.dotted"
         case .ready: "checkmark"
         case .failed: "exclamationmark"
         }
@@ -97,12 +97,13 @@ struct CourseBadge: View {
 }
 
 /// The day of a recording as a small square, where Apple Music shows the cover of a song.
-/// It has the colour of the course, the month on top and the day number under it.
+/// It is Liquid Glass in the colour of the course, with the month on top and the day number under it.
 struct DateCover: View {
     var date: Date
     var courseName: String
     var size: CGFloat = 48
     @Environment(\.locale) private var locale
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         VStack(spacing: 0) {
@@ -113,11 +114,11 @@ struct DateCover: View {
         }
         .foregroundStyle(.primary)
         .frame(width: size, height: size)
-        // A plain square with no fill, only a border in the secondary colour, so it follows light and dark mode.
-        .overlay {
-            RoundedRectangle(cornerRadius: size * 0.2, style: .continuous)
-                .strokeBorder(.secondary, lineWidth: 1)
-        }
+        // Liquid Glass tinted with the colour of the course, with the same tint strength as the tiles on the course page.
+        .glassEffect(
+            .regular.tint(CourseStyle.color(for: courseName).opacity(colorScheme == .dark ? 0.5 : 0.28)),
+            in: .rect(cornerRadius: size * 0.2)
+        )
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text(verbatim: date.formatted(.dateTime.day().month(.wide).locale(locale))))
     }
@@ -208,8 +209,8 @@ struct AssignmentRow: View {
     var markWidth: CGFloat?
     /// The space between the circle and the text.
     var markGap: CGFloat = 12
-    /// The lines under the task as plain text, in the font of the summary line of a recording row,
-    /// not as a chip and in the caption font.
+    /// The lines under the task in the font of the summary line of a recording row, not in the caption font.
+    /// The date and "Cancelled" stay a chip.
     var plainDetails = false
     /// Called with the second where the lecturer gave the task. Nil makes the row plain.
     var onOpen: ((Int) -> Void)?
@@ -273,22 +274,13 @@ struct AssignmentRow: View {
                 .strikethrough(assignment.done || assignment.cancelled)
                 .foregroundStyle(assignment.done || assignment.cancelled ? .secondary : .primary)
                 .multilineTextAlignment(.leading)
+            // The lines under the task. On the course page they have the size of the summary and the length of a
+            // recording row: `subheadline` at the medium Dynamic Type size.
+            Group {
             if assignment.cancelled {
-                if plainDetails {
-                    Text("Cancelled")
-                        .font(.subheadline)
-                        .foregroundStyle(.orange)
-                } else {
-                    StatusChip(title: String(localized: "Cancelled"), tint: .orange)
-                }
+                StatusChip(title: String(localized: "Cancelled"), tint: .orange)
             } else if let due = assignment.due {
-                if plainDetails {
-                    Text(AssignmentRow.dueTitle(due))
-                        .font(.subheadline)
-                        .foregroundStyle(Color.accentColor)
-                } else {
-                    StatusChip(title: AssignmentRow.dueTitle(due), tint: .accentColor)
-                }
+                StatusChip(title: AssignmentRow.dueTitle(due), tint: .accentColor)
             } else {
                 Text("No date was spoken.")
                     .font(plainDetails ? .subheadline : .caption)
@@ -315,6 +307,10 @@ struct AssignmentRow: View {
                 }
                 .font(plainDetails ? .subheadline : .caption)
                 .foregroundStyle(.secondary)
+            }
+            }
+            .transformEnvironment(\.dynamicTypeSize) { size in
+                if plainDetails { size = .medium }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

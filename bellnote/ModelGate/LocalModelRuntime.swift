@@ -120,14 +120,15 @@ actor LocalModelRuntime {
 
     /// Rewrites dictated text with correct spelling, punctuation and word order.
     /// The model marks important parts with ** and lists homework as ASSIGNMENT lines.
-    func correct(_ text: String) async throws -> String {
+    func correct(_ text: String, lectureName: String, localeIdentifier: String) async throws -> String {
         beginCall()
         defer { endCall() }
         let role = try composeRole()
         Self.log.info("Correct begin characters=\(text.count) role=\(role.rawValue, privacy: .public) input=\(text, privacy: .public)")
         do {
             try await ensure(role)
-            let session = try makeSession(role: role, instructions: correctionInstructions)
+            let instructions = correctionInstructions(lectureName: lectureName, localeIdentifier: localeIdentifier)
+            let session = try makeSession(role: role, instructions: instructions)
             let limit = min(1500, text.count / 2 + 300)
             let response = try await session.respond(
                 to: "Text:\n\(text)\n\nCorrected text:",
@@ -138,6 +139,29 @@ actor LocalModelRuntime {
             return output
         } catch {
             Self.log.error("Correct failed: \(error.localizedDescription, privacy: .public)")
+            throw error
+        }
+    }
+
+    /// Writes a short headline for a lecture from its corrected text. The caller checks that the words
+    /// of the headline come from the text.
+    func headline(for text: String) async throws -> String {
+        beginCall()
+        defer { endCall() }
+        let role = try composeRole()
+        Self.log.info("Headline begin characters=\(text.count) role=\(role.rawValue, privacy: .public)")
+        do {
+            try await ensure(role)
+            let session = try makeSession(role: role, instructions: headlineInstructions)
+            let response = try await session.respond(
+                to: "Text:\n\(text)\n\nHeadline:",
+                options: GenerationOptions(temperature: 0, maximumResponseTokens: 80)
+            )
+            let output = response.content.trimmingCharacters(in: .whitespacesAndNewlines)
+            Self.log.info("Headline ok characters=\(output.count) text=\(output, privacy: .public)")
+            return output
+        } catch {
+            Self.log.error("Headline failed: \(error.localizedDescription, privacy: .public)")
             throw error
         }
     }
@@ -367,26 +391,88 @@ actor LocalModelRuntime {
         """
     }
 
-    private var correctionInstructions: String {
+    /// Examples for the correction, by lecture language. A language without examples gets none,
+    /// so a lecture is never shown an example in another language. One example changes nothing
+    /// on purpose, so that the model leaves correct text alone.
+    private static let correctionExamples: [String: [(text: String, corrected: String)]] = [
+        "tr": [
+            (
+                "bugün sinavda cikacak konulari anlatiyorum herkes halini kaldirsin",
+                "Bugün sınavda çıkacak konuları anlatıyorum. Herkes elini kaldırsın."
+            ),
+            (
+                "Bugün derse geç kaldım, kusura bakmayın.",
+                "Bugün derse geç kaldım, kusura bakmayın."
+            )
+        ],
+        "en": [
+            (
+                "to day we start with the second chapter every one open you're books",
+                "Today we start with the second chapter. Everyone, open your books."
+            ),
+            (
+                "Sorry I'm late. Let's get started.",
+                "Sorry I'm late. Let's get started."
+            )
+        ]
+    ]
+
+    /// The correction prompt: the rules, the lecture name and language, and the examples of the language.
+    private func correctionInstructions(lectureName: String, localeIdentifier: String) -> String {
+        let intro = """
+            You proofread a transcript of a spoken lecture. The text comes from speech recognition: \
+            it has little punctuation and some misheard words. Work in the same language.
+            """
+        let rules = """
+            1. Add punctuation, capital letters and sentence breaks. \
+            2. Put each sentence in normal word order, for example the verb at the end in Turkish. \
+            3. Change a word only when it is clearly misheard and the right word sounds almost the \
+            same, for example halini to elini. Otherwise copy the word exactly, including informal \
+            words like abi or hocam. Keep the person and tense endings as they are. \
+            4. If a part makes no sense, keep those words as they are. Never guess a new meaning, \
+            never add, remove or replace ideas, and never summarise, shorten or translate. \
+            5. If a sentence is already correct, keep its words exactly. The marking and homework \
+            rules below still apply. \
+            6. Do not translate terms from other languages. \
+            Wrap short important phrases in double asterisks, like **this**: terms, names, numbers \
+            and dates. Never wrap whole sentences. \
+            Only when the teacher clearly gives homework, or says the students are responsible for \
+            something, add a line after the text that starts with ASSIGNMENT: followed by that task \
+            in the teacher's own words, copied from the text. Never invent a task. \
+            Output the corrected text and nothing else: no notes, comments, explanations or \
+            remarks about the text, and never say that something is missing. Thinking is off.
+            """
+        var sections = [intro]
+
+        let name = String(
+            lectureName
+                .replacingOccurrences(of: "\n", with: " ")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .prefix(80)
+        )
+        let languageCode = Locale(identifier: localeIdentifier).language.languageCode?.identifier
+        let languageName = languageCode.flatMap { Locale(identifier: "en").localizedString(forLanguageCode: $0) }
+        var context: [String] = []
+        if !name.isEmpty { context.append("Lecture: \(name).") }
+        if let languageName { context.append("Main language: \(languageName). Other languages may appear.") }
+        if !context.isEmpty { sections.append(context.joined(separator: " ")) }
+
+        sections.append(rules)
+
+        if let languageCode, let examples = Self.correctionExamples[languageCode] {
+            let lines = examples.map { "Text: \($0.text)\nCorrected text: \($0.corrected)" }
+            sections.append("Examples:\n" + lines.joined(separator: "\n\n"))
+        }
+        return sections.joined(separator: "\n\n")
+    }
+
+    private var headlineInstructions: String {
         """
-        You proofread a transcript of a spoken lecture. The text comes from speech recognition: \
-        it has little punctuation and some misheard words. Work in the same language. \
-        1. Add punctuation, capital letters and sentence breaks. \
-        2. Put each sentence in normal word order, for example the verb at the end in Turkish. \
-        3. Change a word only when it is clearly misheard and the right word sounds almost the \
-        same, for example halini to elini. Otherwise copy the word exactly, including informal \
-        words like abi or hocam. Keep the person and tense endings as they are. \
-        4. If a part makes no sense, keep those words as they are. Never guess a new meaning, \
-        never add, remove or replace ideas, and never summarise, shorten or translate. \
-        Example text: bugün sinavda cikacak konulari anlatiyorum herkes halini kaldirsin \
-        Example result: Bugün sınavda çıkacak konuları anlatıyorum. Herkes elini kaldırsın. \
-        Wrap short important phrases in double asterisks, like **this**: terms, names, numbers \
-        and dates. Never wrap whole sentences. \
-        Only when the teacher clearly gives homework, or says the students are responsible for \
-        something, add a line after the text that starts with ASSIGNMENT: followed by that task \
-        in the teacher's own words, copied from the text. Never invent a task. \
-        Output the corrected text and nothing else: no notes, comments, explanations or \
-        remarks about the text, and never say that something is missing. Thinking is off.
+        You write the headline of a lecture from its text. Work in the same language as the text. \
+        The headline says what the lecture is about, in 8 to 18 words, on one line. \
+        Use words that are in the text. Never add a fact, a name or a number that is not in the text. \
+        Do not use quotation marks, a list or a full stop at the end. \
+        Output the headline and nothing else. Thinking is off.
         """
     }
 

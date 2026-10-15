@@ -201,6 +201,9 @@ final class Lecture {
     var stage: String
     var audioRelativePath: String?
     var title: String
+    /// True once the student typed the title. A new run of the recording then keeps it.
+    /// The default lets the store migrate by itself.
+    var titleEdited: Bool = false
     var failureMessageKey: String?
     var oralExam: Bool
     var examSpanStart: Int?
@@ -232,6 +235,7 @@ final class Lecture {
         self.stage = PipelineStage.idle.rawValue
         self.oralExam = oralExam
         self.title = title
+        self.titleEdited = false
         self.summary = ""
         self.flaggedSeconds = []
         self.processedThroughSecond = 0

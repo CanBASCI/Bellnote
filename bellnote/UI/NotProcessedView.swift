@@ -21,6 +21,7 @@ struct NotProcessedView: View {
                 StudyButton(title: Text("Process"), systemImage: "waveform.badge.magnifyingglass", fillsWidth: false, action: start)
                     .buttonStyle(.glass)
                     .lineLimit(1)
+                    .controlSize(.large)
             }
             .padding(.top, 6)
         }

@@ -48,7 +48,12 @@ enum CorrectionText {
         "ödev", "sorumlu", "teslim", "haftaya", "getirin", "getirmeniz", "hazırlayın", "hazırlamanız",
         "araştırın", "araştırmanız", "okuyun", "okumanız", "yapın", "yapmanız", "yazın", "yazmanız",
         "çözün", "çalışın", "çalışmanız", "inceleyin", "ezberleyin", "bitirin", "gönderin", "gelirken",
+        "okuyup gelin", "araştırıp gelin", "çalışıp gelin", "hazırlanıp gelin", "hazırlayıp gelin",
+        "çözüp gelin", "yazıp gelin", "getirip", "okumalısınız", "araştırmalısınız",
         "homework", "assignment", "due ", "hand in", "submit", "responsible for", "read chapter",
+        // The space keeps "return in" from matching.
+        " turn in", "problem set", "worksheet", "come prepared",
+        "hand it in", " turn it in", "read page", "come to class prepared",
     ]
 
     /// Whether the spoken text contains a word a teacher uses when giving homework.
@@ -101,6 +106,37 @@ enum CorrectionText {
         let output = plain(corrected)
         guard output.count * 10 >= source.count * 6, output.count <= source.count * 2 else { return false }
         return overlap(source, output) >= 0.6
+    }
+
+    /// A headline from the model, cleaned and checked. It is one line without quotation marks or a closing
+    /// full stop, and most of its words come from the text. Otherwise nil, and the lecture has no headline.
+    static func headline(_ raw: String, from source: String) -> String? {
+        let quotes = CharacterSet(charactersIn: "\"“”«»'’‘`")
+        var line = raw
+            .split(whereSeparator: \.isNewline)
+            .first
+            .map(String.init) ?? ""
+        line = line
+            .replacingOccurrences(of: "**", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .trimmingCharacters(in: quotes)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        while line.last == "." { line.removeLast() }
+        let wordCount = line.split(separator: " ").count
+        guard wordCount >= 2, line.count <= 200 else { return nil }
+        guard stemOverlap(line, plain(source)) >= 0.6 else { return nil }
+        return line
+    }
+
+    /// Like `overlap`, but a word counts when the text has a word that starts with the same first
+    /// five letters. A headline says "dersin konusu" where the text says "dersi", and Turkish
+    /// endings would fail an exact match.
+    private static func stemOverlap(_ left: String, _ right: String) -> Double {
+        let wanted = words(left)
+        guard !wanted.isEmpty else { return 0 }
+        let have = Set(words(right).map { String($0.prefix(5)) })
+        let hits = wanted.filter { have.contains(String($0.prefix(5))) }.count
+        return Double(hits) / Double(wanted.count)
     }
 
     /// Share of the words of `left` that also appear in `right`.

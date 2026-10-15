@@ -1066,6 +1066,7 @@ struct ProgramPage: View {
     @Bindable var term: Term
     @Environment(\.modelContext) private var modelContext
     @State private var showEditor = false
+    @State private var showCalendar = false
     @State private var day = Calendar.current.component(.weekday, from: .now)
     @State private var pendingSlot: WeeklySlot?
 
@@ -1092,7 +1093,14 @@ struct ProgramPage: View {
         .background(Color(.systemGroupedBackground))
         .navigationTitle(weekdayName(day))
         .navigationSubtitle(date(for: day).formatted(date: .abbreviated, time: .omitted))
+        .navigationDestination(isPresented: $showCalendar) {
+            CalendarPage(term: term)
+        }
         .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                Button("Calendar", systemImage: "calendar") { showCalendar = true }
+                    .labelStyle(.iconOnly)
+            }
             ToolbarItem(placement: .primaryAction) {
                 Button("Add slot", systemImage: "plus") { showEditor = true }
                     .labelStyle(.iconOnly)
@@ -1183,22 +1191,39 @@ struct ProgramPage: View {
     }
 
     private func slotBlock(_ slot: WeeklySlot, startHour: Int) -> some View {
-        HStack(spacing: 8) {
+        let name = slot.course?.name ?? String(localized: "Course")
+        let detail = slotDetail(slot)
+        // A short slot is a short block. It does not have room for two lines, so the name and the
+        // time share one line.
+        let isShort = blockHeight(slot) < 52
+        return HStack(spacing: 8) {
             RoundedRectangle(cornerRadius: 2, style: .continuous)
                 .fill(Color.green)
                 .frame(width: 3)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(slot.course?.name ?? String(localized: "Course"))
-                    .font(.subheadline.weight(.semibold))
-                Text(slotDetail(slot))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+            ViewThatFits(in: .vertical) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(name)
+                        .font(.subheadline.weight(.semibold))
+                    Text(detail)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+                HStack(spacing: 6) {
+                    Text(name)
+                        .font(.subheadline.weight(.semibold))
+                        .lineLimit(1)
+                        .layoutPriority(1)
+                    Text(detail)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
             }
             Spacer(minLength: 0)
         }
         .padding(.horizontal, 8)
-        .padding(.vertical, 6)
+        .padding(.vertical, isShort ? 4 : 6)
         .frame(maxWidth: .infinity, alignment: .leading)
         .frame(height: blockHeight(slot), alignment: .top)
         .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
@@ -1215,7 +1240,7 @@ struct ProgramPage: View {
     }
 
     private var hourRows: [SlotHours] {
-        HoursChart.weekly(slots: term.slots.map {
+        HoursChart.weekly(slots: slots(on: day).map {
             ($0.course?.name ?? "", $0.startMinutes, $0.endMinutes)
         })
     }

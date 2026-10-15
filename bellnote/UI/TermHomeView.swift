@@ -34,10 +34,12 @@ struct TermHomeView: View {
                     }
                     .tabItem { Label("Timetable", systemImage: "calendar.day.timeline.left") }
 
+                    // A placeholder. The content comes later.
                     NavigationStack {
-                        CalendarPage(term: term)
+                        Color.clear
+                            .navigationTitle(Text(verbatim: "Test"))
                     }
-                    .tabItem { Label("Calendar", systemImage: "calendar") }
+                    .tabItem { Label { Text(verbatim: "Test") } icon: { Image(systemName: "square.dashed") } }
 
                     NavigationStack {
                         SettingsPage()

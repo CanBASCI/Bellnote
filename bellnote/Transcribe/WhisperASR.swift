@@ -191,12 +191,19 @@ enum WhisperASR {
             defer { ticker.cancel() }
             try await kit.prewarmModels()
             ticker.cancel()
+            // Core ML cannot be stopped while it compiles. A cancel that came in meanwhile ends the run here.
+            try Task.checkCancellation()
             let prepared = Int(Date().timeIntervalSince(started))
             rememberPrepare(seconds: prepared)
             log.info("Whisper prepare done seconds=\(prepared)")
             await onStep(.loading)
             try await kit.loadModels()
+            try Task.checkCancellation()
             log.info("Whisper loaded seconds=\(Int(Date().timeIntervalSince(started))) footprintMB=\(MemoryProbe.footprintMB()) tokenizer=\(kit.tokenizer != nil)")
+        } catch is CancellationError {
+            await kit.unloadModels()
+            log.info("Whisper cancelled while it got ready seconds=\(Int(Date().timeIntervalSince(started)))")
+            throw CancellationError()
         } catch {
             log.error("Whisper load failed seconds=\(Int(Date().timeIntervalSince(started))) type=\(String(describing: type(of: error)), privacy: .public) message=\(error.localizedDescription, privacy: .public) detail=\(String(describing: error), privacy: .public)")
             throw error
@@ -242,10 +249,14 @@ enum WhisperASR {
             var samples = try AudioProcessor.loadAudioAsFloatArray(fromPath: url.path)
             let gain = louder(&samples)
             log.info("Whisper audio samples=\(samples.count) gain=\(String(format: "%.2f", gain))")
+            try Task.checkCancellation()
             results = try await kit.transcribe(
                 audioArray: samples,
                 decodeOptions: options(for: locale, words: !runs.isEmpty)
             )
+        } catch is CancellationError {
+            log.info("Whisper cancelled before it wrote")
+            throw CancellationError()
         } catch {
             log.error("Whisper transcribe failed type=\(String(describing: type(of: error)), privacy: .public) message=\(error.localizedDescription, privacy: .public) detail=\(String(describing: error), privacy: .public)")
             throw error
