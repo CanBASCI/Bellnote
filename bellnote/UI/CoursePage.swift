@@ -27,6 +27,7 @@ struct CoursePage: View {
     @State private var showConsent = false
     @State private var activeLecture: Lecture?
     @State private var showLecturer = false
+    @State private var showAsk = false
     @State private var showInventory = false
     @State private var pendingDelete: Lecture?
     @State private var pendingItem: InventoryItem?
@@ -179,6 +180,11 @@ struct CoursePage: View {
         )
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
+                // Ask about all the recordings of this course. The Ask inside a recording uses only that recording.
+                Button("Ask", systemImage: "sparkles") { showAsk = true }
+                    .labelStyle(.iconOnly)
+            }
+            ToolbarItem(placement: .topBarTrailing) {
                 weekMenu
             }
             ToolbarItem(placement: .topBarTrailing) {
@@ -194,6 +200,9 @@ struct CoursePage: View {
         }
         .sheet(item: $activeLecture) { lecture in
             RecorderSheet(lecture: lecture)
+        }
+        .sheet(isPresented: $showAsk) {
+            StudySheet(course: course, mode: .ask)
         }
         .sheet(isPresented: $showLecturer) {
             if let contact = course.lecturer {
@@ -604,10 +613,11 @@ struct CoursePage: View {
 
     private func ensureLecturer() {
         guard course.lecturer == nil else { return }
+        // The link is set only from the course. SwiftData fills the other side itself. Setting both sides made the
+        // page miss the change, so it kept watching "no lecturer" and did not show the first names that were typed.
         let created = LecturerContact()
-        created.course = course
-        course.lecturer = created
         modelContext.insert(created)
+        course.lecturer = created
     }
 }
 

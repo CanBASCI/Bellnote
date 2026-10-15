@@ -54,13 +54,20 @@ enum CorrectionText {
         // The space keeps "return in" from matching.
         " turn in", "problem set", "worksheet", "come prepared",
         "hand it in", " turn it in", "read page", "come to class prepared",
+        "araştırma yap", "yapıp getir",
     ]
+
+    /// A Turkish verb with the ending -ıp/-ip/-up/-üp and then "gelin" or "geliniz": "okuyup gelin",
+    /// "araştırma yapıp gelin", "hazırlanıp geliniz". It means "come having done it", which is how a task is given.
+    /// A letter must stand before the ending, so a lone "ip" ("ip atlama") never matches.
+    /// A computed property, because `Regex` is not `Sendable` and a stored static one is not allowed.
+    private static var comeHavingDone: Regex<Substring> { #/\p{L}[ıiuü]p gelin(?:iz)?\b/# }
 
     /// Whether the spoken text contains a word a teacher uses when giving homework.
     /// The model alone is not trusted: it once turned "you will learn" into a task.
     static func hasHomeworkCue(_ text: String) -> Bool {
         let lower = text.lowercased(with: Locale(identifier: "tr"))
-        return homeworkCues.contains { lower.contains($0) }
+        return homeworkCues.contains { lower.contains($0) } || lower.contains(comeHavingDone)
     }
 
     /// The text without highlight markers, for lists, previews and reading aloud.

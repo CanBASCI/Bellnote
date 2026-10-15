@@ -224,7 +224,8 @@ struct LectureNote: View {
         }
         .sheet(isPresented: $showStudy) {
             if let course = lecture.course {
-                StudySheet(course: course, mode: studyMode)
+                // Only this recording is asked about, not the other recordings of the course.
+                StudySheet(course: course, mode: studyMode, lecture: lecture)
             }
         }
         .fluidAudioGate(fluidGate)

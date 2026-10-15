@@ -1441,6 +1441,9 @@ struct SlotEditor: View {
 struct StudySheet: View {
     var course: Course
     var mode: StudyMode
+    /// Set when the sheet is opened from a recording. Then only that recording is used. Without it, the
+    /// whole course is used.
+    var lecture: Lecture?
     @Environment(\.dismiss) private var dismiss
     @State private var prompt = ""
     @State private var asked = ""
@@ -1558,8 +1561,11 @@ struct StudySheet: View {
     }
 
     private func ask(_ question: String) async {
-        Self.log.info("Study run tapped mode=\(mode == .ask ? "ask" : "quiz", privacy: .public) lectures=\(course.lectures.count) question=\(question, privacy: .public)")
-        let blocks = course.lectures.flatMap { lecture in
+        // From the course page only the recordings that are finished count. A failed, paused or still running one
+        // does not.
+        let lectures = lecture.map { [$0] } ?? course.lectures.filter { $0.state == LectureState.ready.rawValue }
+        Self.log.info("Study run tapped mode=\(mode == .ask ? "ask" : "quiz", privacy: .public) lectures=\(lectures.count) ofOneRecording=\(lecture != nil) question=\(question, privacy: .public)")
+        let blocks = lectures.flatMap { lecture in
             lecture.blocks.map { block in
                 StudyBlock(
                     id: block.token,

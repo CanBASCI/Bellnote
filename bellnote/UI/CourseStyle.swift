@@ -215,10 +215,15 @@ struct AssignmentRow: View {
     /// Called with the second where the lecturer gave the task. Nil makes the row plain.
     var onOpen: ((Int) -> Void)?
 
+    /// The height of one line of the task text (`body`). Without a column width the circle is centered in
+    /// a box of this height at the top of the row, so it sits in the middle of the first line. Aligning on the
+    /// text baseline put it a little too high, because the circle is bigger than the text.
+    @ScaledMetric(relativeTo: .body) private var firstLineHeight: CGFloat = 22
+
     var body: some View {
         // With a column width the circle is like a cover, so it is centered on the height of the row.
-        // Without it the circle sits on the first line of the text.
-        HStack(alignment: markWidth == nil ? .firstTextBaseline : .center, spacing: markGap) {
+        // Without it the circle is centered on the first line of the text.
+        HStack(alignment: markWidth == nil ? .top : .center, spacing: markGap) {
             Button {
                 assignment.done.toggle()
             } label: {
@@ -230,6 +235,7 @@ struct AssignmentRow: View {
                     )
                     .font(.title3)
                     .foregroundStyle(assignment.done && !assignment.cancelled ? Color.green : Color.secondary)
+                    .frame(height: firstLineHeight)
                 } else {
                     // In the course page the circle is a glass circle like the date covers: an empty one, a green
                     // one with a check when done, a plain one with a cross when cancelled.

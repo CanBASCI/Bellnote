@@ -460,6 +460,9 @@ struct TodayPage: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .padding(Self.cardPadding)
+        // A square: the height is the width of the column, so every card has the same size, whatever the course
+        // has in it. The free room goes to the space under the name.
+        .aspectRatio(1, contentMode: .fit)
         // The glass is a background, not a modifier of the texts. Otherwise the glass changes the text colours
         // and they no longer match the grey of the Start recording card.
         .background {
