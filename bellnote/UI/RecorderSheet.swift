@@ -1,4 +1,5 @@
 import AVFoundation
+import OSLog
 import SwiftData
 import SwiftUI
 
@@ -43,6 +44,7 @@ struct RecorderSheet: View {
     @Bindable var lecture: Lecture
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
+    private static let log = Logger(subsystem: "app.bellnote", category: "capture")
     @State private var capture = CaptureSession()
     @State private var elapsed = 0
     @State private var askStop = false
@@ -174,8 +176,10 @@ struct RecorderSheet: View {
     }
 
     private func begin() async {
+        Self.log.info("Recorder sheet appeared, starting")
         let permitted = await AVAudioApplication.requestRecordPermission()
         guard permitted else {
+            Self.log.error("Recorder: microphone permission is off")
             failed = String(localized: "The microphone is off for Bellnote.")
             lecture.state = LectureState.failed.rawValue
             lecture.failureMessageKey = failed
@@ -201,6 +205,7 @@ struct RecorderSheet: View {
                 }
             }
         } catch {
+            Self.log.error("Recorder: start failed: \(error.localizedDescription, privacy: .public)")
             failed = String(localized: "Recording did not start.")
             lecture.state = LectureState.failed.rawValue
             lecture.failureMessageKey = failed
@@ -219,6 +224,7 @@ struct RecorderSheet: View {
             try await capture.resumeCapture()
             lecture.state = LectureState.recording.rawValue
         } catch {
+            Self.log.error("Recorder: resume failed: \(error.localizedDescription, privacy: .public)")
             failed = String(localized: "Recording did not resume.")
         }
     }
@@ -237,6 +243,7 @@ struct RecorderSheet: View {
             try modelContext.save()
             dismiss()
         } catch {
+            Self.log.error("Recorder: close failed: \(error.localizedDescription, privacy: .public)")
             failed = String(localized: "The recording could not be closed.")
             lecture.state = LectureState.failed.rawValue
             lecture.failureMessageKey = failed

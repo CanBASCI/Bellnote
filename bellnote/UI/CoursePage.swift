@@ -40,20 +40,35 @@ struct CoursePage: View {
                 // The tiles are the first row of the list, not a section header. A header of a plain list stays
                 // at the top while the list scrolls. A row takes the side space of the other rows by itself.
                 // No glass container here: it fuses neighbours and rounds their outer corners.
-                HStack(spacing: 10) {
-                    statTile(value: visibleLectures.count, title: "Recordings", tint: CourseStyle.recordingsTint, details: lectureBreakdown(of: visibleLectures)) {
-                        scrollToRecordings(proxy)
+                // The tiles are squares in a row that scrolls sideways, like the cards of the App Store. The one
+                // that does not fit on the screen is swiped into view, and the scroll stops on a tile.
+                ScrollView(.horizontal) {
+                    HStack(spacing: 10) {
+                        statTile(value: visibleLectures.count, title: "Recordings", tint: CourseStyle.recordingsTint, details: lectureBreakdown(of: visibleLectures)) {
+                            scrollToRecordings(proxy)
+                        }
+                        statTile(value: visibleAssignments.count, title: "Assignments", tint: CourseStyle.assignmentsTint, details: assignmentBreakdown(of: visibleAssignments)) {
+                            scrollToAssignments(proxy)
+                        }
+                        statTile(value: visibleSittings.count, title: "Exams", tint: CourseStyle.examsTint)
                     }
-                    statTile(value: visibleAssignments.count, title: "Assignments", tint: CourseStyle.assignmentsTint, details: assignmentBreakdown(of: visibleAssignments)) {
-                        scrollToAssignments(proxy)
-                    }
-                    statTile(value: visibleSittings.count, title: "Exams", tint: CourseStyle.examsTint)
+                    .scrollTargetLayout()
                 }
+                .scrollIndicators(.hidden)
+                .scrollTargetBehavior(.viewAligned)
+                // The row has no side space, so the tiles can slide out to the screen edge. This margin puts the
+                // first tile where the other rows start.
+                .contentMargins(.horizontal, 16, for: .scrollContent)
+                // A scroll view cuts off what is drawn outside of it. The glass of a tile casts a soft shade around
+                // it, so the scroll view must not clip, and it keeps a little room above and below for that shade.
+                .scrollClipDisabled()
+                .contentMargins(.top, 8, for: .scrollContent)
+                .contentMargins(.bottom, 4, for: .scrollContent)
                 .listRowSeparator(.hidden)
                 .listRowBackground(Color.clear)
                 // No space under the tiles from the row itself, so the gap to the "This week" title is only the
                 // top space of that title.
-                .listRowInsets(.bottom, 0)
+                .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
             }
             Section {
                 if visibleLectures.isEmpty {
@@ -357,11 +372,8 @@ struct CoursePage: View {
             (LectureState.recording.title, count(.recording)),
             (LectureState.paused.title, count(.paused))
         ]
-        // Ready, Recorded and Processing always show, even at 0. The rarer ones show only when a recording has them.
-        let always = [LectureState.ready.title, String(localized: "Recorded"), LectureState.processing.title]
-        return entries
-            .filter { $0.count > 0 || always.contains($0.title) }
-            .map { "\($0.count) \($0.title)" }
+        // Every status always shows, even at 0, so the tile has the same number of lines at all times.
+        return entries.map { "\($0.count) \($0.title)" }
     }
 
     /// Done, cancelled and pending assignments. The big number on the tile is the total of all three.
@@ -430,7 +442,10 @@ struct CoursePage: View {
         forTextStyle: .subheadline,
         compatibleWith: UITraitCollection(preferredContentSizeCategory: .large)
     ).capHeight
-    private static let detailLineRoom = 3
+    /// The side of a tile. The tile is a square. The Recordings tile lists six statuses at all times (Ready,
+    /// Recorded, Processing, Failed, Recording and Paused), and this is tall enough for them. It grows with the text
+    /// size the student chose.
+    @ScaledMetric(relativeTo: .footnote) private var tileSide: CGFloat = 180
 
     private func scrollToRecordings(_ proxy: ScrollViewProxy) {
         if let first = visibleLectures.first {
@@ -462,13 +477,21 @@ struct CoursePage: View {
         VStack(alignment: .leading, spacing: 2) {
             // The same fonts as the recording rows: the title like the time. The lines are `footnote`, like the
             // lines of the cards on Home.
-            Text(title)
-                .font(.subheadline.weight(.medium))
-                .foregroundStyle(.primary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
-            Text(value, format: .number)
-                .font(.title2.weight(.bold).monospacedDigit())
+            // The total sits at the right end of the title line.
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text(title)
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                Spacer(minLength: 0)
+                Text(value, format: .number)
+                    .font(.title2.weight(.bold).monospacedDigit())
+            }
+            // One empty line between the title line and the details.
+            Text(verbatim: " ")
+                .font(.footnote)
+                .hidden()
             ForEach(details, id: \.self) { line in
                 Text(verbatim: line)
                     .font(.footnote)
@@ -476,16 +499,10 @@ struct CoursePage: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.85)
             }
-            // Empty lines keep room for three detail lines, so the tiles do not grow and shrink with the data.
-            ForEach(0..<max(0, Self.detailLineRoom - details.count), id: \.self) { _ in
-                Text(verbatim: " ")
-                    .font(.footnote)
-                    .hidden()
-            }
         }
-        // The tiles share one row, so they grow to the tallest one and stay the same height.
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .padding(12)
+        // A square. Every tile has the same side, whatever it lists.
+        .frame(width: tileSide, height: tileSide, alignment: .topLeading)
         // The tint reads weaker on a dark background, so it needs more opacity to look like the light one.
         .glassEffect(.regular.tint(tint.opacity(colorScheme == .dark ? 0.5 : 0.28)), in: .rect(cornerRadius: 22))
         .accessibilityElement(children: .combine)

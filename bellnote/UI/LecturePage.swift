@@ -290,9 +290,12 @@ struct LectureNote: View {
                     .foregroundStyle(.secondary)
             }
         } else {
+            // The playing block is found once for the whole list, not once per row. `chapters` sorts every
+            // block, and this list is drawn again each time the player moves.
+            let playingToken = playingBlockToken(in: chapters)
             Section {
                 ForEach(blocks) { block in
-                    chapterLabel(block)
+                    chapterLabel(block, isCurrent: block.token == playingToken)
                 }
                 ForEach(Array((filter.isEmpty ? orphanFlags : []).enumerated()), id: \.offset) { _, second in
                     Button {
@@ -405,9 +408,8 @@ struct LectureNote: View {
         }
     }
 
-    private func chapterLabel(_ block: Block) -> some View {
-        let current = isCurrent(block)
-        return VStack(alignment: .leading, spacing: 6) {
+    private func chapterLabel(_ block: Block, isCurrent current: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 if block.speaker > 0 {
                     Button {
@@ -569,11 +571,12 @@ struct LectureNote: View {
         namingSpeaker = nil
     }
 
-    private func isCurrent(_ block: Block) -> Bool {
-        guard audio.currentSecond > 0 else { return false }
-        guard let index = chapters.firstIndex(where: { $0.token == block.token }) else { return false }
-        let end = chapters.indices.contains(index + 1) ? chapters[index + 1].second : Int.max
-        return audio.currentSecond >= block.second && audio.currentSecond < end
+    /// The block that is playing now: the last one that starts at or before the current second.
+    /// `ordered` is sorted by start second.
+    private func playingBlockToken(in ordered: [Block]) -> UUID? {
+        let second = audio.currentSecond
+        guard second > 0 else { return nil }
+        return ordered.last { $0.second <= second }?.token
     }
 
     private func quizTitle(_ course: Course) -> String {
@@ -651,6 +654,8 @@ final class LectureAudio {
     private(set) var isPlaying = false
     private(set) var currentSecond = 0
     private(set) var duration = 0
+    /// Seeks that were asked for and have not finished. Not shown on screen.
+    @ObservationIgnored private var pendingSeeks = 0
     private let engine = LecturePlaybackEngine()
 
     func load(_ lecture: Lecture) async {
@@ -672,12 +677,21 @@ final class LectureAudio {
     }
 
     func seek(to second: Int, play: Bool) {
-        Task { await seekPlayback(to: second, play: play) }
+        // The shown second moves at once, so the slider does not wait for the player.
+        currentSecond = min(max(0, second), max(duration, 0))
+        pendingSeeks += 1
+        Task {
+            await seekPlayback(to: second, play: play)
+            pendingSeeks -= 1
+        }
     }
 
     func sync() async {
         let snapshot = await engine.snapshot()
-        currentSecond = snapshot.timeSeconds
+        // A seek is on its way. The snapshot may still show the old second, and would pull the slider back.
+        if pendingSeeks == 0 {
+            currentSecond = snapshot.timeSeconds
+        }
         if !snapshot.isPlaying { isPlaying = false }
     }
 
@@ -704,7 +718,6 @@ final class LectureAudio {
         } else {
             await engine.setCurrentTime(TimeInterval(clamped))
         }
-        currentSecond = clamped
     }
 }
 
@@ -763,7 +776,10 @@ private final class LecturePlaybackEngine: @unchecked Sendable {
     func play(from time: TimeInterval? = nil) async -> Bool {
         guard await ensureSession() else { return false }
         return await onQueue { [self] in
-            guard let player else { return false }
+            guard let player else {
+                Logger(subsystem: "app.bellnote", category: "player").error("Play asked with no player")
+                return false
+            }
             if let time { player.currentTime = time }
             player.prepareToPlay()
             return player.play()

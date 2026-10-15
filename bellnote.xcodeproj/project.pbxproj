@@ -42,9 +42,22 @@
 		DE0183EB307D921D007402E2 /* bellnoteUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = bellnoteUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		DE3E0E53308133980026A311 /* Exceptions for "bellnote" folder in "bellnote" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = DE0183D1307D921C007402E2 /* bellnote */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		DE0183D4307D921C007402E2 /* bellnote */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				DE3E0E53308133980026A311 /* Exceptions for "bellnote" folder in "bellnote" target */,
+			);
 			path = bellnote;
 			sourceTree = "<group>";
 		};
@@ -424,6 +437,7 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = bellnote/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Bellnote;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Takes a board photo or reads a schedule you choose, on this device.";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "Unlocks notes stored on this device.";
@@ -482,6 +496,7 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = bellnote/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Bellnote;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Takes a board photo or reads a schedule you choose, on this device.";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "Unlocks notes stored on this device.";
