@@ -92,10 +92,9 @@ struct CoursePage: View {
                 Section {
                     ForEach(visibleAssignments) { assignment in
                         assignmentLink(assignment)
-                        // The same text as the time of a recording row: medium, and the small Dynamic Type size.
+                        // The same text as the time of a recording row: `subheadline`, medium.
                         // The lines under it keep the caption font they set themselves.
-                        .font(.body.weight(.medium))
-                        .dynamicTypeSize(.small)
+                        .font(.subheadline.weight(.medium))
                         .askToDeleteSwipe { pendingAssignment = assignment }
                         // Top and bottom only, the same as the recording rows.
                         .listRowInsets(.vertical, 8)
@@ -424,11 +423,12 @@ struct CoursePage: View {
     /// The date cover of a recording and the space between it and the text. The separator line starts after both.
     private static let coverSize: CGFloat = 48
     private static let coverGap: CGFloat = 12
-    /// The height of the digits of the time text (`body`, small Dynamic Type size). The status symbol is at most this
-    /// tall. This is the height of the capital letters, not the height of the whole line.
-    private static let timeDigitHeight: CGFloat = UIFont.preferredFont(
-        forTextStyle: .body,
-        compatibleWith: UITraitCollection(preferredContentSizeCategory: .small)
+    /// The height of the digits of the time text (`subheadline`, at the default Dynamic Type size). It grows with the
+    /// text size the student chose. The status symbol is at most this tall. This is the height of the capital
+    /// letters, not the height of the whole line.
+    @ScaledMetric(relativeTo: .subheadline) private var timeDigitHeight: CGFloat = UIFont.preferredFont(
+        forTextStyle: .subheadline,
+        compatibleWith: UITraitCollection(preferredContentSizeCategory: .large)
     ).capHeight
     private static let detailLineRoom = 3
 
@@ -460,9 +460,10 @@ struct CoursePage: View {
 
     private func statTileBody(value: Int, title: LocalizedStringKey, tint: Color, details: [String]) -> some View {
         VStack(alignment: .leading, spacing: 2) {
-            // The same fonts as the recording rows: the title like the time, the lines like the summary.
+            // The same fonts as the recording rows: the title like the time. The lines are `footnote`, like the
+            // lines of the cards on Home.
             Text(title)
-                .font(.callout.weight(.medium))
+                .font(.subheadline.weight(.medium))
                 .foregroundStyle(.primary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
@@ -470,7 +471,7 @@ struct CoursePage: View {
                 .font(.title2.weight(.bold).monospacedDigit())
             ForEach(details, id: \.self) { line in
                 Text(verbatim: line)
-                    .font(.subheadline)
+                    .font(.footnote)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.85)
@@ -478,17 +479,15 @@ struct CoursePage: View {
             // Empty lines keep room for three detail lines, so the tiles do not grow and shrink with the data.
             ForEach(0..<max(0, Self.detailLineRoom - details.count), id: \.self) { _ in
                 Text(verbatim: " ")
-                    .font(.subheadline)
+                    .font(.footnote)
                     .hidden()
             }
         }
-        // The same Dynamic Type size as the recording rows.
-        .dynamicTypeSize(.medium)
         // The tiles share one row, so they grow to the tallest one and stay the same height.
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .padding(12)
         // The tint reads weaker on a dark background, so it needs more opacity to look like the light one.
-        .glassEffect(.regular.tint(tint.opacity(colorScheme == .dark ? 0.5 : 0.28)), in: .rect(cornerRadius: 16))
+        .glassEffect(.regular.tint(tint.opacity(colorScheme == .dark ? 0.5 : 0.28)), in: .rect(cornerRadius: 22))
         .accessibilityElement(children: .combine)
     }
 
@@ -502,18 +501,15 @@ struct CoursePage: View {
             VStack(alignment: .leading, spacing: 2) {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Text(lecture.startedAt.formatted(.dateTime.hour().minute().locale(locale)))
-                        // `body` at the small Dynamic Type size, about 15 pt.
-                        .font(.body.weight(.medium))
-                        .dynamicTypeSize(.small)
+                        .font(.subheadline.weight(.medium))
                         .foregroundStyle(.secondary)
                     Image(systemName: lecture.statusSymbol)
                         // The same weight as the time. The symbol is scaled so that it is at most as tall as the digits
                         // of the time. A wide symbol is lower than that, it never goes above it.
                         .resizable()
                         .scaledToFit()
-                        .frame(maxHeight: Self.timeDigitHeight)
-                        .font(.body.weight(.medium))
-                        .dynamicTypeSize(.small)
+                        .frame(maxHeight: timeDigitHeight)
+                        .font(.subheadline.weight(.medium))
                         // The system colours are bright. On the light background a small symbol in them is hard to
                         // see, so there they are mixed with black. On the dark background they stay as they are.
                         .foregroundStyle(
@@ -524,16 +520,13 @@ struct CoursePage: View {
                     if lecture.recordedSeconds >= 60 {
                         Text(String(format: String(localized: "%lld min"), lecture.recordedSeconds / 60))
                             .font(.subheadline)
-                            .dynamicTypeSize(.medium)
                             .foregroundStyle(.secondary)
                     }
                 }
                 let excerpt = preview(lecture)
                 if !excerpt.isEmpty {
-                    // `subheadline` at the medium Dynamic Type size, about 14 pt.
                     Text(excerpt)
                         .font(.subheadline)
-                        .dynamicTypeSize(.medium)
                         .foregroundStyle(.primary)
                         .lineLimit(2)
                 }

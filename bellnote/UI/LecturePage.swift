@@ -112,6 +112,8 @@ struct LectureNote: View {
             }
         }
         .listStyle(.insetGrouped)
+        // The list starts closer to the bar. Only the list moves; the bar and the tabs stay as they are.
+        .contentMargins(.top, 0, for: .scrollContent)
         // The tabs sit under the navigation bar, in the middle, and the list scrolls under them.
         .safeAreaBar(edge: .top) {
             if !(lecture.isRecordedOnly && workingStage == nil) {

@@ -309,9 +309,6 @@ struct AssignmentRow: View {
                 .foregroundStyle(.secondary)
             }
             }
-            .transformEnvironment(\.dynamicTypeSize) { size in
-                if plainDetails { size = .medium }
-            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
