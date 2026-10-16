@@ -46,8 +46,10 @@ enum CorrectionText {
 
     private static let homeworkCues = [
         "ödev", "sorumlu", "teslim", "haftaya", "getirin", "getirmeniz", "hazırlayın", "hazırlamanız",
-        "araştırın", "araştırmanız", "okuyun", "okumanız", "yapın", "yapmanız", "yazın", "yazmanız",
-        "çözün", "çalışın", "çalışmanız", "inceleyin", "ezberleyin", "bitirin", "gönderin", "gelirken",
+        // "yapın", "yazın", "okuyun" and "çalışın" are left out on purpose: a teacher says them in class all the time
+        // ("odaklanmaya çalışın"), so alone they do not mean homework.
+        "araştırın", "araştırmanız", "okumanız", "yapmanız", "yazmanız",
+        "çözün", "çalışmanız", "inceleyin", "ezberleyin", "bitirin", "gönderin", "gelirken",
         "okuyup gelin", "araştırıp gelin", "çalışıp gelin", "hazırlanıp gelin", "hazırlayıp gelin",
         "çözüp gelin", "yazıp gelin", "getirip", "okumalısınız", "araştırmalısınız",
         "homework", "assignment", "due ", "hand in", "submit", "responsible for", "read chapter",
@@ -68,6 +70,26 @@ enum CorrectionText {
     static func hasHomeworkCue(_ text: String) -> Bool {
         let lower = text.lowercased(with: Locale(identifier: "tr"))
         return homeworkCues.contains { lower.contains($0) } || lower.contains(comeHavingDone)
+    }
+
+    /// Whether the words around a task hold a homework cue. Only the sentence of the task and the one before and
+    /// after it count, so a word from another part of a long text does not make an ordinary sentence a task.
+    static func hasHomeworkCue(near task: String, in text: String) -> Bool {
+        let sentences = text
+            .split(whereSeparator: { ".?!\n".contains($0) })
+            .map { String($0) }
+        guard !sentences.isEmpty else { return false }
+        var best = 0
+        var bestScore = -1.0
+        for (index, sentence) in sentences.enumerated() {
+            let score = overlap(task, sentence)
+            if score > bestScore {
+                best = index
+                bestScore = score
+            }
+        }
+        let around = sentences[max(0, best - 1)...min(sentences.count - 1, best + 1)]
+        return hasHomeworkCue(around.joined(separator: " "))
     }
 
     /// The text without highlight markers, for lists, previews and reading aloud.

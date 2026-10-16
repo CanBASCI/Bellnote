@@ -355,7 +355,7 @@ enum LecturePipeline {
             block.numbers = TagKeep.numbers(tag.numbers, spoken: spoken)
             block.importance = tag.importanceCue
             block.missing = tag.missing
-            log.info("Tag keep model=\(tag.text, privacy: .public) spoken=\(block.text, privacy: .public)")
+            log.info("Tag keep kind=\(tag.kind, privacy: .public) missing=\(tag.missing) importance=\(tag.importanceCue) model=\(tag.text, privacy: .public) spoken=\(block.text, privacy: .public)")
             if tag.kind == BlockKind.reference.rawValue || tag.kind == BlockKind.assignment.rawValue {
                 block.timeHintRaw = block.text
                 block.dueHintRaw = block.text
@@ -397,11 +397,16 @@ enum LecturePipeline {
                 if faithful {
                     paragraphs.append(parts.body)
                     // A task must be made of words the teacher said, otherwise the model invented it.
-                    // A real homework also needs a word like "ödev" or "teslim" in the spoken text.
-                    let cue = CorrectionText.hasHomeworkCue(chunk)
-                    let spokenTasks = parts.assignments.filter { cue && CorrectionText.overlap($0, chunk) >= 0.6 }
+                    // A real homework also needs a word like "ödev" or "teslim" next to it in the spoken text:
+                    // in its own sentence or the one before or after. A word elsewhere in the chunk does not count.
+                    let spokenTasks = parts.assignments.filter { task in
+                        let overlap = CorrectionText.overlap(task, chunk)
+                        let cue = CorrectionText.hasHomeworkCue(near: task, in: chunk)
+                        log.info("Assignment check kept=\(overlap >= 0.6 && cue) wordsFromText=\(overlap) cueNearTask=\(cue) task=\(task, privacy: .public)")
+                        return overlap >= 0.6 && cue
+                    }
                     if spokenTasks.count < parts.assignments.count {
-                        log.warning("Assignment dropped count=\(parts.assignments.count - spokenTasks.count) homeworkCue=\(cue)")
+                        log.warning("Assignment dropped count=\(parts.assignments.count - spokenTasks.count) of \(parts.assignments.count), no homework cue near the task or the words are not from the text")
                     }
                     tasks.append(contentsOf: spokenTasks)
                 } else {

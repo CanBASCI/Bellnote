@@ -187,6 +187,17 @@ One file, three reads, never concurrent with model load.
 
 Expect on the order of 15–30 minutes for a one-hour lecture. The student can leave the app. Persist the stage. Resume from the last finished window if the system kills the process.
 
+Known gap, not built yet: windows of a single speaker. The transcript joins the words of one speaker into one line, and a new block starts only when the speaker changes. A lecture with one narrator is therefore one block, whatever its length. Seen in the logs of a one-minute Whisper recording: 14 Whisper segments became `Transcript blocks=1`, the tag call got the whole text as one window (1067 characters, 29 seconds, then `Failed to parse generated content`), every assignment pointed to minute 00:00, and tapping it played to the end of the file. A one-hour lecture would be one block of about 50,000 characters; this was not tried.
+
+Proposed fix, to be done only if the student asks, or suggested to the student when a problem like the ones above appears again (a failed or very slow tag stage on a long lecture, tasks or notes that all point to 00:00, a source tap that plays to the end of the file):
+
+1. After the speaker pass, cut the line of one speaker at Whisper segment ends into windows. Group segments into one window until it reaches about 600 characters or 45 seconds, whichever comes first, and never cut inside a segment. Each window is a `Block` with its own start second. Do not make one block per segment: one hour is about 800 segments, which is too many rows and too many model calls. About 80–120 windows per hour is the aim.
+2. Tag each window as step 4 already says. A window that fails is kept as raw text and does not stop the others.
+3. A task, a source tap and the pause at the end of a task sentence then use the real start of its window and the start of the next one.
+4. Measure the tag time on a long lecture before the sizes are fixed. The window size trades the number of model calls against the length of one call.
+
+Related, smaller, also not built: `numbers: [Double]` in `WindowTag` made the 4B model write digits until the 256-token limit, and the answer could not be parsed. If this happens again, take the numbers out of the model's shape and read them in Swift from the spoken text of the window; a number must still be spoken in the window.
+
 ## 6. Speakers
 
 Prints are vectors stored per course, not names glued to audio.

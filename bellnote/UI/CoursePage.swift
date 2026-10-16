@@ -145,8 +145,15 @@ struct CoursePage: View {
     /// one in the assignments of a recording.
     @ViewBuilder
     private func assignmentLink(_ assignment: Assignment) -> some View {
-        // The task text keeps the size it had here: `subheadline`, medium.
-        let row = AssignmentRow(assignment: assignment, smallTitle: true, onOpen: nil)
+        // The task text keeps the size it had here: `subheadline`, medium. The circle is centered in the column of
+        // the date covers of the recordings above, and the task text starts where the text of a recording starts.
+        let row = AssignmentRow(
+            assignment: assignment,
+            markWidth: Self.coverSize,
+            markGap: Self.coverGap,
+            smallTitle: true,
+            onOpen: nil
+        )
         if let lecture = assignment.sourceLecture {
             NavigationLink {
                 LecturePage(lecture: lecture, startSecond: assignment.sourceSecond)
