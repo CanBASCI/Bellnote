@@ -47,6 +47,10 @@ enum CourseStyle {
     static let assignmentsTint = rgb(63, 156, 140)
     static let examsTint = rgb(194, 112, 138)
 
+    /// The star of a favourite course: a soft amber (#D4A34A), in the same muted range as the course colors. The
+    /// system yellow is much brighter than they are.
+    static let favoriteTint = rgb(212, 163, 74)
+
     static func initial(of name: String) -> String {
         name.trimmingCharacters(in: .whitespaces).first.map { String($0).uppercased() } ?? "?"
     }

@@ -4,6 +4,7 @@ import SwiftUI
 
 struct TermHomeView: View {
     @Environment(AppSession.self) private var session
+    @Environment(\.modelContext) private var modelContext
     @Query(sort: \Term.createdAt) private var terms: [Term]
     @Query(sort: \Lecture.startedAt, order: .reverse) private var lectures: [Lecture]
 
@@ -66,6 +67,8 @@ struct TermHomeView: View {
         }
         .task {
             Logger(subsystem: "app.bellnote", category: "home").info("Home appeared, \(terms.count, privacy: .public) terms")
+            // A lecture still saved as "processing" while nothing runs it goes back to paused.
+            LecturePipeline.recoverInterrupted(context: modelContext)
             openCurrentTermOnLaunch()
             // Courses from before the color was stored get one, so no two courses of a term share a color.
             for item in terms { item.fillMissingCourseColors() }
@@ -100,9 +103,11 @@ struct TermHomeView: View {
     private var pending: [Lecture] {
         lectures.filter { lecture in
             guard lecture.course?.term?.isOpen == true else { return false }
+            // A paused lecture with audio is waiting to be processed, from the start (stage idle) or after a stop or an
+            // interrupted run, which leave the last finished stage. A ready one is done.
             return lecture.state == LectureState.processing.rawValue
                 || lecture.state == LectureState.failed.rawValue
-                || (lecture.state == LectureState.paused.rawValue && lecture.audioRelativePath != nil && lecture.stage == PipelineStage.idle.rawValue)
+                || (lecture.state == LectureState.paused.rawValue && lecture.audioRelativePath != nil && lecture.stage != PipelineStage.ready.rawValue)
         }
     }
 }
@@ -593,7 +598,7 @@ struct TodayPage: View {
                 if course.isFavorite {
                     Image(systemName: "star.fill")
                         .font(.caption)
-                        .foregroundStyle(.yellow)
+                        .foregroundStyle(CourseStyle.favoriteTint)
                         .accessibilityLabel(Text("Favorite"))
                 }
             }

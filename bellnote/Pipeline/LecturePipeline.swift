@@ -176,6 +176,27 @@ enum LecturePipeline {
         }
     }
 
+    /// A lecture that is saved as "processing" while nothing runs it: the app was closed or killed in the middle of the
+    /// run, or before a stop reached its end. It would stay "processing" for good. It goes back to paused at the last
+    /// finished stage, so Process resumes it. Call it when the app opens, before anything shows the lectures.
+    static func recoverInterrupted(context: ModelContext) {
+        let processing = LectureState.processing.rawValue
+        let descriptor = FetchDescriptor<Lecture>(predicate: #Predicate { $0.state == processing })
+        do {
+            let stuck = try context.fetch(descriptor).filter { !PipelineActivity.shared.isRunning($0) }
+            guard !stuck.isEmpty else { return }
+            for lecture in stuck {
+                lecture.state = LectureState.paused.rawValue
+                lecture.failureMessageKey = nil
+                lecture.neededModel = nil
+                log.info("Recovered an interrupted run stage=\(lecture.stage, privacy: .public)")
+            }
+            try context.save()
+        } catch {
+            log.error("Recover failed message=\(error.localizedDescription, privacy: .public)")
+        }
+    }
+
     /// The run was stopped. The steps that finished stay, and Process resumes after them. The text of a
     /// step that was cut half way is dropped, so no half correction stays on the page.
     private static func markStopped(_ lecture: Lecture, completed: PipelineStage, context: ModelContext) async {
