@@ -64,7 +64,11 @@ struct TermHomeView: View {
                 }
             }
         }
-        .task { openCurrentTermOnLaunch() }
+        .task {
+            openCurrentTermOnLaunch()
+            // Courses from before the color was stored get one, so no two courses of a term share a color.
+            for item in terms { item.fillMissingCourseColors() }
+        }
         .sheet(isPresented: $showTerm) { TermEditor(terms: terms) }
         .sheet(isPresented: $showSlot) {
             // The same sheet as "Add slot" in the timetable. A new course is made there, with its language.
@@ -348,7 +352,7 @@ struct TodayPage: View {
         let name = slot.course?.name ?? String(localized: "Course")
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 8) {
-                CourseBadge(name: name, size: 28)
+                CourseBadge(name: name, color: slot.course?.color ?? CourseStyle.color(for: name), size: 28)
                 Text(status(for: slot))
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(soon ? Color.accentColor : Color.secondary)
@@ -421,7 +425,7 @@ struct TodayPage: View {
     private func noteCard(_ course: Course) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 8) {
-                CourseBadge(name: course.name, size: 34)
+                CourseBadge(name: course.name, color: course.color, size: 34)
                 Text(course.name)
                     .font(.headline)
                     .lineLimit(2)

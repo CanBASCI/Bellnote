@@ -52,6 +52,10 @@ final class Course {
     var createdAt: Date
     /// Favourite courses come first on Home. The default value lets stores from before this field open.
     var isFavorite: Bool = false
+    /// The place of the course color in the palette. It is picked when the course is made, so two courses of one
+    /// term do not share a color while there are free colors. -1 means no color yet (a course from before this
+    /// field); `Term.fillMissingCourseColors()` gives it one. The default value lets old stores open.
+    var colorIndex: Int = -1
 
     var term: Term?
 
@@ -88,6 +92,8 @@ final class Course {
         self.localeIdentifier = localeIdentifier
         self.createdAt = Date()
         self.isFavorite = false
+        // Picked from the colors the other courses of this term do not use yet. Every term starts over.
+        self.colorIndex = term?.nextCourseColorIndex() ?? -1
         self.term = term
         self.lectures = []
         self.voiceprints = []

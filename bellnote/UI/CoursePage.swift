@@ -452,7 +452,6 @@ struct CoursePage: View {
     /// Recorded, Processing, Failed, Recording and Paused), and this is tall enough for them. It grows with the text
     /// size the student chose.
     @ScaledMetric(relativeTo: .footnote) private var tileSide: CGFloat = 180
-
     private func scrollToRecordings(_ proxy: ScrollViewProxy) {
         if let first = visibleLectures.first {
             withAnimation { proxy.scrollTo(first.id, anchor: .top) }
@@ -486,22 +485,26 @@ struct CoursePage: View {
             // The total sits at the right end of the title line.
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text(title)
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.primary)
+                    .font(.headline)
+                    // No shrinking. Every title has the same size on every tile.
                     .lineLimit(1)
-                    .minimumScaleFactor(0.7)
                 Spacer(minLength: 0)
                 Text(value, format: .number)
-                    .font(.title2.weight(.bold).monospacedDigit())
+                    .font(.title3.weight(.bold).monospacedDigit())
             }
-            // One empty line between the title line and the details.
-            Text(verbatim: " ")
-                .font(.footnote)
-                .hidden()
+            // White on the color, like the date covers of the recordings. White reads on the color in light and dark
+            // mode. Only this line has a color. The tile itself is plain glass.
+            .foregroundStyle(.white)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 4)
+            // Concentric with the tile: the tile corner (22) minus the tile padding (12).
+            .background(tint, in: .rect(cornerRadius: 10, style: .continuous))
+            // The gap between the colored line and the details. The line itself takes the place of the empty line.
+            .padding(.bottom, 6)
             ForEach(details, id: \.self) { line in
                 Text(verbatim: line)
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.primary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.85)
             }
@@ -509,8 +512,14 @@ struct CoursePage: View {
         .padding(12)
         // A square. Every tile has the same side, whatever it lists.
         .frame(width: tileSide, height: tileSide, alignment: .topLeading)
-        // The tint reads weaker on a dark background, so it needs more opacity to look like the light one.
-        .glassEffect(.regular.tint(tint.opacity(colorScheme == .dark ? 0.5 : 0.28)), in: .rect(cornerRadius: 22))
+        // Plain glass with no color, the same as the course cards on Home. The glass is a background, not a modifier
+        // of the texts. Otherwise the glass changes the text colors.
+        .background {
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .fill(.clear)
+                .glassEffect(.regular, in: .rect(cornerRadius: 22))
+        }
+        .contentShape(.rect(cornerRadius: 22))
         .accessibilityElement(children: .combine)
     }
 
@@ -518,7 +527,7 @@ struct CoursePage: View {
         // The day is the cover on the left, like the cover of a song in Apple Music. The title is the time of day.
         let separatorStart = Self.coverSize + Self.coverGap
         return HStack(spacing: Self.coverGap) {
-            DateCover(date: lecture.startedAt, courseName: course.name, size: Self.coverSize)
+            DateCover(date: lecture.startedAt, color: course.color, size: Self.coverSize)
                 .accessibilityValue(Text(lecture.statusTitle))
             // The time and the length on the first line, the summary under them.
             VStack(alignment: .leading, spacing: 2) {
@@ -569,7 +578,7 @@ struct CoursePage: View {
     private func oldLectureRow(_ lecture: Lecture) -> some View {
         let separatorStart = Self.coverSize + Self.coverGap
         return HStack(spacing: Self.coverGap) {
-            DateCover(date: lecture.startedAt, courseName: course.name, size: Self.coverSize)
+            DateCover(date: lecture.startedAt, color: course.color, size: Self.coverSize)
             VStack(alignment: .leading, spacing: 6) {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Text(lecture.startedAt.formatted(.dateTime.hour().minute().locale(locale)))

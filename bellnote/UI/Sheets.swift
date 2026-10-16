@@ -714,7 +714,6 @@ struct ModelsPage: View {
 
     private func refreshInstalled() async {
         Self.log.info("Models page open")
-        await LocalModelRuntime.shared.removeRetiredModels()
         let tagger = await LocalModelRuntime.shared.probe(.tagger)
         let page = await LocalModelRuntime.shared.probe(.page)
         let whisper = await LocalModelRuntime.shared.probe(.whisper)

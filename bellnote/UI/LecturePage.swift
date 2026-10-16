@@ -195,12 +195,13 @@ struct LectureNote: View {
                     .labelStyle(.iconOnly)
                 }
             }
-        }
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            // Pinned, so the buttons stay put while the page scrolls. The player is in the tab bar's accessory.
-            // Only when the whole run is over. The correction is written before the last stages end.
+            // Ask, Quiz and Listen are one menu at the far right of the bar. The same rules as the bar at the bottom
+            // had: only on the AI correction tab, only when there is a correction, and only when the whole run is
+            // over. The correction is written before the last stages end.
             if tab == .correction, hasCorrection, workingStage == nil, let course = lecture.course {
-                studyBar(course)
+                ToolbarItem(placement: .primaryAction) {
+                    studyMenu(course)
+                }
             }
         }
         .task(id: lecture.persistentModelID) {
@@ -349,37 +350,43 @@ struct LectureNote: View {
         return course.assignments.filter { ids.contains($0.sourceBlockID) }
     }
 
-    /// Ask, Quiz and Listen, pinned at the bottom of the page.
-    private func studyBar(_ course: Course) -> some View {
-        GlassEffectContainer(spacing: 8) {
-            HStack(spacing: 8) {
-                StudyButton(title: Text("Ask"), systemImage: "sparkles") {
-                    studyMode = .ask
-                    showStudy = true
-                }
-                StudyButton(title: Text(verbatim: quizTitle(course)), systemImage: "checklist") {
-                    studyMode = .quiz
-                    showStudy = true
-                }
-                StudyButton(
-                    title: reader.isSpeaking ? Text("Stop") : Text("Listen"),
-                    systemImage: reader.isSpeaking ? "stop.fill" : "speaker.wave.2.fill"
-                ) {
-                    if reader.isSpeaking {
-                        reader.stop()
-                    } else {
-                        listen(course)
-                    }
+    /// Ask, Quiz and Listen, as one menu in the navigation bar. The icon is the same as the Ask button of the course
+    /// page.
+    private func studyMenu(_ course: Course) -> some View {
+        Menu {
+            Button {
+                studyMode = .ask
+                showStudy = true
+            } label: {
+                Label("Ask", systemImage: "sparkles")
+            }
+            Button {
+                studyMode = .quiz
+                showStudy = true
+            } label: {
+                Label {
+                    Text(verbatim: quizTitle(course))
+                } icon: {
+                    Image(systemName: "checklist")
                 }
             }
-            .buttonStyle(.glass)
-            .font(.footnote.weight(.medium))
-            .controlSize(.regular)
-            .lineLimit(1)
+            Button {
+                if reader.isSpeaking {
+                    reader.stop()
+                } else {
+                    listen(course)
+                }
+            } label: {
+                if reader.isSpeaking {
+                    Label("Stop", systemImage: "stop.fill")
+                } else {
+                    Label("Listen", systemImage: "speaker.wave.2.fill")
+                }
+            }
+        } label: {
+            Image(systemName: "sparkles")
         }
-        // 21 pt from each edge, the same as the tab bar and the player accessory below.
-        .padding(.horizontal, 21)
-        .padding(.bottom, 8)
+        .accessibilityLabel(Text("Ask"))
     }
 
     /// Puts the player in the tab bar's accessory when the recording is loaded and no run is going.

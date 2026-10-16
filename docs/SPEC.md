@@ -143,6 +143,7 @@ Default downloads, not bundled:
 
 - `mlx-community/Qwen3.5-2B-MLX-4bit` (~1.5 GB). Any text job. Smaller and faster.
 - `mlx-community/Qwen3.5-4B-MLX-4bit` (~2.9 GB). Any text job. Larger and more accurate.
+- Qwen 3.5 9B was tried on an 8 GB phone and does not fit. The weights alone are 5.6 GB, and the system closed the app while they loaded. Do not offer it.
 - `argmaxinc/whisperkit-coreml`, folder `openai_whisper-large-v3-v20240930_turbo_632MB`, with the tokenizer files of `openai/whisper-large-v3` (~0.65 GB in all). Only when the student taps Download. Core ML prepares it for the chip right after the download, because that takes minutes the first time.
 
 The app downloads these from the public Hugging Face `mlx-community` repos. No student account, no developer token, no signup screen. The student never sees the URL. The model screen groups the rows: AI models (2B, 4B), speech to text (Whisper), audio (FluidAudio, Supertonic). Each row shows the parameter size, the file size, and the job. Partial downloads resume. Deleting a model does not delete notes. SpeechAnalyzer assets come from `AssetInventory`, not from Hugging Face.

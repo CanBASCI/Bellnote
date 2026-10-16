@@ -254,27 +254,6 @@ actor LocalModelRuntime {
         Self.log.info("Delete finished role=\(role.rawValue, privacy: .public)")
     }
 
-    /// Models earlier builds could download and this one no longer uses (Gemma 4 and Qwen ASR).
-    /// Their files are removed so the space comes back. Nothing is downloaded.
-    func removeRetiredModels() {
-        for repo in Self.retiredRepos {
-            let directory = HubWeights.directory(for: repo)
-            guard FileManager.default.fileExists(atPath: directory.deletingLastPathComponent().path) else { continue }
-            do {
-                try HubWeights.remove(repo)
-                Self.log.info("Removed retired model repo=\(repo, privacy: .public)")
-            } catch {
-                Self.log.error("Retired model could not be removed repo=\(repo, privacy: .public) message=\(error.localizedDescription, privacy: .public)")
-            }
-        }
-    }
-
-    private static let retiredRepos = [
-        "mlx-community/gemma-4-e2b-it-4bit",
-        "mlx-community/gemma-4-e4b-it-4bit",
-        "mlx-community/Qwen3-ASR-0.6B-4bit",
-    ]
-
     func isInstalled(_ role: ModelRole) -> Bool {
         probe(role).isReady
     }

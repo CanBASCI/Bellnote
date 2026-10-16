@@ -1,24 +1,84 @@
 import SwiftData
 import SwiftUI
 
-/// Small shared pieces of the Bellnote look. Only semantic colors are used,
-/// so every piece follows light and dark mode and Increase Contrast by itself.
+/// Small shared pieces of the Bellnote look. Status colors are semantic, so they follow light and dark mode and
+/// Increase Contrast by themselves. The course palette is a fixed set of muted colors.
 enum CourseStyle {
-    private static let palette: [Color] = [.indigo, .teal, .orange, .pink, .green, .blue, .purple, .mint]
+    /// Twelve muted, modern colors for the courses, in the same style as the titles of the tiles on the course page.
+    /// None is loud. Each one is dark enough for white text (the date cover) and light enough to show on dark mode.
+    /// The hues are spread out, so two courses next to each other rarely look alike.
+    private static let palette: [Color] = [
+        rgb(79, 111, 181),   // soft blue        #4F6FB5
+        rgb(63, 156, 140),   // sage teal        #3F9C8C
+        rgb(194, 112, 138),  // dusty rose       #C2708A
+        rgb(108, 107, 184),  // periwinkle       #6C6BB8
+        rgb(196, 122, 87),   // terracotta       #C47A57
+        rgb(169, 130, 47),   // ochre            #A9822F
+        rgb(111, 143, 68),   // olive            #6F8F44
+        rgb(142, 95, 158),   // plum             #8E5F9E
+        rgb(63, 129, 153),   // steel cyan       #3F8199
+        rgb(143, 109, 87),   // clay brown       #8F6D57
+        rgb(194, 91, 83),    // soft coral       #C25B53
+        rgb(95, 112, 136)    // slate            #5F7088
+    ]
 
-    /// The same course always gets the same color. `hashValue` is random per launch, so it is not used.
+    private static func rgb(_ red: Double, _ green: Double, _ blue: Double) -> Color {
+        Color(red: red / 255, green: green / 255, blue: blue / 255)
+    }
+
+    static var paletteCount: Int { palette.count }
+
+    /// The color at a place of the palette. A place past the end wraps around. A negative place (a course that has
+    /// no color yet) falls back to a color from the name, so the course still has one until it gets its own.
+    static func color(at index: Int, fallbackName name: String) -> Color {
+        guard index >= 0 else { return color(for: name) }
+        return palette[index % palette.count]
+    }
+
+    /// The same course always gets the same color. Only the fallback for a course with no stored color. `hashValue` is random per launch, so it is not used.
     static func color(for name: String) -> Color {
         let sum = name.unicodeScalars.reduce(0) { $0 &+ Int($1.value) }
         return palette[sum % palette.count]
     }
 
-    /// Tints of the three count tiles on the course page: #3B5FDB, #2EC98A, #F0A0B5.
-    static let recordingsTint = Color(red: 59 / 255, green: 95 / 255, blue: 219 / 255)
-    static let assignmentsTint = Color(red: 46 / 255, green: 201 / 255, blue: 138 / 255)
-    static let examsTint = Color(red: 240 / 255, green: 160 / 255, blue: 181 / 255)
+    /// Colors of the titles of the three count tiles on the course page. Muted on purpose, not loud: a soft blue
+    /// (#4F6FB5), a sage teal (#3F9C8C) and a dusty rose (#C2708A). They read on both light and dark glass.
+    static let recordingsTint = rgb(79, 111, 181)
+    static let assignmentsTint = rgb(63, 156, 140)
+    static let examsTint = rgb(194, 112, 138)
 
     static func initial(of name: String) -> String {
         name.trimmingCharacters(in: .whitespaces).first.map { String($0).uppercased() } ?? "?"
+    }
+}
+
+extension Course {
+    /// The color of the course, from its place in the palette.
+    var color: Color {
+        CourseStyle.color(at: colorIndex, fallbackName: name)
+    }
+}
+
+extension Term {
+    /// The place in the palette for a new course: the color the courses of this term use the least, and of those the
+    /// first. So with up to twelve courses no color repeats. Past twelve, the colors start over in the same order.
+    /// A new term has no courses, so its colors start from the beginning. Colors of other terms do not count.
+    func nextCourseColorIndex() -> Int {
+        let count = CourseStyle.paletteCount
+        guard count > 0 else { return 0 }
+        var uses = Array(repeating: 0, count: count)
+        for course in courses where course.colorIndex >= 0 {
+            uses[course.colorIndex % count] += 1
+        }
+        let fewest = uses.min() ?? 0
+        return uses.firstIndex(of: fewest) ?? 0
+    }
+
+    /// Gives a color to the courses that have none yet (made before the color was stored), oldest first.
+    func fillMissingCourseColors() {
+        for course in courses.sorted(by: { $0.createdAt < $1.createdAt }) where course.colorIndex < 0 {
+            course.colorIndex = nextCourseColorIndex()
+        }
     }
 }
 
@@ -84,6 +144,7 @@ extension View {
 /// A rounded square with the course initial.
 struct CourseBadge: View {
     var name: String
+    var color: Color
     var size: CGFloat = 40
 
     var body: some View {
@@ -91,19 +152,19 @@ struct CourseBadge: View {
             .font(.system(size: size * 0.45, weight: .bold, design: .rounded))
             .foregroundStyle(.white)
             .frame(width: size, height: size)
-            .background(CourseStyle.color(for: name).gradient, in: RoundedRectangle(cornerRadius: size * 0.27, style: .continuous))
+            .background(color.gradient, in: RoundedRectangle(cornerRadius: size * 0.27, style: .continuous))
             .accessibilityHidden(true)
     }
 }
 
 /// The day of a recording as a small square, where Apple Music shows the cover of a song.
-/// It is Liquid Glass in the colour of the course, with the month on top and the day number under it.
+/// It is a flat rounded square in the colour of the course, with the month on top and the day number under it.
+/// It has no glass. Glass is for the controls that float above the content, not for the rows of a list.
 struct DateCover: View {
     var date: Date
-    var courseName: String
+    var color: Color
     var size: CGFloat = 48
     @Environment(\.locale) private var locale
-    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         VStack(spacing: 0) {
@@ -112,13 +173,10 @@ struct DateCover: View {
             Text(date.formatted(.dateTime.day().locale(locale)))
                 .font(.system(size: size * 0.45, weight: .bold, design: .rounded))
         }
-        .foregroundStyle(.primary)
+        // White on the colour of the course, so it reads in light and dark mode.
+        .foregroundStyle(.white)
         .frame(width: size, height: size)
-        // Liquid Glass tinted with the colour of the course, with the same tint strength as the tiles on the course page.
-        .glassEffect(
-            .regular.tint(CourseStyle.color(for: courseName).opacity(colorScheme == .dark ? 0.5 : 0.28)),
-            in: .rect(cornerRadius: size * 0.2)
-        )
+        .background(color, in: .rect(cornerRadius: size * 0.2, style: .continuous))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text(verbatim: date.formatted(.dateTime.day().month(.wide).locale(locale))))
     }
