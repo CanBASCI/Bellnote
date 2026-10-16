@@ -65,6 +65,7 @@ struct TermHomeView: View {
             }
         }
         .task {
+            Logger(subsystem: "app.bellnote", category: "home").info("Home appeared, \(terms.count, privacy: .public) terms")
             openCurrentTermOnLaunch()
             // Courses from before the color was stored get one, so no two courses of a term share a color.
             for item in terms { item.fillMissingCourseColors() }
@@ -128,14 +129,27 @@ struct TodayPage: View {
     @State private var pendingCourse: Course?
     @State private var pendingTermDelete = false
     @State private var showEditTerm = false
+    /// The side of the badge on the hero card: as high as one line of the name (title 2) and the line of the lecturer
+    /// (subheadline) together with the room between them. It grows with the text size, and it is not measured from the
+    /// laid out texts, so the badge and the texts cannot push each other around in a loop.
+    @ScaledMetric(relativeTo: .title2) private var heroBadgeSize: CGFloat = 50
     @State private var openedCourse: Course?
+    @State private var editingCourse: Course?
     @State private var deleteNotice: String?
 
     var body: some View {
         List {
             if let slot = nextSlot {
+                // The card is in the section header, like the course cards below it: a list row would clip the glass
+                // edge and its shadow.
                 Section {
+                    EmptyView()
+                } header: {
                     hero(slot)
+                        .textCase(nil)
+                        .foregroundStyle(.primary)
+                        // Room between the navigation bar and the card. It comes on top of the room the list gives.
+                        .padding(.top, Self.heroTopInset)
                 }
             }
             // Two glass cards per row. They sit in the section header, like the stat tiles of a course:
@@ -211,6 +225,7 @@ struct TodayPage: View {
             }
         }
         .navigationTitle(termTitle)
+        .navigationBarTitleDisplayMode(.inline)
         .navigationSubtitle(Date.now.formatted(.dateTime.weekday(.wide).day().month(.wide).locale(session.locale)))
         .navigationDestination(item: $openedCourse) { course in
             CoursePage(course: course)
@@ -224,6 +239,9 @@ struct TodayPage: View {
             }
         }
         .sheet(isPresented: $showEditTerm) { TermEditor(terms: terms, editing: term) }
+        .sheet(item: $editingCourse) { course in
+            CourseEditor(course: course, term: term)
+        }
         .sheet(item: $activeLecture) { lecture in
             RecorderSheet(lecture: lecture)
         }
@@ -268,7 +286,8 @@ struct TodayPage: View {
     /// "Year 1 · Term 2", with the name the student gave the term in front of it when there is one.
     private var termTitle: Text {
         let name = term.customName.trimmingCharacters(in: .whitespacesAndNewlines)
-        return name.isEmpty ? yearAndTerm(term) : Text("\(Text(verbatim: name)) · \(yearAndTerm(term))")
+        // A term with a name is shown by that name alone. Without a name it is "year, term".
+        return name.isEmpty ? yearAndTerm(term) : Text(verbatim: name)
     }
 
     /// Icon only. Picks which term the app shows. Opening one closes the others; no term is deleted.
@@ -347,50 +366,130 @@ struct TodayPage: View {
         }
     }
 
+    /// An icon and a text with a narrow gap of 4 pt. `Label` puts a wider gap of its own between them.
+    private func iconLine(_ text: String, systemImage: String) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: systemImage)
+                .accessibilityHidden(true)
+            Text(verbatim: text)
+        }
+    }
+
+    /// The place of the slot, always shown. Without one it says so.
+    private func placeLine(_ slot: WeeklySlot) -> some View {
+        iconLine(
+            slot.placeName.isEmpty ? String(localized: "Place not added") : slot.placeName,
+            systemImage: "mappin.and.ellipse"
+        )
+    }
+
+    /// The red Start recording button of the hero card.
+    private func startButton(_ course: Course) -> some View {
+        Button {
+            recordCourse = course
+            showConsent = true
+        } label: {
+            Label("Start recording", systemImage: "record.circle.fill")
+                .symbolRenderingMode(.monochrome)
+                .foregroundStyle(.white)
+        }
+        .buttonStyle(.glassProminent)
+        .controlSize(.large)
+        .tint(.red)
+        .consentFlow(course: recordCourse, isPresented: $showConsent) { course, faceID in
+            activeLecture = LectureStarter.make(course: course, faceID: faceID, context: modelContext)
+        }
+        // The glass button has a little room around the pill in its frame, so the pill looked higher than the last
+        // line on the left. This moves only the drawing, not the layout. Change `startButtonDrop` if it needs more
+        // or less.
+        .offset(y: Self.startButtonDrop)
+    }
+
     @ViewBuilder
     private func hero(_ slot: WeeklySlot) -> some View {
         let soon = slot.weekday == Calendar.current.component(.weekday, from: .now)
         let name = slot.course?.name ?? String(localized: "Course")
         VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 8) {
-                CourseBadge(name: name, color: slot.course?.color ?? CourseStyle.color(for: name), size: 28)
-                Text(status(for: slot))
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(soon ? Color.accentColor : Color.secondary)
-            }
-            Text(name)
-                .font(.largeTitle.bold())
-                .minimumScaleFactor(0.7)
-                .lineLimit(2)
-            Label(slotDetail(slot), systemImage: "clock")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-            if let course = slot.course {
-                Button {
-                    recordCourse = course
-                    showConsent = true
-                } label: {
-                    Label("Start recording", systemImage: "record.circle.fill")
-                        .symbolRenderingMode(.monochrome)
-                        .foregroundStyle(.white)
-                        .frame(maxWidth: .infinity)
+            let lecturer = slot.course?.lecturer?.displayName ?? ""
+            // The top row, the whole width of the card: the badge, the name and under the name the lecturer, like the
+            // course cards. With no lecturer name it says "Lecturer", the same as the cards and the course page.
+            HStack(spacing: 10) {
+                // A square as high as the name and the lecturer together (one line of the name). The width is the
+                // same as the height, so the shape does not change.
+                CourseBadge(name: name, color: slot.course?.color ?? CourseStyle.color(for: name), size: heroBadgeSize)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(name)
+                        .font(.title2.bold())
+                        .minimumScaleFactor(0.7)
+                        .lineLimit(2)
+                    iconLine(lecturer.isEmpty ? String(localized: "Lecturer") : lecturer, systemImage: "person.crop.circle")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
                 }
-                .buttonStyle(.glassProminent)
-                .controlSize(.large)
-                .tint(.red)
-                .consentFlow(course: recordCourse, isPresented: $showConsent) { course, faceID in
-                    activeLecture = LectureStarter.make(course: course, faceID: faceID, context: modelContext)
-                }
-                .padding(.top, 4)
             }
+            // This row has the whole width of the card for itself, from the left edge to the right edge. Nothing else
+            // shares it.
+            .frame(maxWidth: .infinity, alignment: .leading)
+            // Under it two columns that start at the same line, with the same room between the lines, so the lines
+            // of the two sides are level with each other:
+            //   row 1: the day   | the days left to the class
+            //   row 2: the time  | the minutes left of the class ("Not started" before it begins)
+            // The left column goes on with the place, the next exam and the pending assignments. The right column has
+            // the button at its bottom, level with the last line on the left.
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: Self.heroInfoSpacing) {
+                    iconLine(status(for: slot), systemImage: "calendar")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(soon ? Color.accentColor : Color.secondary)
+                    Group {
+                        iconLine(slotDetail(slot), systemImage: "clock")
+                        placeLine(slot)
+                        if let course = slot.course {
+                            iconLine(nextExamText(for: course), systemImage: "calendar.badge.clock")
+                            iconLine(openAssignmentsText(for: course), systemImage: "checklist")
+                        }
+                    }
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                // The right column is only as wide as its widest line or the text of the button. The free room in it
+                // is between the two lines and the button, so the button goes down to the bottom.
+                VStack(alignment: .leading, spacing: Self.heroInfoSpacing) {
+                    iconLine(daysUntilText(for: slot), systemImage: "hourglass.tophalf.filled")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                    iconLine(minutesLeftText(for: slot), systemImage: "hourglass")
+                        .font(.subheadline)
+                        .foregroundStyle(minutesLeft(for: slot) == nil ? Color.secondary : Color.accentColor)
+                    Spacer(minLength: 10)
+                    if let course = slot.course {
+                        startButton(course)
+                    }
+                }
+                .fixedSize(horizontal: true, vertical: false)
+                .layoutPriority(1)
+            }
+            .lineLimit(1)
         }
-        .padding(.vertical, 6)
-        // Glass fills the whole list card; the system already insets that card from the edges.
-        .listRowBackground(
-            RoundedRectangle(cornerRadius: 26, style: .continuous)
+        // At the sides the same room between the edge and the content as in the course cards. Above and under, a bit
+        // more: the corners of this card are close to the texts, and it is wider than a course card.
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, Self.cardPadding)
+        .padding(.vertical, Self.heroVerticalPadding)
+        // The same glass, corner and edge as the course cards. The glass is a background, not a modifier of the
+        // texts, so it does not change their colours.
+        .background {
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
                 .fill(.clear)
-                .glassEffect(.regular, in: .rect(cornerRadius: 26))
-        )
+                .glassEffect(.regular, in: .rect(cornerRadius: 22))
+        }
+        // The card sits in a section header (see `body`), which has its own font. The texts and the button keep the
+        // fonts set above, so this is only the base.
+        .font(.body)
+        // Out to the sides by the inset of the header, like the course cards, so the edges line up.
+        .padding(.horizontal, -16)
     }
 
     private static let noteColumns = [
@@ -399,6 +498,14 @@ struct TodayPage: View {
     ]
     private static let noteSpacing: CGFloat = 10
     private static let cardPadding: CGFloat = 12
+    /// Room between the lines of the block on the right of the hero card.
+    private static let heroInfoSpacing: CGFloat = 4
+    /// Room above and under the content of the hero card, between the content and the edge of the card.
+    private static let heroVerticalPadding: CGFloat = 20
+    /// Extra room above the hero card, under the navigation bar. Change this one number to move the card.
+    private static let heroTopInset: CGFloat = 16
+    /// How far the Start recording pill is moved down so its bottom is level with the last line on the right.
+    private static let startButtonDrop: CGFloat = 4
     /// The same height as the course badge, so the icon is centred on the name row.
     private static let menuSize: CGFloat = 34
 
@@ -424,6 +531,7 @@ struct TodayPage: View {
             ) {
                 course.isFavorite.toggle()
             }
+            Button("Edit course", systemImage: "pencil") { editingCourse = course }
             Button("Delete", systemImage: "trash", role: .destructive) { askDelete(course) }
         } label: {
             Image(systemName: "ellipsis")
@@ -532,10 +640,72 @@ struct TodayPage: View {
         return weekdayName(slot.weekday)
     }
 
+    /// The next exam of the course that is today or later: "Midterm · 12 days later". A dash when there is none.
+    private func nextExamText(for course: Course) -> String {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: .now)
+        let upcoming = course.sittings
+            .compactMap { sitting -> (sitting: ExamSitting, date: Date)? in
+                guard let date = sitting.date, calendar.startOfDay(for: date) >= today else { return nil }
+                return (sitting, date)
+            }
+            .min { $0.date < $1.date }
+        guard let upcoming else { return String(localized: "Exam not added") }
+        let days = calendar.dateComponents([.day], from: today, to: calendar.startOfDay(for: upcoming.date)).day ?? 0
+        let when: String
+        switch days {
+        case 0: when = String(localized: "Today")
+        case 1: when = String(localized: "Tomorrow")
+        default: when = String(format: String(localized: "%lld days later"), days)
+        }
+        return "\(examName(upcoming.sitting)) · \(when)"
+    }
+
+    /// The title the student gave the exam, or the name of its kind.
+    private func examName(_ sitting: ExamSitting) -> String {
+        let title = sitting.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !title.isEmpty { return title }
+        switch ExamKind(rawValue: sitting.kind) {
+        case .midterm: return String(localized: "Midterm")
+        case .final: return String(localized: "Final")
+        case .other, nil: return String(localized: "Exam")
+        }
+    }
+
+    /// The assignments that are not done and not cancelled, the same count as "Pending" on the course page.
+    private func openAssignmentsText(for course: Course) -> String {
+        let open = course.assignments.filter { !$0.done && !$0.cancelled }.count
+        return String(format: String(localized: "Pending assignments: %lld"), open)
+    }
+
+    /// The minutes until the class ends, only while it is going on now. Otherwise nil.
+    private func minutesLeft(for slot: WeeklySlot) -> Int? {
+        let calendar = Calendar.current
+        let weekday = calendar.component(.weekday, from: .now)
+        let minutes = calendar.component(.hour, from: .now) * 60 + calendar.component(.minute, from: .now)
+        guard slot.weekday == weekday, minutes >= slot.startMinutes, minutes < slot.endMinutes else { return nil }
+        return slot.endMinutes - minutes
+    }
+
+    /// How many days are left to the class: "Today", "Tomorrow" or "3 days later".
+    private func daysUntilText(for slot: WeeklySlot) -> String {
+        let weekday = Calendar.current.component(.weekday, from: .now)
+        let days = (slot.weekday - weekday + 7) % 7
+        switch days {
+        case 0: return String(localized: "Today")
+        case 1: return String(localized: "Tomorrow")
+        default: return String(format: String(localized: "%lld days later"), days)
+        }
+    }
+
+    /// The minutes until the class ends while it goes on. Before that it says the class has not started.
+    private func minutesLeftText(for slot: WeeklySlot) -> String {
+        guard let left = minutesLeft(for: slot) else { return String(localized: "Not started") }
+        return String(format: String(localized: "%lld min left"), left)
+    }
+
     private func slotDetail(_ slot: WeeklySlot) -> String {
-        let span = "\(ReminderScheduler.clock(slot.startMinutes))–\(ReminderScheduler.clock(slot.endMinutes))"
-        guard !slot.placeName.isEmpty else { return span }
-        return "\(span) · \(slot.placeName)"
+        "\(ReminderScheduler.clock(slot.startMinutes))–\(ReminderScheduler.clock(slot.endMinutes))"
     }
 
     /// One line per weekly slot of the course, in the order of the week: "Mon 09:00–10:30".

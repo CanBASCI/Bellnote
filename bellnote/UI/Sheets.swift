@@ -1323,12 +1323,23 @@ struct SlotEditor: View {
     @State private var newName = ""
     @State private var language = AppLanguage.deviceCourseDefault
     @State private var place = ""
+    /// Set when the sheet changes a time that is already in the timetable. Then the course cannot change.
+    private let editing: WeeklySlot?
+    /// Set when the sheet adds one more time to a given course. Then the course is fixed and not asked.
+    private let lockedCourse: Course?
 
-    init(term: Term, weekday: Int) {
+    /// - Parameters:
+    ///   - course: Adds a time to this course. The course picker is hidden.
+    ///   - editing: Changes this time. The sheet opens with its day, hours and place.
+    init(term: Term, weekday: Int, course: Course? = nil, editing: WeeklySlot? = nil) {
         self.term = term
         self.weekday = weekday
-        _day = State(initialValue: weekday)
-        if term.courses.count == 1, let token = term.courses.first?.token {
+        self.editing = editing
+        self.lockedCourse = editing?.course ?? course
+        _day = State(initialValue: editing?.weekday ?? weekday)
+        if let locked = editing?.course ?? course {
+            _choice = State(initialValue: .existing(locked.token))
+        } else if term.courses.count == 1, let token = term.courses.first?.token {
             _choice = State(initialValue: .existing(token))
         } else if term.courses.isEmpty {
             // The term has no course yet, so the first thing to do is to make one.
@@ -1337,28 +1348,46 @@ struct SlotEditor: View {
             _choice = State(initialValue: .none)
         }
         let hour = Calendar.current.dateInterval(of: .hour, for: .now)?.end ?? .now
-        _start = State(initialValue: hour)
-        _end = State(initialValue: hour.addingTimeInterval(90 * 60))
+        if let editing {
+            _start = State(initialValue: Self.date(atMinutes: editing.startMinutes, fallback: hour))
+            _end = State(initialValue: Self.date(atMinutes: editing.endMinutes, fallback: hour.addingTimeInterval(90 * 60)))
+            _place = State(initialValue: editing.placeName)
+        } else {
+            _start = State(initialValue: hour)
+            _end = State(initialValue: hour.addingTimeInterval(90 * 60))
+        }
+    }
+
+    /// Today at the given minutes of the day. The date part does not matter, only the hour and the minute are used.
+    private static func date(atMinutes minutes: Int, fallback: Date) -> Date {
+        Calendar.current.date(bySettingHour: minutes / 60, minute: minutes % 60, second: 0, of: .now) ?? fallback
+    }
+
+    private var title: LocalizedStringKey {
+        if editing != nil { return "Edit slot" }
+        return lockedCourse != nil ? "Add time" : "Add slot"
     }
 
     var body: some View {
         NavigationStack {
             Form {
-                Picker("Course", selection: $choice) {
-                    Text("None").tag(SlotCourseChoice.none)
-                    Text("New course").tag(SlotCourseChoice.new)
-                    ForEach(term.courses) { course in
-                        Text(course.name).tag(SlotCourseChoice.existing(course.token))
-                    }
-                }
-                if choice == .new {
-                    TextField("Course", text: $newName)
-                    Picker("Language", selection: $language) {
-                        ForEach(AppLanguage.courseChoices, id: \.self) { item in
-                            Text(LocalizedStringKey(item.title)).tag(item)
+                if lockedCourse == nil {
+                    Picker("Course", selection: $choice) {
+                        Text("None").tag(SlotCourseChoice.none)
+                        Text("New course").tag(SlotCourseChoice.new)
+                        ForEach(term.courses) { course in
+                            Text(course.name).tag(SlotCourseChoice.existing(course.token))
                         }
                     }
-                    .pickerStyle(.menu)
+                    if choice == .new {
+                        TextField("Course", text: $newName)
+                        Picker("Language", selection: $language) {
+                            ForEach(AppLanguage.courseChoices, id: \.self) { item in
+                                Text(LocalizedStringKey(item.title)).tag(item)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                    }
                 }
                 Picker("Weekday", selection: $day) {
                     ForEach(1...7, id: \.self) { value in
@@ -1369,7 +1398,7 @@ struct SlotEditor: View {
                 DatePicker("End", selection: $end, displayedComponents: .hourAndMinute)
                 TextField("Place", text: $place)
             }
-            .navigationTitle("Add slot")
+            .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
@@ -1384,6 +1413,8 @@ struct SlotEditor: View {
 
     private var canSave: Bool {
         guard minutes(end) > minutes(start) else { return false }
+        // A time that is changed, or one added to a given course, already has its course.
+        if editing != nil || lockedCourse != nil { return true }
         switch choice {
         case .none:
             return false
@@ -1395,7 +1426,17 @@ struct SlotEditor: View {
     }
 
     private func save() {
-        let course = courseForSlot()
+        if let editing {
+            editing.weekday = day
+            editing.startMinutes = minutes(start)
+            editing.endMinutes = minutes(end)
+            editing.placeName = place
+            // The reminder of this time follows the new day and hour.
+            ReminderScheduler.replaceSlot(editing, courseName: editing.course?.name ?? "")
+            dismiss()
+            return
+        }
+        let course = lockedCourse ?? courseForSlot()
         let slot = WeeklySlot(
             weekday: day,
             startMinutes: minutes(start),

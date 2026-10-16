@@ -27,6 +27,22 @@
     "%lld" : {
 
     },
+    "%lld days later" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "in %lld days"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld gün sonra"
+          }
+        }
+      }
+    },
     "%lld min" : {
       "localizations" : {
         "en" : {
@@ -55,6 +71,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld dk sonra"
+          }
+        }
+      }
+    },
+    "%lld min left" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld min left"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld dk kaldı"
           }
         }
       }
@@ -121,6 +153,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ders ekle"
+          }
+        }
+      }
+    },
+    "Add time" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add time"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saat ekle"
           }
         }
       }
@@ -431,22 +479,6 @@
         }
       }
     },
-    "Cancelling…" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Cancelling…"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "İptal ediliyor…"
-          }
-        }
-      }
-    },
     "Cancel processing" : {
       "localizations" : {
         "en" : {
@@ -475,6 +507,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "İptal edildi"
+          }
+        }
+      }
+    },
+    "Cancelling…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cancelling…"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "İptal ediliyor…"
           }
         }
       }
@@ -620,6 +668,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Sil"
+          }
+        }
+      }
+    },
+    "Delete and process again" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete and process again"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sil ve tekrar işle"
           }
         }
       }
@@ -963,6 +1027,38 @@
         }
       }
     },
+    "Edit course" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edit course"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dersi düzenle"
+          }
+        }
+      }
+    },
+    "Edit slot" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edit slot"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saati düzenle"
+          }
+        }
+      }
+    },
     "Edit term" : {
       "localizations" : {
         "en" : {
@@ -1079,6 +1175,38 @@
         }
       }
     },
+    "Exam" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exam"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sınav"
+          }
+        }
+      }
+    },
+    "Exam not added" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exam not added"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sınav eklenmedi"
+          }
+        }
+      }
+    },
     "Exams" : {
       "localizations" : {
         "en" : {
@@ -1155,6 +1283,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Kadın %lld"
+          }
+        }
+      }
+    },
+    "Final" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Final"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Final"
           }
         }
       }
@@ -1620,6 +1764,22 @@
         }
       }
     },
+    "Midterm" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Midterm"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vize"
+          }
+        }
+      }
+    },
     "Missing" : {
       "localizations" : {
         "en" : {
@@ -2012,6 +2172,22 @@
         }
       }
     },
+    "Not started" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not started"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ders başlamadı"
+          }
+        }
+      }
+    },
     "Note" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2142,6 +2318,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Cihazda kalır"
+          }
+        }
+      }
+    },
+    "Pending assignments: %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pending assignments: %lld"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bekleyen ödev: %lld"
           }
         }
       }
@@ -2290,6 +2482,22 @@
         }
       }
     },
+    "Place not added" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Place not added"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yer eklenmedi"
+          }
+        }
+      }
+    },
     "Play" : {
       "localizations" : {
         "en" : {
@@ -2366,22 +2574,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "İşle"
-          }
-        }
-      }
-    },
-    "Delete and process again" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Delete and process again"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sil ve tekrar işle"
           }
         }
       }
@@ -3309,6 +3501,22 @@
         }
       }
     },
+    "The language is fixed once a course has recordings." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The language is fixed once a course has recordings."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kaydı olan bir dersin dili değiştirilemez."
+          }
+        }
+      }
+    },
     "The lecturer or school permitted recording" : {
       "localizations" : {
         "en" : {
@@ -3385,6 +3593,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Notlar bu dersin önceki kayıtlarına bağlanıyor."
+          }
+        }
+      }
+    },
+    "The raw text, the AI correction, the assignments and the title are deleted at once. Cancelling the processing does not bring them back. The recording stays." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The raw text, the AI correction, the assignments and the title are deleted at once. Cancelling the processing does not bring them back. The recording stays."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ham metin, AI düzeltme, ödevler ve başlık hemen silinir. İşlemi iptal etsen bile geri gelmezler. Ses kaydı kalır."
           }
         }
       }
@@ -3537,22 +3761,6 @@
         }
       }
     },
-    "The raw text, the AI correction, the assignments and the title are deleted at once. Cancelling the processing does not bring them back. The recording stays." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The raw text, the AI correction, the assignments and the title are deleted at once. Cancelling the processing does not bring them back. The recording stays."
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ham metin, AI düzeltme, ödevler ve başlık hemen silinir. İşlemi iptal etsen bile geri gelmezler. Ses kaydı kalır."
-          }
-        }
-      }
-    },
     "These dates overlap another term." : {
       "localizations" : {
         "en" : {
@@ -3668,6 +3876,22 @@
         }
       }
     },
+    "Times" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Times"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saatler"
+          }
+        }
+      }
+    },
     "Timetable" : {
       "localizations" : {
         "en" : {
@@ -3701,7 +3925,6 @@
       }
     },
     "Today" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -3713,6 +3936,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Bugün"
+          }
+        }
+      }
+    },
+    "Tomorrow" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tomorrow"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yarın"
           }
         }
       }
