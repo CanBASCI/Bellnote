@@ -167,7 +167,8 @@ struct TodayPage: View {
                                 .buttonStyle(UnfadedCardStyle())
                                 .overlay(alignment: .topTrailing) {
                                     courseMenu(course)
-                                        .padding(Self.cardPadding)
+                                        .padding(.top, menuTopInset)
+                                        .padding(.trailing, Self.cardPadding)
                                 }
                             }
                         }
@@ -401,6 +402,19 @@ struct TodayPage: View {
     /// The same height as the course badge, so the icon is centred on the name row.
     private static let menuSize: CGFloat = 34
 
+    /// The height of one line of the name (`headline`) and of the lecturer (`caption2`). They follow the text size.
+    @ScaledMetric(relativeTo: .headline) private var nameLineHeight: CGFloat = 22
+    @ScaledMetric(relativeTo: .caption2) private var lecturerLineHeight: CGFloat = 13
+
+    /// The space above the menu icon, from the top of the card, so that its middle is on the middle of the name line.
+    /// The row of the card is as tall as the badge or the name with the lecturer, whichever is taller, and the
+    /// name is at the top of its block.
+    private var menuTopInset: CGFloat {
+        let block = nameLineHeight + lecturerLineHeight
+        let row = max(Self.menuSize, block)
+        return max(0, Self.cardPadding + (row - block) / 2 + nameLineHeight / 2 - Self.menuSize / 2)
+    }
+
     /// The menu icon at the far end of the name row of a card. The favourite and the delete of the course are in it.
     private func courseMenu(_ course: Course) -> some View {
         Menu {
@@ -424,27 +438,35 @@ struct TodayPage: View {
     /// One course as a glass card. The three numbers are the totals of the whole course, not of one week.
     private func noteCard(_ course: Course) -> some View {
         VStack(alignment: .leading, spacing: 6) {
+            // The badge is in the middle of the name and the lecturer. The menu icon (above the card) is on the line
+            // of the name, see `menuTopInset`.
             HStack(spacing: 8) {
                 CourseBadge(name: course.name, color: course.color, size: 34)
-                Text(course.name)
-                    .font(.headline)
-                    .lineLimit(2)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                // Room for the menu icon, which sits above the card at the far end of this row.
-                Color.clear.frame(width: Self.menuSize, height: Self.menuSize)
-            }
-            // Extra height of a taller neighbour goes here, between the name and the rest, so the lecturer,
-            // the totals and the times keep the same distance in every card.
-            Spacer(minLength: 4)
-            if let lecturer = course.lecturer?.displayName, !lecturer.isEmpty {
-                HStack(spacing: 4) {
-                    Image(systemName: "person.crop.circle")
-                    Text(verbatim: lecturer)
+                // The name with the lecturer under it as a subtitle, like the course page. A course with no
+                // lecturer name shows "Lecturer" there, the same as the course page.
+                let lecturer = course.lecturer?.displayName ?? ""
+                VStack(alignment: .leading, spacing: 0) {
+                    // Only the name line leaves room for the menu icon, which sits above the card at the far end of
+                    // it. The lecturer line is under the icon, so it goes on to the right edge of the card.
+                    HStack(spacing: 0) {
+                        Text(course.name)
+                            .font(.headline)
+                            // One line. A long name is cut at the end with "…".
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                        Spacer(minLength: 0)
+                        Color.clear.frame(width: Self.menuSize, height: 0)
+                    }
+                    Text(verbatim: lecturer.isEmpty ? String(localized: "Lecturer") : lecturer)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
-                .font(.footnote)
-                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
+            // Extra height of a taller neighbour goes here, between the name and the rest, so the totals and the
+            // times keep the same distance in every card.
+            Spacer(minLength: 4)
             // The days and times of the course in the timetable, one line each.
             VStack(alignment: .leading, spacing: 2) {
                 ForEach(scheduleLines(course), id: \.self) { line in
