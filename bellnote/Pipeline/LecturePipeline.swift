@@ -25,6 +25,8 @@ enum LecturePipeline {
             await run(lecture: lecture, context: context, pageModel: pageModel, onProgress: onProgress)
         }
         activity.register(work, for: lecture)
+        let beat = ProcessDiagnostics.heartbeat(label: "process")
+        defer { beat.cancel() }
         await work.value
         log.info("Run ended stopping=\(activity.isStopping(lecture)) state=\(lecture.state, privacy: .public) stage=\(lecture.stage, privacy: .public)")
     }
@@ -56,11 +58,11 @@ enum LecturePipeline {
             discardProcessedNotes(lecture, context: context)
             stage = .idle
         }
-        log.info("Process start course=\(course.name, privacy: .public) stage=\(stage.rawValue, privacy: .public) audio=\(lecture.audioRelativePath ?? "none", privacy: .public)")
+        log.info("Process start course=\(course.name, privacy: .public) stage=\(stage.rawValue, privacy: .public) audio=\(lecture.audioRelativePath ?? "none", privacy: .public) \(MemoryProbe.summary())")
         do {
             if stage == .idle || stage == .audio {
                 try Task.checkCancellation()
-                log.info("Stage audio")
+                log.info("Stage audio \(MemoryProbe.summary())")
                 await report(.audio)
                 try await finishAudio(lecture)
                 stage = .audio
@@ -69,7 +71,7 @@ enum LecturePipeline {
             }
             if stage == .audio {
                 try Task.checkCancellation()
-                log.info("Stage speakers")
+                log.info("Stage speakers \(MemoryProbe.summary())")
                 await report(.speakers)
                 try await finishSpeakers(lecture)
                 stage = .speakers
@@ -78,13 +80,13 @@ enum LecturePipeline {
             }
             if stage == .speakers {
                 try Task.checkCancellation()
-                log.info("Stage transcript")
+                log.info("Stage transcript \(MemoryProbe.summary())")
                 await report(.transcript)
                 try await finishTranscript(lecture, course: course)
                 stage = .transcript
                 lecture.stage = stage.rawValue
                 try context.save()
-                log.info("Transcript blocks=\(lecture.blocks.count)")
+                log.info("Transcript blocks=\(lecture.blocks.count) \(MemoryProbe.summary())")
             }
             if stage == .transcript {
                 try Task.checkCancellation()
@@ -93,18 +95,18 @@ enum LecturePipeline {
                     log.error("Tags stopped: no text model is installed, the transcript is kept")
                     throw LocalModelError.notInstalled
                 }
-                log.info("Stage tags model=\(ModelCatalog.repo(for: pageModel), privacy: .public)")
+                log.info("Stage tags model=\(ModelCatalog.repo(for: pageModel), privacy: .public) \(MemoryProbe.summary())")
                 await report(.tags)
                 try await finishTags(lecture, course: course)
                 try Task.checkCancellation()
                 stage = .tags
                 lecture.stage = stage.rawValue
                 try context.save()
-                log.info("Tags blocks=\(lecture.blocks.count)")
+                log.info("Tags blocks=\(lecture.blocks.count) \(MemoryProbe.summary())")
             }
             if stage == .tags {
                 try Task.checkCancellation()
-                log.info("Stage page model=\(ModelCatalog.repo(for: pageModel), privacy: .public)")
+                log.info("Stage page model=\(ModelCatalog.repo(for: pageModel), privacy: .public) \(MemoryProbe.summary())")
                 await report(.page)
                 await finishPage(lecture, course: course, context: context)
                 await finishHeadline(lecture)
@@ -125,7 +127,7 @@ enum LecturePipeline {
                 lecture.state = LectureState.ready.rawValue
                 try context.save()
                 await ReminderScheduler.notifyReady(course: course.name, startedAt: lecture.startedAt)
-                log.info("Process ready")
+                log.info("Process ready \(MemoryProbe.summary())")
                 await LocalModelRuntime.shared.unloadAll()
             }
         } catch where activity.isStopping(lecture) || error is CancellationError {
@@ -346,18 +348,28 @@ enum LecturePipeline {
         }
     }
 
+    /// Windows between two saves of the tagging progress. A stop, a crash or a kill then loses at most this many.
+    private static let tagSaveEvery = 10
+
     private static func finishTags(_ lecture: Lecture, course: Course) async throws {
         let source = lecture.blocks.sorted { $0.second < $1.second }
-        var tagged: [Block] = []
+        let pending = source.filter { $0.second >= lecture.processedThroughSecond }
         let locale = Locale(identifier: course.localeIdentifier)
         var modelMissing = false
-        for block in source where block.second >= lecture.processedThroughSecond {
-            let tag: WindowTag
+        var handled = 0
+        log.info("Tags begin windows=\(pending.count) all=\(source.count) resumeSecond=\(lecture.processedThroughSecond) \(MemoryProbe.summary())")
+        for block in pending {
+            // A stop must not turn the windows that were never tagged into finished ones.
+            try Task.checkCancellation()
+            var tag: WindowTagging?
+            // Logged before the call, so a window that never comes back is named in the log.
+            log.info("Tag window=\(handled + 1) of=\(pending.count) second=\(block.second) speaker=\(block.speaker) role=\(block.role, privacy: .public) characters=\(block.text.count) \(MemoryProbe.summary())")
             do {
                 // Without an installed model every window would fail the same way.
                 guard !modelMissing else { throw LocalModelError.notInstalled }
                 tag = try await LocalModelRuntime.shared.tag(window: block.text, locale: locale)
             } catch {
+                if Task.isCancelled || error is CancellationError { throw CancellationError() }
                 if error as? LocalModelError == .notInstalled, !modelMissing {
                     modelMissing = true
                     log.error("Tagging skipped: no text model is installed, the raw words are kept")
@@ -365,29 +377,33 @@ enum LecturePipeline {
                     log.error("Tag failed for one window, the raw words are kept second=\(block.second) message=\(error.localizedDescription, privacy: .public)")
                 }
                 block.kind = BlockKind.other.rawValue
-                tagged.append(block)
-                lecture.processedThroughSecond = block.second
-                continue
             }
-            let spoken = block.text
-            block.kind = BlockKind(tag: tag.kind).rawValue
-            block.topics = TagKeep.topics(tag.topics, spoken: spoken)
-            block.listItems = TagKeep.items(tag.listItems, spoken: spoken)
-            block.numbers = TagKeep.numbers(tag.numbers, spoken: spoken)
-            block.importance = tag.importanceCue
-            block.missing = tag.missing
-            log.info("Tag keep kind=\(tag.kind, privacy: .public) missing=\(tag.missing) importance=\(tag.importanceCue) model=\(tag.text, privacy: .public) spoken=\(block.text, privacy: .public)")
-            if tag.kind == BlockKind.reference.rawValue || tag.kind == BlockKind.assignment.rawValue {
-                block.timeHintRaw = block.text
-                block.dueHintRaw = block.text
+            if let tag {
+                let spoken = block.text
+                block.kind = BlockKind(tag: tag.kind).rawValue
+                block.topics = TagKeep.topics(tag.topics, spoken: spoken)
+                block.missing = tag.missing
+                log.info("Tag keep kind=\(tag.kind, privacy: .public) missing=\(tag.missing) topics=\(tag.topics.joined(separator: ", "), privacy: .public) spoken=\(block.text, privacy: .public)")
+                if tag.kind == BlockKind.reference.rawValue {
+                    block.timeHintRaw = block.text
+                }
             }
-            if block.role == SpeakerRole.room.rawValue {
-                continue
-            }
-            tagged.append(block)
             lecture.processedThroughSecond = block.second
+            handled += 1
+            if handled % tagSaveEvery == 0 {
+                // The blocks are changed in place, so this keeps every window done so far. A run that starts
+                // again goes on from the last saved window.
+                do {
+                    try lecture.modelContext?.save()
+                } catch {
+                    log.error("Tag progress save failed window=\(handled) message=\(error.localizedDescription, privacy: .public)")
+                }
+                await LocalModelRuntime.shared.trimMemory(note: "tags \(handled) of \(pending.count)")
+                log.info("Tag progress window=\(handled) of=\(pending.count) second=\(block.second)")
+            }
         }
-        lecture.blocks = tagged.isEmpty ? source.filter { $0.role != SpeakerRole.room.rawValue } : tagged
+        // The speech of the room is not part of the notes.
+        lecture.blocks = source.filter { $0.role != SpeakerRole.room.rawValue }
     }
 
     /// Writes the AI correction: the lecturer's words with correct spelling, punctuation and
@@ -403,7 +419,15 @@ enum LecturePipeline {
         log.info("Correction source blocks=\(source.count) lecturerOnly=\(!lecturer.isEmpty)")
         var paragraphs: [String] = []
         var tasks: [String] = []
-        for chunk in CorrectionText.chunks(source.map(\.text)) {
+        let chunks = CorrectionText.chunks(source.map(\.text))
+        let stageStarted = Date()
+        log.info("Correction begin chunks=\(chunks.count) characters=\(chunks.reduce(0) { $0 + $1.count }) \(MemoryProbe.summary())")
+        for (index, chunk) in chunks.enumerated() {
+            let chunkStarted = Date()
+            // One line per chunk when it ends, whether it passed, was rejected or failed.
+            defer {
+                log.info("Correction chunk \(index + 1) of \(chunks.count) seconds=\(Int(Date().timeIntervalSince(chunkStarted))) totalSeconds=\(Int(Date().timeIntervalSince(stageStarted))) \(MemoryProbe.summary())")
+            }
             do {
                 let output = try await LocalModelRuntime.shared.correct(
                     chunk,
@@ -411,6 +435,9 @@ enum LecturePipeline {
                     localeIdentifier: course.localeIdentifier
                 )
                 let parts = CorrectionText.split(output)
+                if let reason = parts.cutReason {
+                    log.warning("Correction output cut chunk=\(index + 1) outputCharacters=\(output.count) reason=\(reason, privacy: .public)")
+                }
                 let faithful = CorrectionText.isFaithful(parts.body, to: chunk)
                 let kept = CorrectionText.overlap(chunk, CorrectionText.plain(parts.body))
                 log.info("Correction check faithful=\(faithful) sourceCharacters=\(chunk.count) bodyCharacters=\(CorrectionText.plain(parts.body).count) wordsKept=\(kept) assignments=\(parts.assignments.count) highlights=\(parts.body.components(separatedBy: "**").count / 2)")
@@ -440,7 +467,7 @@ enum LecturePipeline {
             }
         }
         lecture.summary = paragraphs.joined(separator: "\n\n")
-        log.info("Correction final characters=\(lecture.summary.count) paragraphs=\(paragraphs.count) tasks=\(tasks.count)")
+        log.info("Correction final characters=\(lecture.summary.count) paragraphs=\(paragraphs.count) tasks=\(tasks.count) seconds=\(Int(Date().timeIntervalSince(stageStarted)))")
         addAssignments(tasks, lecture: lecture, course: course, source: source, context: context)
     }
 
@@ -518,20 +545,8 @@ enum LecturePipeline {
             block.outgoing.append(stored)
             context.insert(stored)
         }
-        let blockIDs = Set(lecture.blocks.map(\.token))
-        for block in lecture.blocks where block.kind == BlockKind.assignment.rawValue {
-            let existing = course.assignments.filter { blockIDs.contains($0.sourceBlockID) }
-            if existing.contains(where: { CorrectionText.overlap(block.text, $0.text) >= 0.5 }) { continue }
-            let due = Assignment.dueDate(for: block.dueHintRaw ?? block.text, lecture: lecture)
-            let assignment = Assignment(
-                course: course,
-                text: block.text,
-                due: due,
-                sourceBlockID: block.token,
-                sourceSecond: block.second
-            )
-            context.insert(assignment)
-        }
+        // Assignments are not made here. The AI correction already lists them (`addAssignments`), and it checks
+        // that the words come from the text and that a word like "ödev" or "teslim" stands next to them.
     }
 }
 
@@ -550,19 +565,6 @@ private enum TagKeep {
             guard !folded.contains("asr_text"), !folded.contains("astr_text") else { return false }
             return shares(topic, spoken)
         }
-    }
-
-    static func items(_ items: [String], spoken: String) -> [String] {
-        items.filter { shares($0, spoken) }
-    }
-
-    static func numbers(_ numbers: [Double], spoken: String) -> [Double] {
-        let ints = numbers.map { Int($0.rounded()) }
-        if ints.count >= 4 {
-            let steps = zip(ints, ints.dropFirst()).filter { $1 == $0 + 1 }.count
-            if steps >= ints.count - 1 { return [] }
-        }
-        return numbers.filter { spoken.contains(String(Int($0.rounded()))) }
     }
 
     private static func shares(_ candidate: String, _ spoken: String) -> Bool {

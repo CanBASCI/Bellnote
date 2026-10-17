@@ -2,6 +2,7 @@ import Foundation
 import Observation
 import OSLog
 import SwiftData
+import UIKit
 
 /// Which lectures are being processed right now, and at which stage. It lives outside the
 /// screens, so a screen that opens while a lecture is running shows the same progress bar,
@@ -44,6 +45,13 @@ final class PipelineActivity {
     func set(_ stage: PipelineStage, for lecture: Lecture) {
         stages[lecture.persistentModelID] = stage
         details[lecture.persistentModelID] = nil
+        keepScreenAwake()
+    }
+
+    /// The AI model runs on the GPU, and iOS does not let an app use the GPU in the background.
+    /// A locked screen would stop the work, so the screen stays on while any lecture is processed.
+    private func keepScreenAwake() {
+        UIApplication.shared.isIdleTimerDisabled = !stages.isEmpty
     }
 
     func setDetail(_ step: Step, for lecture: Lecture) {
@@ -80,5 +88,6 @@ final class PipelineActivity {
         details[id] = nil
         tasks[id] = nil
         stopping.remove(id)
+        keepScreenAwake()
     }
 }

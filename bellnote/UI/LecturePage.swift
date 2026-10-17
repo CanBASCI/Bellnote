@@ -2,6 +2,24 @@ import AVFoundation
 import OSLog
 import SwiftData
 import SwiftUI
+import UniformTypeIdentifiers
+
+/// A text that the share sheet sends as a plain text file. The file is written only when the student picks where
+/// to send it, in the temporary folder.
+private struct SharedText: Transferable {
+    var name: String
+    var text: String
+
+    static var transferRepresentation: some TransferRepresentation {
+        FileRepresentation(exportedContentType: .plainText) { item in
+            // A name must not hold a slash or a colon.
+            let safe = item.name.replacingOccurrences(of: "/", with: "-").replacingOccurrences(of: ":", with: "-")
+            let url = FileManager.default.temporaryDirectory.appendingPathComponent(safe).appendingPathExtension("txt")
+            try item.text.write(to: url, atomically: true, encoding: .utf8)
+            return SentTransferredFile(url)
+        }
+    }
+}
 
 struct LecturePage: View {
     @Bindable var lecture: Lecture
@@ -72,7 +90,6 @@ struct LectureNote: View {
     @State private var audio = LectureAudio()
     @State private var reader = SpeechReader()
     @State private var showStudy = false
-    @State private var studyMode: StudyMode = .ask
     @State private var fluidGate = FluidAudioGate()
     private var workingStage: PipelineStage? { PipelineActivity.shared.stage(for: lecture) }
     private var workingStep: PipelineActivity.Step? { PipelineActivity.shared.step(for: lecture) }
@@ -195,12 +212,22 @@ struct LectureNote: View {
                     .labelStyle(.iconOnly)
                 }
             }
-            // Ask, Quiz and Listen are one menu at the far right of the bar. The same rules as the bar at the bottom
+            // Ask and Listen are one menu at the far right of the bar. The same rules as the bar at the bottom
             // had: only on the AI correction tab, only when there is a correction, and only when the whole run is
             // over. The correction is written before the last stages end.
             if tab == .correction, hasCorrection, workingStage == nil, let course = lecture.course {
                 ToolbarItem(placement: .primaryAction) {
                     studyMenu(course)
+                }
+            }
+            // A temporary share button at the far right of the bar. It shares what the open tab shows (the AI
+            // correction, the raw text or the assignments) as a text file, because the text can be long.
+            if let shared = textToShare {
+                ToolbarItem(placement: .primaryAction) {
+                    ShareLink(item: shared, preview: SharePreview(shared.name)) {
+                        Label("Share", systemImage: "square.and.arrow.up")
+                    }
+                    .labelStyle(.iconOnly)
                 }
             }
         }
@@ -226,7 +253,7 @@ struct LectureNote: View {
         .sheet(isPresented: $showStudy) {
             if let course = lecture.course {
                 // Only this recording is asked about, not the other recordings of the course.
-                StudySheet(course: course, mode: studyMode, lecture: lecture)
+                StudySheet(course: course, lecture: lecture)
             }
         }
         .fluidAudioGate(fluidGate)
@@ -350,25 +377,14 @@ struct LectureNote: View {
         return course.assignments.filter { ids.contains($0.sourceBlockID) }
     }
 
-    /// Ask, Quiz and Listen, as one menu in the navigation bar. The icon is the same as the Ask button of the course
+    /// Ask and Listen, as one menu in the navigation bar. The icon is the same as the Ask button of the course
     /// page.
     private func studyMenu(_ course: Course) -> some View {
         Menu {
             Button {
-                studyMode = .ask
                 showStudy = true
             } label: {
                 Label("Ask", systemImage: "sparkles")
-            }
-            Button {
-                studyMode = .quiz
-                showStudy = true
-            } label: {
-                Label {
-                    Text(verbatim: quizTitle(course))
-                } icon: {
-                    Image(systemName: "checklist")
-                }
             }
             Button {
                 if reader.isSpeaking {
@@ -464,6 +480,62 @@ struct LectureNote: View {
             }
         }
         .padding(.vertical, 2)
+    }
+
+    /// What the share button of the bar shares: the text of the open tab, as a file. Nil when the tab has nothing.
+    private var textToShare: SharedText? {
+        let text: String
+        let part: String
+        switch tab {
+        case .correction:
+            // The AI correction, without the highlight markers.
+            text = hasCorrection ? CorrectionText.plain(lecture.summary) : ""
+            part = "correction"
+        case .raw:
+            text = rawTranscriptText
+            part = "raw"
+        case .assignments:
+            text = assignmentsText
+            part = "assignments"
+        }
+        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+        let day = lecture.startedAt.formatted(.iso8601.year().month().day())
+        let course = lecture.course?.name ?? "bellnote"
+        return SharedText(name: "\(course) \(day) \(part)", text: text)
+    }
+
+    /// The raw text: one line per speaker turn, "[time] Speaker: words", with an empty line between turns. The
+    /// speakers chosen above the list decide which turns go; none chosen means all of them.
+    private var rawTranscriptText: String {
+        let filter = activeSpeakers
+        return lecture.blocks
+            .filter { !$0.text.isEmpty }
+            .filter { filter.isEmpty || filter.contains($0.speaker) }
+            .sorted { $0.second < $1.second }
+            .map { block -> String in
+                let time = MediaClock.short(block.second)
+                if block.speaker > 0 {
+                    return "[\(time)] \(speakerTitle(block.speaker)): \(block.text)"
+                }
+                return "[\(time)] \(block.text)"
+            }
+            .joined(separator: "\n\n")
+    }
+
+    /// The assignments of this recording, one per line, with the due date when there is one and a mark for a done
+    /// task.
+    private var assignmentsText: String {
+        lectureAssignments
+            .filter { !$0.cancelled }
+            .map { assignment -> String in
+                var line = assignment.done ? "[x] " : "[ ] "
+                line += assignment.text
+                if let due = assignment.due {
+                    line += " (\(due.formatted(date: .abbreviated, time: .omitted)))"
+                }
+                return line
+            }
+            .joined(separator: "\n")
     }
 
     /// The speakers of this recording, in the order the numbers were given.
@@ -594,15 +666,6 @@ struct LectureNote: View {
         let second = audio.currentSecond
         guard second > 0 else { return nil }
         return ordered.last { $0.second <= second }?.token
-    }
-
-    private func quizTitle(_ course: Course) -> String {
-        guard let attempt = course.quizAttempts.max(by: { $0.at < $1.at }) else {
-            return String(localized: "Quiz")
-        }
-        let total = attempt.correct + attempt.partial + attempt.wrong
-        guard total > 0 else { return String(localized: "Quiz") }
-        return String(format: String(localized: "Quiz %1$lld/%2$lld"), attempt.correct, total)
     }
 
     private func openCount(_ course: Course) -> Int {

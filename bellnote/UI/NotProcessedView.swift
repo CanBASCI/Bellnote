@@ -16,7 +16,7 @@ struct NotProcessedView: View {
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
-            // Same look as Ask, Quiz and Listen.
+            // Same look as Ask and Listen.
             GlassEffectContainer(spacing: 8) {
                 StudyButton(title: Text("Process"), systemImage: "waveform.badge.magnifyingglass", fillsWidth: false, action: start)
                     .buttonStyle(.glass)

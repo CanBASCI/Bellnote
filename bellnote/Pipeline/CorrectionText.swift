@@ -9,12 +9,15 @@ enum CorrectionText {
     struct Parts: Equatable {
         var body: String
         var assignments: [String]
+        /// Why reading stopped before the end of the output, or nil when all of it was read. For the log.
+        var cutReason: String?
     }
 
     /// Separates the corrected text from the homework lines.
     static func split(_ output: String) -> Parts {
         var body: [String] = []
         var assignments: [String] = []
+        var cutReason: String?
         let edge = CharacterSet(charactersIn: "-•* \t")
         for rawLine in output.split(separator: "\n", omittingEmptySubsequences: false) {
             let line = rawLine.trimmingCharacters(in: .whitespaces)
@@ -25,17 +28,42 @@ enum CorrectionText {
                 continue
             }
             // The model sometimes adds its own comment, such as "Note: there are no assignments".
-            if isCommentary(bare) { continue }
+            if isCommentary(bare) || isLabelLine(line) {
+                // Once the text has started, a comment means the model has left the task. Whatever follows is more
+                // comment, often the same lines again until the token limit, so reading stops here. A chunk that
+                // loses real text this way fails the faithfulness check and the raw words are kept instead.
+                if body.contains(where: { !$0.isEmpty }) {
+                    cutReason = "commentary: \(String(line.prefix(60)))"
+                    break
+                }
+                continue
+            }
+            // The same long line twice is a loop, not lecture text.
+            if line.count >= 25, body.contains(line) {
+                cutReason = "repeated line: \(String(line.prefix(60)))"
+                break
+            }
             body.append(line)
         }
         let text = body.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
-        return Parts(body: text, assignments: assignments)
+        return Parts(body: text, assignments: assignments, cutReason: cutReason)
     }
 
     private static let commentaryPrefixes = [
         "note:", "notes:", "note -", "(note", "not:", "açıklama:", "explanation:", "comment:",
         "corrected text:", "düzeltilmiş metin:",
+        "düzeltme:", "düzeltmeler:", "geri çekme", "sonuç:", "özet:", "yorum:", "uyarı:", "dikkat:",
+        "talimat", "correction:", "corrections:", "result:", "summary:", "warning:", "retraction",
+        "instruction", "output:", "answer:",
     ]
+
+    /// A line written as a label for the model's own remarks, in markdown: a heading (`# Result`) or a label wrapped
+    /// in single asterisks (`*Result:* …`). The lecture text never has those: its highlights use double asterisks.
+    private static func isLabelLine(_ line: String) -> Bool {
+        if line.hasPrefix("#") { return true }
+        if line.hasPrefix("*"), !line.hasPrefix("**"), line.contains(":*") { return true }
+        return false
+    }
 
     /// A line the model wrote about its own answer instead of as part of the lecture text.
     static func isCommentary(_ line: String) -> Bool {

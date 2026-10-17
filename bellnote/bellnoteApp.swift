@@ -8,6 +8,7 @@ struct bellnoteApp: App {
     private let container: ModelContainer?
 
     init() {
+        ProcessDiagnostics.start()
         do {
             container = try AppSchema.container()
         } catch {

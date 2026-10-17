@@ -36,11 +36,11 @@ enum SpeakerPass {
     }
 
     static func runs(url: URL) async throws -> [SpeechRun] {
-        log.info("Diarize begin path=\(url.lastPathComponent, privacy: .public)")
+        log.info("Diarize begin path=\(url.lastPathComponent, privacy: .public) \(MemoryProbe.summary())")
         let result = try await store.process(url)
         let runs = speechRuns(from: result.segments)
         let spans = runs.map { "\($0.cluster):\($0.start)-\($0.end)" }.joined(separator: " ")
-        log.info("Diarize ok segments=\(result.segments.count) runs=\(runs.count) spans=\(spans, privacy: .public)")
+        log.info("Diarize ok segments=\(result.segments.count) runs=\(runs.count) \(MemoryProbe.summary()) spans=\(spans, privacy: .public)")
         if runs.isEmpty {
             return try fallbackSingleNarrator(url: url)
         }
@@ -50,7 +50,7 @@ enum SpeakerPass {
     /// Frees the diarizer models once the speaker runs are known.
     static func release() {
         store.release()
-        log.info("Diarizer released footprintMB=\(MemoryProbe.footprintMB())")
+        log.info("Diarizer released \(MemoryProbe.summary())")
     }
 
     static func narratorRanges(_ runs: [SpeechRun]) -> [ClosedRange<Int>] {

@@ -150,11 +150,6 @@ enum CourseFileKind: String, Codable, Sendable {
     }
 }
 
-enum StudyMode: String, Codable, Sendable {
-    case ask
-    case quiz
-}
-
 enum ModelRole: String, Codable, Sendable, CaseIterable {
     case tagger
     case page

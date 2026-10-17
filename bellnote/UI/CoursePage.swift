@@ -199,7 +199,7 @@ struct CoursePage: View {
             RecorderSheet(lecture: lecture)
         }
         .sheet(isPresented: $showAsk) {
-            StudySheet(course: course, mode: .ask)
+            StudySheet(course: course)
         }
         .sheet(isPresented: $showLecturer) {
             if let contact = course.lecturer {

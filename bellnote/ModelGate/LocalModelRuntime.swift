@@ -44,7 +44,29 @@ actor LocalModelRuntime {
         Memory.clearCache()
         await gate.unload()
         resident = nil
-        Self.log.info("Memory after evict footprintMB=\(MemoryProbe.footprintMB())")
+        Self.log.info("Memory after evict \(MemoryProbe.summary())")
+    }
+
+    /// Runs one model call so that an MLX error is thrown to the caller and does not stop the app.
+    /// After an error the loaded model is dropped, because its state can no longer be trusted.
+    /// The next call loads it again.
+    /// `work` is `@Sendable` because MLX runs it away from this actor. It only captures a session
+    /// (`LanguageModelSession` is Sendable) and strings.
+    private func guarded<T>(_ work: @Sendable () async throws -> T) async throws -> T {
+        do {
+            return try await withError(work)
+        } catch let error as MLXError {
+            Self.log.error("MLX error, the model is dropped message=\(error.localizedDescription, privacy: .public) footprintMB=\(MemoryProbe.footprintMB())")
+            await evictResident()
+            throw error
+        }
+    }
+
+    /// Between two windows: gives the MLX buffer cache back and writes the memory use to the log.
+    func trimMemory(note: String) {
+        guard activeCalls == 0 else { return }
+        Memory.clearCache()
+        Self.log.info("Memory trimmed note=\(note, privacy: .public) \(MemoryProbe.summary())")
     }
 
     private func beginCall() {
@@ -64,7 +86,7 @@ actor LocalModelRuntime {
         }
     }
 
-    func tag(window: String, locale: Locale) async throws -> WindowTag {
+    func tag(window: String, locale: Locale) async throws -> WindowTagging {
         beginCall()
         defer { endCall() }
         let role = try composeRole()
@@ -73,21 +95,25 @@ actor LocalModelRuntime {
             try await ensure(role)
             let session = try makeSession(role: role, instructions: tagInstructions)
             let language = locale.localizedString(forIdentifier: locale.identifier) ?? locale.identifier
-            let response = try await session.respond(
-                to: "Lecture language: \(language). Copy the sentence in this language. Do not translate.\n\n\(window)",
-                generating: WindowTag.self,
-                options: GenerationOptions(maximumResponseTokens: 256)
-            )
+            let response = try await guarded {
+                try await session.respond(
+                    to: "Lecture language: \(language). Do not translate.\n\n\(window)",
+                    generating: WindowTagging.self,
+                    options: GenerationOptions(maximumResponseTokens: 256)
+                )
+            }
             if TagValidator.validate(response.content) {
                 Self.log.info("Tag ok kind=\(response.content.kind, privacy: .public)")
                 return response.content
             }
             Self.log.warning("Tag invalid, retrying")
-            let retry = try await session.respond(
-                to: "Lecture language: \(language). Copy the sentence in this language. Do not translate.\n\n\(window)",
-                generating: WindowTag.self,
-                options: GenerationOptions(maximumResponseTokens: 256)
-            )
+            let retry = try await guarded {
+                try await session.respond(
+                    to: "Lecture language: \(language). Do not translate.\n\n\(window)",
+                    generating: WindowTagging.self,
+                    options: GenerationOptions(maximumResponseTokens: 256)
+                )
+            }
             guard TagValidator.validate(retry.content) else {
                 Self.log.error("Tag retry invalid")
                 throw LocalModelError.loadFailed
@@ -109,7 +135,7 @@ actor LocalModelRuntime {
             try await ensure(role)
             let session = try makeSession(role: role, instructions: pageInstructions)
             let source = tags.map(\.text).joined(separator: "\n")
-            let response = try await session.respond(to: "\(task)\n\n\(source)")
+            let response = try await guarded { try await session.respond(to: "\(task)\n\n\(source)") }
             Self.log.info("Compose ok characters=\(response.content.count)")
             return response.content
         } catch {
@@ -130,12 +156,15 @@ actor LocalModelRuntime {
             let instructions = correctionInstructions(lectureName: lectureName, localeIdentifier: localeIdentifier)
             let session = try makeSession(role: role, instructions: instructions)
             let limit = min(1500, text.count / 2 + 300)
-            let response = try await session.respond(
-                to: "Text:\n\(text)\n\nCorrected text:",
-                options: GenerationOptions(temperature: 0, maximumResponseTokens: limit)
-            )
+            let started = Date()
+            let response = try await guarded {
+                try await session.respond(
+                    to: "Text:\n\(text)\n\nCorrected text:",
+                    options: GenerationOptions(temperature: 0, maximumResponseTokens: limit)
+                )
+            }
             let output = response.content.trimmingCharacters(in: .whitespacesAndNewlines)
-            Self.log.info("Correct ok characters=\(output.count) text=\(output, privacy: .public)")
+            Self.log.info("Correct ok characters=\(output.count) inputCharacters=\(text.count) tokenLimit=\(limit) modelSeconds=\(String(format: "%.1f", Date().timeIntervalSince(started))) text=\(output, privacy: .public)")
             return output
         } catch {
             Self.log.error("Correct failed: \(error.localizedDescription, privacy: .public)")
@@ -153,10 +182,12 @@ actor LocalModelRuntime {
         do {
             try await ensure(role)
             let session = try makeSession(role: role, instructions: headlineInstructions)
-            let response = try await session.respond(
-                to: "Text:\n\(text)\n\nHeadline:",
-                options: GenerationOptions(temperature: 0, maximumResponseTokens: 80)
-            )
+            let response = try await guarded {
+                try await session.respond(
+                    to: "Text:\n\(text)\n\nHeadline:",
+                    options: GenerationOptions(temperature: 0, maximumResponseTokens: 80)
+                )
+            }
             let output = response.content.trimmingCharacters(in: .whitespacesAndNewlines)
             Self.log.info("Headline ok characters=\(output.count) text=\(output, privacy: .public)")
             return output
@@ -172,21 +203,35 @@ actor LocalModelRuntime {
         beginCall()
         defer { endCall() }
         let role = try composeRole()
-        Self.log.info("Answer begin tags=\(tags.count) role=\(role.rawValue, privacy: .public)")
+        let started = Date()
+        Self.log.info("Answer begin tags=\(tags.count) role=\(role.rawValue, privacy: .public) footprintMB=\(MemoryProbe.footprintMB())")
+        // The model call is silent while it reads the notes. This line says every 15 seconds that it still runs,
+        // how much memory it uses and how warm the phone is.
+        let heartbeat = Task.detached {
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(15))
+                guard !Task.isCancelled else { return }
+                Self.log.info("Answer still working seconds=\(Int(Date().timeIntervalSince(started))) footprintMB=\(MemoryProbe.footprintMB()) thermal=\(ProcessInfo.processInfo.thermalState.rawValue)")
+            }
+        }
+        defer { heartbeat.cancel() }
         do {
             try await ensure(role)
+            Self.log.info("Answer model ready seconds=\(Int(Date().timeIntervalSince(started))) footprintMB=\(MemoryProbe.footprintMB())")
             let session = try makeSession(role: role, instructions: answerInstructions)
             let source = tags.map(\.text).joined(separator: "\n")
             Self.log.info("Answer question=\(question, privacy: .public) notesCharacters=\(source.count) notesHead=\(String(source.prefix(200)), privacy: .public)")
-            let response = try await session.respond(
-                to: "Notes:\n\(source)\n\nQuestion: \(question)\nShort answer:",
-                options: GenerationOptions(maximumResponseTokens: 120)
-            )
+            let response = try await guarded {
+                try await session.respond(
+                    to: "Notes:\n\(source)\n\nQuestion: \(question)\nShort answer:",
+                    options: GenerationOptions(maximumResponseTokens: 120)
+                )
+            }
             let text = response.content.trimmingCharacters(in: .whitespacesAndNewlines)
-            Self.log.info("Answer ok characters=\(text.count) text=\(text, privacy: .public)")
+            Self.log.info("Answer ok seconds=\(Int(Date().timeIntervalSince(started))) footprintMB=\(MemoryProbe.footprintMB()) characters=\(text.count) text=\(text, privacy: .public)")
             return text
         } catch {
-            Self.log.error("Answer failed: \(error.localizedDescription, privacy: .public)")
+            Self.log.error("Answer failed seconds=\(Int(Date().timeIntervalSince(started))) footprintMB=\(MemoryProbe.footprintMB()) message=\(error.localizedDescription, privacy: .public)")
             throw error
         }
     }
@@ -292,7 +337,7 @@ actor LocalModelRuntime {
             Self.log.info("Model already resident role=\(role.rawValue, privacy: .public)")
             return
         }
-        Self.log.info("Ensure role=\(role.rawValue, privacy: .public) footprintMB=\(MemoryProbe.footprintMB())")
+        Self.log.info("Ensure role=\(role.rawValue, privacy: .public) \(MemoryProbe.summary())")
         Memory.cacheLimit = 128 * 1_024 * 1_024
         SupertonicSpeech.unload()
         switch role {
@@ -314,6 +359,23 @@ actor LocalModelRuntime {
         return LanguageModelSession(model: try makeModel(role), tools: [], instructions: instructions)
     }
 
+    /// Generation stops the moment the model writes one of these. They are labels a small model puts in front of its
+    /// own remarks ("Düzeltme: …", "*Sonuç:* …") or the start of the next example block ("Text: …"). The lecture text
+    /// comes before them, so nothing the student needs is lost, and the model does not write comments until the token
+    /// limit. Each one starts on a new line, so a word in the middle of a sentence never matches.
+    private static let stopStrings: Set<String> = {
+        let labels = [
+            "Düzeltme", "Düzeltmeler", "Düzeltilmiş metin", "Geri çekme", "Sonuç", "Açıklama", "Not", "Notlar",
+            "Correction", "Corrections", "Corrected text", "Result", "Explanation", "Note", "Notes", "Text",
+        ]
+        var strings = Set<String>()
+        for label in labels {
+            strings.insert("\n\(label):")
+            strings.insert("\n*\(label):")
+        }
+        return strings
+    }()
+
     private func makeModel(
         _ role: ModelRole,
         onProgress: (@Sendable (Double) -> Void)? = nil
@@ -322,7 +384,8 @@ actor LocalModelRuntime {
         let repo = ModelCatalog.repo(for: role)
         let disk = HubWeights.snapshot(for: repo)
         Self.log.info("Make model role=\(role.rawValue, privacy: .public) repo=\(disk.repo, privacy: .public) path=\(disk.path, privacy: .public) bytes=\(disk.bytes) config=\(disk.hasConfig) safetensors=\(disk.safetensorsCount)")
-        let configuration = ModelConfiguration(id: repo)
+        let configuration = ModelConfiguration(id: repo, stopStrings: Self.stopStrings)
+        Self.log.info("Make model stop strings count=\(Self.stopStrings.count)")
         let model = MLXLanguageModel(
             configuration: configuration,
             capabilities: [.guidedGeneration],
@@ -361,12 +424,9 @@ actor LocalModelRuntime {
     private var tagInstructions: String {
         """
         Tag one lecture window. Do not translate. Use only words from the window. \
-        speakerRole is one of narrator, question, room, unknown, lecturer. \
         kind is one of definition, list, example, emphasis, reference, assignment, examScope, decision, other. \
         topics has at most five short names that appear in the window. \
-        text is one sentence copied from the window, in the lecture language. \
-        numbers only if they are spoken in the window. \
-        If items are unintelligible, keep the row and set missing true. Do not invent facts.
+        missing is true only if part of the window is unintelligible. Do not invent facts.
         """
     }
 
@@ -419,7 +479,8 @@ actor LocalModelRuntime {
             something, add a line after the text that starts with ASSIGNMENT: followed by that task \
             in the teacher's own words, copied from the text. Never invent a task. \
             Output the corrected text and nothing else: no notes, comments, explanations or \
-            remarks about the text, and never say that something is missing. Thinking is off.
+            remarks about the text, and never say that something is missing. If a part is unclear, \
+            copy it exactly and do not explain why. Stop after the last sentence. Thinking is off.
             """
         var sections = [intro]
 

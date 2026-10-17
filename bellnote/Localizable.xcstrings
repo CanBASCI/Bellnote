@@ -576,6 +576,22 @@
         }
       }
     },
+    "Share" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Share"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Paylaş"
+          }
+        }
+      }
+    },
     "Course" : {
       "localizations" : {
         "en" : {
@@ -2673,38 +2689,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "İşleniyor"
-          }
-        }
-      }
-    },
-    "Quiz" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Quiz"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sınav"
-          }
-        }
-      }
-    },
-    "Quiz %1$lld/%2$lld" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Quiz %1$lld/%2$lld"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sınav %1$lld/%2$lld"
           }
         }
       }

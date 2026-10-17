@@ -1480,7 +1480,6 @@ struct SlotEditor: View {
 
 struct StudySheet: View {
     var course: Course
-    var mode: StudyMode
     /// Set when the sheet is opened from a recording. Then only that recording is used. Without it, the
     /// whole course is used.
     var lecture: Lecture?
@@ -1545,24 +1544,22 @@ struct StudySheet: View {
             }
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 VStack(spacing: 10) {
-                    if mode == .ask {
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 8) {
-                                ForEach(suggestions, id: \.self) { suggestion in
-                                    Button(suggestion) {
-                                        prompt = suggestion
-                                        Task { await run() }
-                                    }
-                                    .buttonStyle(.bordered)
-                                    .buttonBorderShape(.capsule)
-                                    .controlSize(.small)
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(suggestions, id: \.self) { suggestion in
+                                Button(suggestion) {
+                                    prompt = suggestion
+                                    Task { await run() }
                                 }
+                                .buttonStyle(.bordered)
+                                .buttonBorderShape(.capsule)
+                                .controlSize(.small)
                             }
                         }
-                        .scrollClipDisabled()
                     }
+                    .scrollClipDisabled()
                     HStack(spacing: 8) {
-                        TextField(mode == .ask ? "Ask a question" : "Quiz", text: $prompt)
+                        TextField("Ask a question", text: $prompt)
                             .textFieldStyle(.plain)
                             .submitLabel(.send)
                             .onSubmit { Task { await run() } }
@@ -1580,7 +1577,7 @@ struct StudySheet: View {
                 .padding(.horizontal)
                 .padding(.bottom, 8)
             }
-            .navigationTitle(mode == .ask ? "Ask" : "Quiz")
+            .navigationTitle("Ask")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } }
@@ -1604,7 +1601,7 @@ struct StudySheet: View {
         // From the course page only the recordings that are finished count. A failed, paused or still running one
         // does not.
         let lectures = lecture.map { [$0] } ?? course.lectures.filter { $0.state == LectureState.ready.rawValue }
-        Self.log.info("Study run tapped mode=\(mode == .ask ? "ask" : "quiz", privacy: .public) lectures=\(lectures.count) ofOneRecording=\(lecture != nil) question=\(question, privacy: .public)")
+        Self.log.info("Study run tapped lectures=\(lectures.count) ofOneRecording=\(lecture != nil) question=\(question, privacy: .public)")
         let blocks = lectures.flatMap { lecture in
             lecture.blocks.map { block in
                 StudyBlock(
@@ -1614,8 +1611,6 @@ struct StudySheet: View {
                     kind: BlockKind(tag: block.kind),
                     text: block.text,
                     topics: block.topics,
-                    listItems: block.listItems,
-                    numbers: block.numbers,
                     importance: block.importance,
                     missing: block.missing,
                     userFlag: block.userFlag,
@@ -1623,8 +1618,12 @@ struct StudySheet: View {
                 )
             }
         }
-        let selected = StudySelection.select(blocks, filter: .wholeCourse)
-        Self.log.info("Study blocks total=\(blocks.count) selected=\(selected.count)")
+        let everything = StudySelection.select(blocks, filter: .wholeCourse)
+        let selected = StudySelection.relevant(everything, to: question, locale: Locale(identifier: course.localeIdentifier))
+        Self.log.info("Study blocks total=\(blocks.count) selected=\(selected.count) characters=\(selected.reduce(0) { $0 + $1.text.count }) of=\(everything.reduce(0) { $0 + $1.text.count })")
+        for block in selected {
+            Self.log.info("Study picked second=\(block.second) characters=\(block.text.count) head=\(String(block.text.prefix(80)), privacy: .public)")
+        }
         guard !selected.isEmpty else {
             Self.log.info("Study no blocks selected")
             answer = String(localized: "The lectures do not contain that.")
@@ -1637,8 +1636,6 @@ struct StudySheet: View {
                 kind: $0.kind.rawValue,
                 topics: $0.topics,
                 text: $0.text,
-                listItems: $0.listItems,
-                numbers: $0.numbers,
                 importanceCue: $0.importance,
                 missing: $0.missing
             )
