@@ -19,6 +19,13 @@ enum LectureStarter {
     }
 }
 
+/// One line under a count tile: the number drives primary vs secondary, the text is what the student reads.
+private struct StatDetail: Identifiable, Hashable {
+    var id: String { text }
+    let count: Int
+    let text: String
+}
+
 struct CoursePage: View {
     @Bindable var course: Course
     @Environment(\.modelContext) private var modelContext
@@ -365,7 +372,7 @@ struct CoursePage: View {
     }
 
     /// Counts of recordings per status, such as "9 Ready".
-    private func lectureBreakdown(of lectures: [Lecture]) -> [String] {
+    private func lectureBreakdown(of lectures: [Lecture]) -> [StatDetail] {
         let processed = lectures.filter { !$0.isRecordedOnly }
         func count(_ state: LectureState) -> Int {
             processed.filter { $0.state == state.rawValue }.count
@@ -379,18 +386,18 @@ struct CoursePage: View {
             (LectureState.paused.title, count(.paused))
         ]
         // Every status always shows, even at 0, so the tile has the same number of lines at all times.
-        return entries.map { "\($0.count) \($0.title)" }
+        return entries.map { StatDetail(count: $0.count, text: "\($0.count) \($0.title)") }
     }
 
     /// Done, cancelled and pending assignments. The big number on the tile is the total of all three.
-    private func assignmentBreakdown(of assignments: [Assignment]) -> [String] {
+    private func assignmentBreakdown(of assignments: [Assignment]) -> [StatDetail] {
         let pending = assignments.filter { !$0.done && !$0.cancelled }.count
         let done = assignments.filter { $0.done && !$0.cancelled }.count
         let cancelled = assignments.filter(\.cancelled).count
         return [
-            "\(done) \(String(localized: "Done"))",
-            "\(cancelled) \(String(localized: "Cancelled"))",
-            "\(pending) \(String(localized: "Pending"))"
+            StatDetail(count: done, text: "\(done) \(String(localized: "Done"))"),
+            StatDetail(count: cancelled, text: "\(cancelled) \(String(localized: "Cancelled"))"),
+            StatDetail(count: pending, text: "\(pending) \(String(localized: "Pending"))")
         ]
     }
 
@@ -467,7 +474,7 @@ struct CoursePage: View {
 
     /// A tile is a button when it has an action, so a tap can take the student to its list.
     @ViewBuilder
-    private func statTile(value: Int, title: LocalizedStringKey, tint: Color, details: [String] = [], action: (() -> Void)? = nil) -> some View {
+    private func statTile(value: Int, title: LocalizedStringKey, tint: Color, details: [StatDetail] = [], action: (() -> Void)? = nil) -> some View {
         if let action {
             Button(action: action) {
                 statTileBody(value: value, title: title, tint: tint, details: details)
@@ -478,7 +485,7 @@ struct CoursePage: View {
         }
     }
 
-    private func statTileBody(value: Int, title: LocalizedStringKey, tint: Color, details: [String]) -> some View {
+    private func statTileBody(value: Int, title: LocalizedStringKey, tint: Color, details: [StatDetail]) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             // The same fonts as the recording rows: the title like the time. The lines are `footnote`, like the
             // lines of the cards on Home.
@@ -501,10 +508,11 @@ struct CoursePage: View {
             .background(tint, in: .rect(cornerRadius: 10, style: .continuous))
             // The gap between the colored line and the details. The line itself takes the place of the empty line.
             .padding(.bottom, 6)
-            ForEach(details, id: \.self) { line in
-                Text(verbatim: line)
+            ForEach(details) { line in
+                Text(verbatim: line.text)
                     .font(.footnote)
-                    .foregroundStyle(.primary)
+                    // A zero count on that line is quiet; a real count stays primary.
+                    .foregroundStyle(line.count == 0 ? .secondary : .primary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.85)
             }
