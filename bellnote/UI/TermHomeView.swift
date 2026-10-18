@@ -384,7 +384,14 @@ struct TodayPage: View {
     }
 
     /// Hero fact line: muted palette icon when the value is real, secondary when it is an empty placeholder.
-    private func heroFact(_ text: String, systemImage: String, active: Bool, iconTint: Color) -> some View {
+    /// `emphasized` matches the day line (semibold) for the time row.
+    private func heroFact(
+        _ text: String,
+        systemImage: String,
+        active: Bool,
+        iconTint: Color,
+        emphasized: Bool = false
+    ) -> some View {
         HStack(spacing: 4) {
             Image(systemName: systemImage)
                 .foregroundStyle(active ? iconTint : Color.secondary)
@@ -392,7 +399,7 @@ struct TodayPage: View {
             Text(verbatim: text)
                 .foregroundStyle(active ? Color.primary : Color.secondary)
         }
-        .font(.subheadline)
+        .font(emphasized ? .subheadline.weight(.semibold) : .subheadline)
     }
 
     /// Same symbol as the course page bar (`record.circle`), drawn at the course badge size on the trailing side.
@@ -465,7 +472,8 @@ struct TodayPage: View {
                         slotDetail(slot),
                         systemImage: "clock",
                         active: true,
-                        iconTint: soon ? Color.accentColor : CourseStyle.scheduleDayTint
+                        iconTint: soon ? Color.accentColor : CourseStyle.scheduleDayTint,
+                        emphasized: true
                     )
                     heroFact(
                         slot.placeName.isEmpty ? String(localized: "Place not added") : slot.placeName,
