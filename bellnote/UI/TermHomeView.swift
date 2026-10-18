@@ -164,7 +164,7 @@ struct TodayPage: View {
                 Section {
                     EmptyView()
                 } header: {
-                    VStack(alignment: .leading, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 0) {
                         // Looks like the section titles of the course page ("This week", "Assignments"), which the
                         // system draws in a plain list. This header sits in a grouped list, so the look is set by hand
                         // here. Change the font in this one place if the two do not match.
@@ -174,6 +174,9 @@ struct TodayPage: View {
                             // The cards go 16 pt out to the sides (below). The title goes out the same, so it
                             // starts at the left edge of the cards, like "This week" on the course page.
                             .padding(.leading, -16)
+                            // Same gap as "This week" → first recording: the plain-list header space plus the 8 pt
+                            // top inset of that row (`CoursePage` listRowInsets).
+                            .padding(.bottom, Self.coursesTitleToCards)
                         LazyVGrid(columns: Self.noteColumns, spacing: Self.noteSpacing) {
                             ForEach(orderedCourses) { course in
                                 // The card does not fade while it is held down.
@@ -503,6 +506,8 @@ struct TodayPage: View {
     ]
     private static let noteSpacing: CGFloat = 10
     private static let cardPadding: CGFloat = 12
+    /// Vertical room under "Courses", matched to "This week" on the course page (header + first-row top inset).
+    private static let coursesTitleToCards: CGFloat = 16
     /// Room between the lines of the block on the right of the hero card.
     private static let heroInfoSpacing: CGFloat = 4
     /// Room above and under the content of the hero card, between the content and the edge of the card.

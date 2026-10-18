@@ -425,7 +425,7 @@ Weight. The session opens on the heaviest topics, not a random sample. After tho
 
 ## 13d. Assignments
 
-An assignment exists only if a block was tagged `assignment`. The lecturer’s sentence, the source minute, and a due date computed from the hint are stored. The student marks it done. The model never marks it done.
+An assignment exists when a spoken sentence carries a homework cue (for example “haftaya”, “ödev”, “araştırıp gelin”), or when the AI correction adds an `ASSIGNMENT:` line whose words are from that text and sit next to such a cue. Cue-bearing sentences are the primary source; model lines are secondary and must not invent or replace the lecturer’s wording when both name the same task. The lecturer’s sentence, the source minute, and a due date computed from the hint are stored. A block tagged `assignment` alone does not create a row. The student marks it done. The model never marks it done.
 
 The course page has an assignment list: open, done, missing due date. Done is a system toggle. Undoing it returns the row to open.
 

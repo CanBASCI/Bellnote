@@ -2,7 +2,8 @@ import Foundation
 import SwiftUI
 
 /// Helpers for the AI correction. The model wraps important parts in `**double asterisks**`
-/// and writes each homework on a line that starts with `ASSIGNMENT:`.
+/// and may write homework on lines that start with `ASSIGNMENT:`. Homework is primarily taken from
+/// cue-bearing sentences in the text; those lines are a secondary source.
 enum CorrectionText {
     static let assignmentPrefix = "ASSIGNMENT:"
 
@@ -103,21 +104,45 @@ enum CorrectionText {
     /// Whether the words around a task hold a homework cue. Only the sentence of the task and the one before and
     /// after it count, so a word from another part of a long text does not make an ordinary sentence a task.
     static func hasHomeworkCue(near task: String, in text: String) -> Bool {
-        let sentences = text
-            .split(whereSeparator: { ".?!\n".contains($0) })
-            .map { String($0) }
-        guard !sentences.isEmpty else { return false }
+        let parts = sentences(in: text)
+        guard !parts.isEmpty else { return false }
         var best = 0
         var bestScore = -1.0
-        for (index, sentence) in sentences.enumerated() {
+        for (index, sentence) in parts.enumerated() {
             let score = overlap(task, sentence)
             if score > bestScore {
                 best = index
                 bestScore = score
             }
         }
-        let around = sentences[max(0, best - 1)...min(sentences.count - 1, best + 1)]
+        let around = parts[max(0, best - 1)...min(parts.count - 1, best + 1)]
         return hasHomeworkCue(around.joined(separator: " "))
+    }
+
+    /// Sentences of the text, split on `.?!` and line breaks, with highlight markers removed.
+    static func sentences(in text: String) -> [String] {
+        plain(text)
+            .split(whereSeparator: { ".?!\n".contains($0) })
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+    }
+
+    /// Sentences that already carry a homework cue. These are the primary homework source: the teacher's
+    /// own wording, found without waiting for an `ASSIGNMENT:` line from the model.
+    static func homeworkSentences(in text: String) -> [String] {
+        sentences(in: text).filter(hasHomeworkCue)
+    }
+
+    /// Rule sentences first. A model task is kept only when it is not the same job as a rule sentence, so the
+    /// teacher's wording wins when the model rewrites or merges two tasks into one.
+    static func mergeTasks(fromRules rules: [String], fromModel model: [String]) -> [String] {
+        var result = rules
+        for task in model {
+            let same = result.contains { overlap(task, $0) >= 0.6 || overlap($0, task) >= 0.6 }
+            if same { continue }
+            result.append(task)
+        }
+        return result
     }
 
     /// The text without highlight markers, for lists, previews and reading aloud.

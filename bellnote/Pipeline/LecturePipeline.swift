@@ -407,8 +407,9 @@ enum LecturePipeline {
     }
 
     /// Writes the AI correction: the lecturer's words with correct spelling, punctuation and
-    /// word order, important parts marked, homework collected. Apple's raw text stays untouched
-    /// in the blocks. If a model is missing or its answer drifts, the raw words are kept.
+    /// word order, important parts marked. Homework is collected from cue-bearing sentences in that
+    /// text, then from gated `ASSIGNMENT:` lines. Apple's raw text stays untouched in the blocks.
+    /// If a model is missing or its answer drifts, the raw words are kept and still scanned for cues.
     private static func finishPage(_ lecture: Lecture, course: Course, context: ModelContext) async {
         let spoken = lecture.blocks
             .sorted { $0.second < $1.second }
@@ -444,9 +445,10 @@ enum LecturePipeline {
                 log.info("Correction body=\(parts.body, privacy: .public)")
                 if faithful {
                     paragraphs.append(parts.body)
-                    // A task must be made of words the teacher said, otherwise the model invented it.
-                    // A real homework also needs a word like "ödev" or "teslim" next to it in the spoken text:
-                    // in its own sentence or the one before or after. A word elsewhere in the chunk does not count.
+                    // Primary: sentences that already hold a homework cue. Secondary: ASSIGNMENT lines from the
+                    // model, kept only when their words are from the text and a cue stands near them. On overlap
+                    // the rule sentence wins, so a rewritten or merged model task does not replace the teacher.
+                    let ruleTasks = CorrectionText.homeworkSentences(in: parts.body)
                     let spokenTasks = parts.assignments.filter { task in
                         let overlap = CorrectionText.overlap(task, chunk)
                         let cue = CorrectionText.hasHomeworkCue(near: task, in: chunk)
@@ -456,14 +458,31 @@ enum LecturePipeline {
                     if spokenTasks.count < parts.assignments.count {
                         log.warning("Assignment dropped count=\(parts.assignments.count - spokenTasks.count) of \(parts.assignments.count), no homework cue near the task or the words are not from the text")
                     }
-                    tasks.append(contentsOf: spokenTasks)
+                    let merged = CorrectionText.mergeTasks(fromRules: ruleTasks, fromModel: spokenTasks)
+                    log.info("Assignment merge rules=\(ruleTasks.count) model=\(spokenTasks.count) kept=\(merged.count)")
+                    for sentence in ruleTasks {
+                        log.info("Assignment rule sentence=\(sentence, privacy: .public)")
+                    }
+                    tasks.append(contentsOf: merged)
                 } else {
                     log.warning("Correction rejected, keeping the raw words")
                     paragraphs.append(chunk)
+                    let ruleTasks = CorrectionText.homeworkSentences(in: chunk)
+                    log.info("Assignment merge rules=\(ruleTasks.count) model=0 kept=\(ruleTasks.count)")
+                    for sentence in ruleTasks {
+                        log.info("Assignment rule sentence=\(sentence, privacy: .public)")
+                    }
+                    tasks.append(contentsOf: ruleTasks)
                 }
             } catch {
                 log.error("Correction failed, keeping the raw words message=\(error.localizedDescription, privacy: .public)")
                 paragraphs.append(chunk)
+                let ruleTasks = CorrectionText.homeworkSentences(in: chunk)
+                log.info("Assignment merge rules=\(ruleTasks.count) model=0 kept=\(ruleTasks.count)")
+                for sentence in ruleTasks {
+                    log.info("Assignment rule sentence=\(sentence, privacy: .public)")
+                }
+                tasks.append(contentsOf: ruleTasks)
             }
         }
         lecture.summary = paragraphs.joined(separator: "\n\n")
@@ -545,8 +564,8 @@ enum LecturePipeline {
             block.outgoing.append(stored)
             context.insert(stored)
         }
-        // Assignments are not made here. The AI correction already lists them (`addAssignments`), and it checks
-        // that the words come from the text and that a word like "ödev" or "teslim" stands next to them.
+        // Assignments are not made here. `finishPage` collects them: cue-bearing sentences first, then
+        // gated ASSIGNMENT lines from the model, merged so the teacher's wording wins.
     }
 }
 
