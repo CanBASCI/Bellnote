@@ -78,7 +78,7 @@ private struct ConsentFlow: ViewModifier {
                 }
             }
             .alert(
-                "Record this class for \(course?.name ?? "")?",
+                String(format: String(localized: "Record this class for %@?"), course?.name ?? ""),
                 isPresented: alertBinding
             ) {
                 Button("Cancel", role: .cancel) {}
@@ -90,7 +90,7 @@ private struct ConsentFlow: ViewModifier {
             .popover(isPresented: popoverBinding) {
                 if let course {
                     VStack(spacing: 14) {
-                        Text("Record this class for \(course.name)?")
+                        Text(String(format: String(localized: "Record this class for %@?"), course.name))
                             .multilineTextAlignment(.center)
                         Button {
                             start(course, faceID: false)

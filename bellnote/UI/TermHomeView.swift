@@ -383,15 +383,21 @@ struct TodayPage: View {
         }
     }
 
-    /// The place of the slot, always shown. Without one it says so.
-    private func placeLine(_ slot: WeeklySlot) -> some View {
-        iconLine(
-            slot.placeName.isEmpty ? String(localized: "Place not added") : slot.placeName,
-            systemImage: "mappin.and.ellipse"
-        )
+    /// Hero fact line: muted palette icon when the value is real, secondary when it is an empty placeholder.
+    private func heroFact(_ text: String, systemImage: String, active: Bool, iconTint: Color) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: systemImage)
+                .foregroundStyle(active ? iconTint : Color.secondary)
+                .accessibilityHidden(true)
+            Text(verbatim: text)
+                .foregroundStyle(active ? Color.primary : Color.secondary)
+        }
+        .font(.subheadline)
     }
 
     /// Same symbol as the course page bar (`record.circle`), drawn at the course badge size on the trailing side.
+    /// Later recordings use the same confirm as the course page Record control (title + red Start recording button).
+    /// A `Menu` can only show text rows; the glass Start recording control needs that confirm.
     private func startRecordIcon(_ course: Course) -> some View {
         Button {
             recordCourse = course
@@ -406,7 +412,7 @@ struct TodayPage: View {
         }
         .buttonStyle(.borderless)
         .accessibilityLabel(Text("Record"))
-        .consentFlow(course: recordCourse, isPresented: $showConsent) { course, faceID in
+        .consentFlow(course: recordCourse, asPopover: true, isPresented: $showConsent) { course, faceID in
             activeLecture = LectureStarter.make(course: course, faceID: faceID, context: modelContext)
         }
     }
@@ -429,7 +435,7 @@ struct TodayPage: View {
                         .lineLimit(2)
                     iconLine(lecturer.isEmpty ? String(localized: "Lecturer") : lecturer, systemImage: "person.crop.circle")
                         .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(lecturer.isEmpty ? Color.secondary : Color.primary)
                         .lineLimit(1)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -444,38 +450,95 @@ struct TodayPage: View {
             //   time           | minutes left
             //   place          | next exam
             //   last recording | open assignments
+            // Real values use primary text + palette icons; empty placeholders stay secondary.
             HStack(alignment: .top, spacing: 12) {
                 VStack(alignment: .leading, spacing: Self.heroInfoSpacing) {
-                    iconLine(status(for: slot), systemImage: "calendar")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(soon ? Color.accentColor : Color.secondary)
-                    Group {
-                        iconLine(slotDetail(slot), systemImage: "clock")
-                        placeLine(slot)
-                        if let course = slot.course {
-                            iconLine(lastRecordingText(for: course), systemImage: "waveform")
-                        } else {
-                            iconLine(String(localized: "No recording yet"), systemImage: "waveform")
-                        }
+                    HStack(spacing: 4) {
+                        Image(systemName: "calendar")
+                            .foregroundStyle(soon ? Color.accentColor : CourseStyle.scheduleDayTint)
+                            .accessibilityHidden(true)
+                        Text(verbatim: status(for: slot))
+                            .foregroundStyle(soon ? Color.accentColor : Color.primary)
                     }
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .font(.subheadline.weight(.semibold))
+                    heroFact(
+                        slotDetail(slot),
+                        systemImage: "clock",
+                        active: true,
+                        iconTint: soon ? Color.accentColor : CourseStyle.scheduleDayTint
+                    )
+                    heroFact(
+                        slot.placeName.isEmpty ? String(localized: "Place not added") : slot.placeName,
+                        systemImage: "mappin.and.ellipse",
+                        active: !slot.placeName.isEmpty,
+                        iconTint: CourseStyle.placeTint
+                    )
+                    if let course = slot.course {
+                        heroFact(
+                            lastRecordingText(for: course),
+                            systemImage: "waveform",
+                            active: !course.lectures.isEmpty,
+                            iconTint: CourseStyle.recordingsTint
+                        )
+                    } else {
+                        heroFact(
+                            String(localized: "No recording yet"),
+                            systemImage: "waveform",
+                            active: false,
+                            iconTint: CourseStyle.recordingsTint
+                        )
+                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 VStack(alignment: .leading, spacing: Self.heroInfoSpacing) {
-                    iconLine(daysUntilText(for: slot), systemImage: "hourglass.tophalf.filled")
-                    iconLine(minutesLeftText(for: slot), systemImage: "hourglass")
-                        .foregroundStyle(minutesLeft(for: slot) == nil ? Color.secondary : Color.accentColor)
+                    heroFact(
+                        daysUntilText(for: slot),
+                        systemImage: "hourglass.tophalf.filled",
+                        active: true,
+                        iconTint: CourseStyle.daysUntilTint
+                    )
+                    let liveMinutes = minutesLeft(for: slot) != nil
+                    HStack(spacing: 4) {
+                        Image(systemName: "hourglass")
+                            .foregroundStyle(liveMinutes ? Color.accentColor : Color.secondary)
+                            .accessibilityHidden(true)
+                        Text(verbatim: minutesLeftText(for: slot))
+                            .foregroundStyle(liveMinutes ? Color.accentColor : Color.secondary)
+                    }
+                    .font(.subheadline)
                     if let course = slot.course {
-                        iconLine(nextExamText(for: course), systemImage: "calendar.badge.clock")
-                        iconLine(openAssignmentsText(for: course), systemImage: "checklist")
+                        let openCount = course.assignments.filter { !$0.done && !$0.cancelled }.count
+                        let hasUpcomingExam = course.sittings.contains { sitting in
+                            guard let date = sitting.date else { return false }
+                            return Calendar.current.startOfDay(for: date) >= Calendar.current.startOfDay(for: .now)
+                        }
+                        heroFact(
+                            nextExamText(for: course),
+                            systemImage: "calendar.badge.clock",
+                            active: hasUpcomingExam,
+                            iconTint: CourseStyle.examsTint
+                        )
+                        heroFact(
+                            openAssignmentsText(for: course),
+                            systemImage: "checklist",
+                            active: openCount > 0,
+                            iconTint: CourseStyle.assignmentsTint
+                        )
                     } else {
-                        iconLine(String(localized: "Exam not added"), systemImage: "calendar.badge.clock")
-                        iconLine(String(format: String(localized: "Pending assignments: %lld"), 0), systemImage: "checklist")
+                        heroFact(
+                            String(localized: "Exam not added"),
+                            systemImage: "calendar.badge.clock",
+                            active: false,
+                            iconTint: CourseStyle.examsTint
+                        )
+                        heroFact(
+                            String(format: String(localized: "Pending assignments: %lld"), 0),
+                            systemImage: "checklist",
+                            active: false,
+                            iconTint: CourseStyle.assignmentsTint
+                        )
                     }
                 }
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
             .lineLimit(1)
@@ -519,6 +582,8 @@ struct TodayPage: View {
     /// The height of one line of the name (`headline`) and of the lecturer (`caption2`). They follow the text size.
     @ScaledMetric(relativeTo: .headline) private var nameLineHeight: CGFloat = 22
     @ScaledMetric(relativeTo: .caption2) private var lecturerLineHeight: CGFloat = 13
+    /// Recordings / Assignments / Exams on the course card: between footnote (13) and subheadline (15).
+    @ScaledMetric(relativeTo: .footnote) private var courseTotalSize: CGFloat = 14
 
     /// The space above the menu icon, from the top of the card, so that its middle is on the middle of the name line.
     /// The row of the card is as tall as the badge or the name with the lecturer, whichever is taller, and the
@@ -574,7 +639,7 @@ struct TodayPage: View {
                     }
                     Text(verbatim: lecturer.isEmpty ? String(localized: "Lecturer") : lecturer)
                         .font(.caption2)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(lecturer.isEmpty ? Color.secondary : Color.primary)
                         .lineLimit(1)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -582,24 +647,25 @@ struct TodayPage: View {
             // Extra height of a taller neighbour goes here, between the name and the rest, so the totals and the
             // times keep the same distance in every card.
             Spacer(minLength: 4)
-            // The days and times of the course in the timetable, one line each.
+            // Nearest upcoming slot first and primary; the rest of the week stays secondary.
             VStack(alignment: .leading, spacing: 2) {
-                ForEach(scheduleLines(course), id: \.self) { line in
+                ForEach(Array(scheduleLines(course).enumerated()), id: \.element) { index, line in
                     Text(verbatim: line)
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .font(.subheadline)
+                        .foregroundStyle(index == 0 ? Color.primary : Color.secondary)
                         .lineLimit(1)
                 }
             }
             HStack(spacing: 10) {
-                total(course.lectures.count, "waveform", "Recordings")
-                total(course.assignments.count, "checklist", "Assignments")
-                total(course.sittings.count, "calendar", "Exams")
+                total(course.lectures.count, "waveform", "Recordings", tint: CourseStyle.recordingsTint)
+                total(course.assignments.count, "checklist", "Assignments", tint: CourseStyle.assignmentsTint)
+                total(course.sittings.count, "calendar", "Exams", tint: CourseStyle.examsTint)
                 Spacer(minLength: 0)
                 // A favourite course has a star at the far end of the totals.
                 if course.isFavorite {
-                    Image(systemName: "star.fill")
-                        .font(.caption)
+                    // Outline only on the card: colored stroke, no fill.
+                    Image(systemName: "star")
+                        .font(.subheadline)
                         .foregroundStyle(CourseStyle.favoriteTint)
                         .accessibilityLabel(Text("Favorite"))
                 }
@@ -620,13 +686,15 @@ struct TodayPage: View {
         .contentShape(.rect(cornerRadius: 22))
     }
 
-    private func total(_ count: Int, _ symbol: String, _ name: LocalizedStringKey) -> some View {
+    /// Count chip on a course card. Zero stays secondary; a real count uses the same muted tint as the course page tiles.
+    private func total(_ count: Int, _ symbol: String, _ name: LocalizedStringKey, tint: Color) -> some View {
         HStack(spacing: 3) {
             Image(systemName: symbol)
+                .foregroundStyle(count > 0 ? tint : Color.secondary)
             Text(count, format: .number)
+                .foregroundStyle(count > 0 ? Color.primary : Color.secondary)
         }
-        .font(.caption.weight(.medium))
-        .foregroundStyle(.secondary)
+        .font(.system(size: courseTotalSize, weight: .medium))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text(name))
         .accessibilityValue(Text(count, format: .number))
@@ -732,17 +800,27 @@ struct TodayPage: View {
         "\(ReminderScheduler.clock(slot.startMinutes))–\(ReminderScheduler.clock(slot.endMinutes))"
     }
 
-    /// One line per weekly slot of the course, in the order of the week: "Mon 09:00–10:30".
-    private func scheduleLines(_ course: Course) -> [String] {
+    /// Minutes until this slot’s next occurrence (0 while the class is on). Used to put the nearest line first.
+    private func minutesUntilNextOccurrence(_ slot: WeeklySlot) -> Int {
         let calendar = Calendar.current
-        let symbols = calendar.shortWeekdaySymbols
-        func position(_ slot: WeeklySlot) -> Int { (slot.weekday - calendar.firstWeekday + 7) % 7 }
+        let weekday = calendar.component(.weekday, from: .now)
+        let minutes = calendar.component(.hour, from: .now) * 60 + calendar.component(.minute, from: .now)
+        var days = (slot.weekday - weekday + 7) % 7
+        if days == 0 {
+            if minutes < slot.endMinutes {
+                return max(0, slot.startMinutes - minutes)
+            }
+            days = 7
+        }
+        return days * 24 * 60 + slot.startMinutes - minutes
+    }
+
+    /// One line per weekly slot: nearest upcoming first ("Mon 09:00–10:30"), then the rest of the week.
+    private func scheduleLines(_ course: Course) -> [String] {
+        let symbols = Calendar.current.shortWeekdaySymbols
         return term.slots
             .filter { $0.course?.token == course.token }
-            .sorted { lhs, rhs in
-                if position(lhs) != position(rhs) { return position(lhs) < position(rhs) }
-                return lhs.startMinutes < rhs.startMinutes
-            }
+            .sorted { minutesUntilNextOccurrence($0) < minutesUntilNextOccurrence($1) }
             .compactMap { slot in
                 guard symbols.indices.contains(slot.weekday - 1) else { return nil }
                 let span = "\(ReminderScheduler.clock(slot.startMinutes))–\(ReminderScheduler.clock(slot.endMinutes))"

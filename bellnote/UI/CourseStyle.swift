@@ -47,6 +47,12 @@ enum CourseStyle {
     static let assignmentsTint = rgb(63, 156, 140)
     static let examsTint = rgb(194, 112, 138)
 
+    /// Hero fact icons that are not recordings / assignments / exams. Same muted palette as the course colors.
+    /// Shared by the hero day and time icons (calendar + clock).
+    static let scheduleDayTint = rgb(95, 112, 136)    // slate       #5F7088
+    static let placeTint = rgb(143, 109, 87)          // clay brown  #8F6D57
+    static let daysUntilTint = rgb(169, 130, 47)      // ochre       #A9822F
+
     /// The star of a favourite course: a soft amber (#D4A34A), in the same muted range as the course colors. The
     /// system yellow is much brighter than they are.
     static let favoriteTint = rgb(212, 163, 74)
