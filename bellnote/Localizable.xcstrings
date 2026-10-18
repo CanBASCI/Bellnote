@@ -1565,6 +1565,22 @@
         }
       }
     },
+    "Last recording: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Last recording: %@"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Son kayıt: %@"
+          }
+        }
+      }
+    },
     "Last week" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2138,6 +2154,22 @@
         }
       }
     },
+    "No recording yet" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No recording yet"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Henüz kayıt yok"
+          }
+        }
+      }
+    },
     "None" : {
       "localizations" : {
         "en" : {
@@ -2494,6 +2526,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Yer"
+          }
+        }
+      }
+    },
+    "Playback speed" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Playback speed"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Oynatma hızı"
           }
         }
       }
@@ -4306,6 +4354,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Metin yazılıyor"
+          }
+        }
+      }
+    },
+    "Yesterday" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yesterday"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dün"
           }
         }
       }

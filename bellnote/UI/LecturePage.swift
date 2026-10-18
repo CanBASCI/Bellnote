@@ -734,15 +734,21 @@ final class LectureAudio {
     private(set) var isPlaying = false
     private(set) var currentSecond = 0
     private(set) var duration = 0
+    /// Playback speed chosen from the player menu (0.5×, 1×, 1.5×, 2×).
+    private(set) var rate: Float = 1
     /// Seeks that were asked for and have not finished. Not shown on screen.
     @ObservationIgnored private var pendingSeeks = 0
     private let engine = LecturePlaybackEngine()
+
+    /// Speeds offered in the player menu, slowest to fastest.
+    static let rateSteps: [Float] = [0.5, 1, 1.5, 2]
 
     func load(_ lecture: Lecture) async {
         await engine.reset()
         isPlaying = false
         duration = 0
         currentSecond = 0
+        rate = 1
         guard let relative = lecture.audioRelativePath else { return }
         guard let root = try? Vault.documents() else { return }
         let url = root.appendingPathComponent(relative)
@@ -750,10 +756,17 @@ final class LectureAudio {
         let seconds = await engine.load(url)
         guard seconds > 0 else { return }
         duration = seconds
+        await engine.setRate(rate)
     }
 
     func toggle() {
         Task { await togglePlayback() }
+    }
+
+    func setRate(_ next: Float) {
+        guard Self.rateSteps.contains(next), next != rate else { return }
+        rate = next
+        Task { await engine.setRate(next) }
     }
 
     /// `until` is a second where the player pauses by itself. The student can go on from the play button.
@@ -879,15 +892,27 @@ private final class LecturePlaybackEngine: @unchecked Sendable {
                 return false
             }
             if let time { player.currentTime = time }
+            player.enableRate = true
             player.prepareToPlay()
             let started = player.play()
             if started, let until {
                 // The item runs on `queue` too, so it reads the player there. It holds the engine, not the player.
+                // Wall time shrinks when the rate is above 1, so the pause still lands on the spoken second.
                 let item = DispatchWorkItem { [weak self] in self?.player?.pause() }
                 stopItem = item
-                queue.asyncAfter(deadline: .now() + max(0, until - player.currentTime), execute: item)
+                let speed = max(Double(player.rate), 0.1)
+                let delay = max(0, until - player.currentTime) / speed
+                queue.asyncAfter(deadline: .now() + delay, execute: item)
             }
             return started
+        }
+    }
+
+    func setRate(_ rate: Float) async {
+        await onQueue { [self] in
+            guard let player else { return }
+            player.enableRate = true
+            player.rate = rate
         }
     }
 

@@ -391,26 +391,24 @@ struct TodayPage: View {
         )
     }
 
-    /// The red Start recording button of the hero card.
-    private func startButton(_ course: Course) -> some View {
+    /// Same symbol as the course page bar (`record.circle`), drawn at the course badge size on the trailing side.
+    private func startRecordIcon(_ course: Course) -> some View {
         Button {
             recordCourse = course
             showConsent = true
         } label: {
-            Label("Start recording", systemImage: "record.circle.fill")
-                .symbolRenderingMode(.monochrome)
-                .foregroundStyle(.white)
+            Image(systemName: "record.circle")
+                .resizable()
+                .scaledToFit()
+                .foregroundStyle(.red)
+                // A bit over half the course badge (0.5 × 1.25), so it stays under the name block height.
+                .frame(width: heroBadgeSize * 0.625, height: heroBadgeSize * 0.625)
         }
-        .buttonStyle(.glassProminent)
-        .controlSize(.large)
-        .tint(.red)
+        .buttonStyle(.borderless)
+        .accessibilityLabel(Text("Record"))
         .consentFlow(course: recordCourse, isPresented: $showConsent) { course, faceID in
             activeLecture = LectureStarter.make(course: course, faceID: faceID, context: modelContext)
         }
-        // The glass button has a little room around the pill in its frame, so the pill looked higher than the last
-        // line on the left. This moves only the drawing, not the layout. Change `startButtonDrop` if it needs more
-        // or less.
-        .offset(y: Self.startButtonDrop)
     }
 
     @ViewBuilder
@@ -419,9 +417,8 @@ struct TodayPage: View {
         let name = slot.course?.name ?? String(localized: "Course")
         VStack(alignment: .leading, spacing: 10) {
             let lecturer = slot.course?.lecturer?.displayName ?? ""
-            // The top row, the whole width of the card: the badge, the name and under the name the lecturer, like the
-            // course cards. With no lecturer name it says "Lecturer", the same as the cards and the course page.
-            HStack(spacing: 10) {
+            // The top row: badge and name on the left, record control on the right at the same size as the badge.
+            HStack(alignment: .center, spacing: 10) {
                 // A square as high as the name and the lecturer together (one line of the name). The width is the
                 // same as the height, so the shape does not change.
                 CourseBadge(name: name, color: slot.course?.color ?? CourseStyle.color(for: name), size: heroBadgeSize)
@@ -435,16 +432,18 @@ struct TodayPage: View {
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                if let course = slot.course {
+                    // Inset from the card edge so the control is not stuck to the right.
+                    startRecordIcon(course)
+                        .padding(.trailing, Self.cardPadding)
+                }
             }
-            // This row has the whole width of the card for itself, from the left edge to the right edge. Nothing else
-            // shares it.
-            .frame(maxWidth: .infinity, alignment: .leading)
-            // Under it two columns that start at the same line, with the same room between the lines, so the lines
-            // of the two sides are level with each other:
-            //   row 1: the day   | the days left to the class
-            //   row 2: the time  | the minutes left of the class ("Not started" before it begins)
-            // The left column goes on with the place, the next exam and the pending assignments. The right column has
-            // the button at its bottom, level with the last line on the left.
+            // Eight facts in two columns of four, lines level across the row:
+            //   day            | days left
+            //   time           | minutes left
+            //   place          | next exam
+            //   last recording | open assignments
             HStack(alignment: .top, spacing: 12) {
                 VStack(alignment: .leading, spacing: Self.heroInfoSpacing) {
                     iconLine(status(for: slot), systemImage: "calendar")
@@ -454,30 +453,30 @@ struct TodayPage: View {
                         iconLine(slotDetail(slot), systemImage: "clock")
                         placeLine(slot)
                         if let course = slot.course {
-                            iconLine(nextExamText(for: course), systemImage: "calendar.badge.clock")
-                            iconLine(openAssignmentsText(for: course), systemImage: "checklist")
+                            iconLine(lastRecordingText(for: course), systemImage: "waveform")
+                        } else {
+                            iconLine(String(localized: "No recording yet"), systemImage: "waveform")
                         }
                     }
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                // The right column is only as wide as its widest line or the text of the button. The free room in it
-                // is between the two lines and the button, so the button goes down to the bottom.
                 VStack(alignment: .leading, spacing: Self.heroInfoSpacing) {
                     iconLine(daysUntilText(for: slot), systemImage: "hourglass.tophalf.filled")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
                     iconLine(minutesLeftText(for: slot), systemImage: "hourglass")
-                        .font(.subheadline)
                         .foregroundStyle(minutesLeft(for: slot) == nil ? Color.secondary : Color.accentColor)
-                    Spacer(minLength: 10)
                     if let course = slot.course {
-                        startButton(course)
+                        iconLine(nextExamText(for: course), systemImage: "calendar.badge.clock")
+                        iconLine(openAssignmentsText(for: course), systemImage: "checklist")
+                    } else {
+                        iconLine(String(localized: "Exam not added"), systemImage: "calendar.badge.clock")
+                        iconLine(String(format: String(localized: "Pending assignments: %lld"), 0), systemImage: "checklist")
                     }
                 }
-                .fixedSize(horizontal: true, vertical: false)
-                .layoutPriority(1)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
             .lineLimit(1)
         }
@@ -514,8 +513,6 @@ struct TodayPage: View {
     private static let heroVerticalPadding: CGFloat = 20
     /// Extra room above the hero card, under the navigation bar. Change this one number to move the card.
     private static let heroTopInset: CGFloat = 16
-    /// How far the Start recording pill is moved down so its bottom is level with the last line on the right.
-    private static let startButtonDrop: CGFloat = 4
     /// The same height as the course badge, so the icon is centred on the name row.
     private static let menuSize: CGFloat = 34
 
@@ -686,6 +683,23 @@ struct TodayPage: View {
     private func openAssignmentsText(for course: Course) -> String {
         let open = course.assignments.filter { !$0.done && !$0.cancelled }.count
         return String(format: String(localized: "Pending assignments: %lld"), open)
+    }
+
+    /// The newest recording of the course: today, yesterday, or its date. Empty courses say there is none yet.
+    private func lastRecordingText(for course: Course) -> String {
+        guard let last = course.lectures.max(by: { $0.startedAt < $1.startedAt }) else {
+            return String(localized: "No recording yet")
+        }
+        let calendar = Calendar.current
+        let when: String
+        if calendar.isDateInToday(last.startedAt) {
+            when = String(localized: "Today")
+        } else if calendar.isDateInYesterday(last.startedAt) {
+            when = String(localized: "Yesterday")
+        } else {
+            when = last.startedAt.formatted(.dateTime.day().month(.abbreviated))
+        }
+        return String(format: String(localized: "Last recording: %@"), when)
     }
 
     /// The minutes until the class ends, only while it is going on now. Otherwise nil.

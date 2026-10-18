@@ -54,8 +54,48 @@ struct PlayerAccessory: View {
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(.tertiary)
             }
+            // Right of the scrubber: same Picker-in-Menu pattern as the term menu on Home.
+            // No picker title: "Playback speed" / "Oynatma hızı" was wider than "1.5×" and left empty room.
+            Menu {
+                Picker(selection: rateSelection) {
+                    ForEach(LectureAudio.rateSteps, id: \.self) { step in
+                        Text(Self.rateLabel(step)).tag(step)
+                    }
+                } label: {
+                    EmptyView()
+                }
+                .pickerStyle(.inline)
+                .labelsHidden()
+                // Selected row uses primary instead of the accent blue of a menu picker.
+                .tint(.primary)
+            } label: {
+                Text(Self.rateLabel(audio.rate))
+                    .font(.caption.weight(.semibold).monospacedDigit())
+                    .frame(minWidth: 36)
+            }
+            .tint(.primary)
+            .accessibilityLabel(Text("Playback speed"))
+            .accessibilityValue(Text(Self.rateLabel(audio.rate)))
         }
         .padding(.horizontal, 12)
+    }
+
+    /// Bridges the menu picker to `LectureAudio.setRate`.
+    private var rateSelection: Binding<Float> {
+        Binding(
+            get: { audio.rate },
+            set: { audio.setRate($0) }
+        )
+    }
+
+    /// Compact label for the speed control, always with a multiply sign.
+    private static func rateLabel(_ rate: Float) -> String {
+        switch rate {
+        case 0.5: return "0.5×"
+        case 1.5: return "1.5×"
+        case 2: return "2×"
+        default: return "1×"
+        }
     }
 }
 
