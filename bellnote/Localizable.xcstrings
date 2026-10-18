@@ -343,6 +343,38 @@
         }
       }
     },
+    "App" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Uygulama"
+          }
+        }
+      }
+    },
+    "AI, speech and voice" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI, speech and voice"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yapay zekâ, konuşma ve ses"
+          }
+        }
+      }
+    },
     "Apple" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1017,6 +1049,22 @@
         }
       }
     },
+    "Download the models Bellnote uses for notes. Nothing is uploaded." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Download the models Bellnote uses for notes. Nothing is uploaded."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notlar için Bellnote’un kullandığı modelleri indir. Hiçbir şey yüklenmez."
+          }
+        }
+      }
+    },
     "Download starts when you confirm this row." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1624,6 +1672,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Dil"
+          }
+        }
+      }
+    },
+    "Language and appearance stay on this device." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Language and appearance stay on this device."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dil ve görünüm bu cihazda kalır."
           }
         }
       }
@@ -2803,6 +2867,54 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "İşleniyor"
+          }
+        }
+      }
+    },
+    "Privacy" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Privacy"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gizlilik"
+          }
+        }
+      }
+    },
+    "Require Face ID" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Require Face ID"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Face ID iste"
+          }
+        }
+      }
+    },
+    "Notes, audio and the timetable stay behind Face ID or the device passcode. Turning the lock off keeps this session open." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notes, audio and the timetable stay behind Face ID or the device passcode. Turning the lock off keeps this session open."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notlar, ses ve ders programı Face ID veya cihaz parolasının arkasında kalır. Kilidi kapatmak bu oturumu açık tutar."
           }
         }
       }

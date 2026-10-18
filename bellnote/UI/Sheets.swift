@@ -250,24 +250,65 @@ struct SettingsPage: View {
 
     var body: some View {
         Form {
-            Picker("Language", selection: $choice) {
-                Text("System").tag(AppLanguage.system)
-                Text("English").tag(AppLanguage.english)
-                Text("Turkish").tag(AppLanguage.turkish)
+            Section {
+                Picker(selection: $choice) {
+                    Text("System").tag(AppLanguage.system)
+                    Text("English").tag(AppLanguage.english)
+                    Text("Turkish").tag(AppLanguage.turkish)
+                } label: {
+                    Label("Language", systemImage: "globe")
+                }
+                .onChange(of: choice) { _, newValue in
+                    session.setLanguage(newValue)
+                }
+                Picker(selection: $appearance) {
+                    Text("System").tag(AppAppearance.system)
+                    Text("Light").tag(AppAppearance.light)
+                    Text("Dark").tag(AppAppearance.dark)
+                } label: {
+                    Label("Appearance", systemImage: "circle.lefthalf.filled")
+                }
+                .onChange(of: appearance) { _, newValue in
+                    session.setAppearance(newValue)
+                }
+            } header: {
+                Text("App")
+            } footer: {
+                Text("Language and appearance stay on this device.")
             }
-            .onChange(of: choice) { _, newValue in
-                session.setLanguage(newValue)
+
+            Section {
+                Toggle(isOn: Binding(
+                    get: { session.lockEnabled },
+                    set: { session.setLockEnabled($0) }
+                )) {
+                    Label("Require Face ID", systemImage: "lock.fill")
+                }
+            } header: {
+                Text("Privacy")
+            } footer: {
+                Text("Notes, audio and the timetable stay behind Face ID or the device passcode. Turning the lock off keeps this session open.")
             }
-            Picker("Appearance", selection: $appearance) {
-                Text("System").tag(AppAppearance.system)
-                Text("Light").tag(AppAppearance.light)
-                Text("Dark").tag(AppAppearance.dark)
-            }
-            .onChange(of: appearance) { _, newValue in
-                session.setAppearance(newValue)
-            }
-            NavigationLink("Models") {
-                ModelsPage()
+
+            Section {
+                NavigationLink {
+                    ModelsPage()
+                } label: {
+                    Label {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Models")
+                            Text("AI, speech and voice")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    } icon: {
+                        Image(systemName: "cpu")
+                    }
+                }
+            } header: {
+                Text("On this device")
+            } footer: {
+                Text("Download the models Bellnote uses for notes. Nothing is uploaded.")
             }
         }
         .navigationTitle("Settings")

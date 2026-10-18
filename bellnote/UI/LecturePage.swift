@@ -212,10 +212,9 @@ struct LectureNote: View {
                     .labelStyle(.iconOnly)
                 }
             }
-            // Ask and Listen are one menu at the far right of the bar. The same rules as the bar at the bottom
-            // had: only on the AI correction tab, only when there is a correction, and only when the whole run is
-            // over. The correction is written before the last stages end.
-            if tab == .correction, hasCorrection, workingStage == nil, let course = lecture.course {
+            // Ask and Listen are one menu at the far right of the bar. Shown on every tab once a correction
+            // exists and the whole run is over. The correction is written before the last stages end.
+            if hasCorrection, workingStage == nil, let course = lecture.course {
                 ToolbarItem(placement: .primaryAction) {
                     studyMenu(course)
                 }

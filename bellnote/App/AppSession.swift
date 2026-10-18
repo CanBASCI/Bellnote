@@ -6,6 +6,8 @@ import SwiftData
 @Observable
 final class AppSession {
     var unlocked: Bool
+    /// Face ID / passcode gate before notes. On by default; the student can turn it off in Settings.
+    var lockEnabled: Bool
     var languageCode: String
     var appearance: AppAppearance
     var focusCourseToken: UUID?
@@ -26,6 +28,7 @@ final class AppSession {
             defaults.set(true, forKey: AppPreferences.lockEnabledKey)
         }
         let lock = defaults.bool(forKey: AppPreferences.lockEnabledKey)
+        lockEnabled = lock
         unlocked = !lock
         let stored = defaults.string(forKey: AppPreferences.languageKey) ?? AppLanguage.system.rawValue
         languageCode = AppLanguage.resolved(preference: stored, system: Locale.current.identifier)
@@ -45,6 +48,15 @@ final class AppSession {
     func setLanguage(_ language: AppLanguage) {
         UserDefaults.standard.set(language.rawValue, forKey: AppPreferences.languageKey)
         languageCode = AppLanguage.resolved(preference: language.rawValue, system: Locale.current.identifier)
+    }
+
+    /// Turns the app lock on or off. Turning it off unlocks at once. Turning it on keeps this session open.
+    func setLockEnabled(_ enabled: Bool) {
+        UserDefaults.standard.set(enabled, forKey: AppPreferences.lockEnabledKey)
+        lockEnabled = enabled
+        if !enabled {
+            unlocked = true
+        }
     }
 
     func setPageModel(_ role: ModelRole) {

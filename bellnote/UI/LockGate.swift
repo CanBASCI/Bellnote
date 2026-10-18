@@ -42,8 +42,7 @@ struct LockGate: View {
         let errorCode = error?.code ?? 0
         Self.log.info("Can evaluate: \(canEvaluate, privacy: .public), biometry type: \(context.biometryType.rawValue, privacy: .public), error: \(reason, privacy: .public) (code \(errorCode, privacy: .public))")
         guard canEvaluate else {
-            UserDefaults.standard.set(false, forKey: AppPreferences.lockEnabledKey)
-            session.unlocked = true
+            session.setLockEnabled(false)
             message = String(localized: "The device could not lock the notes, so the lock is off.")
             Self.log.error("The device cannot evaluate the policy, so the lock is turned off")
             return
