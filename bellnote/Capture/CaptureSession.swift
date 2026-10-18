@@ -16,6 +16,7 @@ nonisolated final class CaptureSession: NSObject, @unchecked Sendable {
     private let targetFormat: AVAudioFormat?
     private var observationTokens: [NotificationCenter.ObservationToken] = []
 
+    var onInterrupted: (@Sendable () -> Void)?
     var onInterruptionEnded: (@Sendable () -> Void)?
 
     override init() {
@@ -99,8 +100,15 @@ nonisolated final class CaptureSession: NSObject, @unchecked Sendable {
         let shouldResume = lock.withLock { started && paused }
         Self.log.info("Capture resume requested shouldResume=\(shouldResume)")
         guard shouldResume else { return }
-        try await Self.activateRecordSession()
-        try engine.start()
+        // After a local pause the session is usually still active. Re-setCategory from a
+        // Live Activity intent in the background fails with OSStatus '!int' (560557684).
+        do {
+            try engine.start()
+        } catch {
+            Self.log.error("Engine start after pause failed, reactivating session: \(error.localizedDescription, privacy: .public)")
+            try await Self.activateRecordSession()
+            try engine.start()
+        }
         lock.withLock { paused = false }
         Self.log.info("Capture resumed engineRunning=\(self.engine.isRunning)")
     }
@@ -221,6 +229,7 @@ nonisolated final class CaptureSession: NSObject, @unchecked Sendable {
             Self.log.info("Session became inactive result=\(String(describing: message.deactivationResult), privacy: .public)")
             guard case .systemInterruption = message.deactivationResult else { return }
             self?.pauseCapture()
+            self?.onInterrupted?()
         }
         let resume = center.addObserver(of: session, for: .resumptionRecommendation) { [weak self] message in
             Self.log.info("Session resumption recommendation=\(String(describing: message.recommendation), privacy: .public)")

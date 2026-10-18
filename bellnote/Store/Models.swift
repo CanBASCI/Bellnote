@@ -210,6 +210,9 @@ final class Lecture {
     /// True once the student typed the title. A new run of the recording then keeps it.
     /// The default lets the store migrate by itself.
     var titleEdited: Bool = false
+    /// Where the microphone ran (`CaptureSource`). So far every recording is from the iPhone; Watch capture is
+    /// not built yet. New phone captures write iPhone. Older rows keep the default.
+    var captureSource: String = CaptureSource.iPhone.rawValue
     var failureMessageKey: String?
     var oralExam: Bool
     var examSpanStart: Int?
@@ -233,7 +236,19 @@ final class Lecture {
     @Relationship(deleteRule: .cascade, inverse: \PauseSegment.lecture)
     var pauses: [PauseSegment]
 
-    init(course: Course, startedAt: Date = Date(), oralExam: Bool = false, title: String = "") {
+    /// Parsed capture source. Falls back to iPhone when the stored value is blank or unknown.
+    var source: CaptureSource {
+        get { CaptureSource(rawValue: captureSource) ?? .iPhone }
+        set { captureSource = newValue.rawValue }
+    }
+
+    init(
+        course: Course,
+        startedAt: Date = Date(),
+        oralExam: Bool = false,
+        title: String = "",
+        captureSource: CaptureSource = .iPhone
+    ) {
         self.course = course
         self.startedAt = startedAt
         self.recordedSeconds = 0
@@ -242,6 +257,7 @@ final class Lecture {
         self.oralExam = oralExam
         self.title = title
         self.titleEdited = false
+        self.captureSource = captureSource.rawValue
         self.summary = ""
         self.flaggedSeconds = []
         self.processedThroughSecond = 0

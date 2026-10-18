@@ -43,6 +43,47 @@
         }
       }
     },
+    "%lld flags" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld flag"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld flags"
+                }
+              }
+            }
+          }
+        },
+        "tr" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld işaret"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld işaret"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "%lld min" : {
       "localizations" : {
         "en" : {
@@ -367,6 +408,22 @@
         }
       }
     },
+    "Apple Watch" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple Watch"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple Watch"
+          }
+        }
+      }
+    },
     "Ask" : {
       "localizations" : {
         "en" : {
@@ -572,22 +629,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Sürdür"
-          }
-        }
-      }
-    },
-    "Share" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Share"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Paylaş"
           }
         }
       }
@@ -1143,6 +1184,9 @@
     "End" : {
 
     },
+    "End the lecture recording" : {
+
+    },
     "End this lecture?" : {
       "localizations" : {
         "en" : {
@@ -1318,6 +1362,9 @@
           }
         }
       }
+    },
+    "Flag this second of the lecture" : {
+
     },
     "FluidAudio" : {
 
@@ -1513,6 +1560,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Liste"
+          }
+        }
+      }
+    },
+    "iPhone" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iPhone"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iPhone"
           }
         }
       }
@@ -2370,22 +2433,6 @@
         }
       }
     },
-    "Pending assignments: %lld" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Pending assignments: %lld"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Bekleyen ödev: %lld"
-          }
-        }
-      }
-    },
     "Optional" : {
       "localizations" : {
         "en" : {
@@ -2466,6 +2513,9 @@
         }
       }
     },
+    "Pause the lecture recording" : {
+
+    },
     "Paused" : {
       "localizations" : {
         "en" : {
@@ -2494,6 +2544,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Bekleyen"
+          }
+        }
+      }
+    },
+    "Pending assignments: %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pending assignments: %lld"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bekleyen ödev: %lld"
           }
         }
       }
@@ -2530,22 +2596,6 @@
         }
       }
     },
-    "Playback speed" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Playback speed"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Oynatma hızı"
-          }
-        }
-      }
-    },
     "Place not added" : {
       "localizations" : {
         "en" : {
@@ -2574,6 +2624,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Oynat"
+          }
+        }
+      }
+    },
+    "Playback speed" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Playback speed"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Oynatma hızı"
           }
         }
       }
@@ -2997,6 +3063,9 @@
         }
       }
     },
+    "Resume the lecture recording" : {
+
+    },
     "Retry" : {
       "localizations" : {
         "en" : {
@@ -3106,6 +3175,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ayarlar"
+          }
+        }
+      }
+    },
+    "Share" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Share"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Paylaş"
           }
         }
       }
@@ -4358,22 +4443,6 @@
         }
       }
     },
-    "Yesterday" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Yesterday"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Dün"
-          }
-        }
-      }
-    },
     "Year %lld" : {
       "localizations" : {
         "en" : {
@@ -4402,6 +4471,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Evet"
+          }
+        }
+      }
+    },
+    "Yesterday" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yesterday"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dün"
           }
         }
       }

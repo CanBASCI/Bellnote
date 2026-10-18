@@ -1,7 +1,9 @@
 import AVFoundation
+import Combine
 import OSLog
 import SwiftData
 import SwiftUI
+import UIKit
 
 struct ConsentSheet: View {
     var course: Course
@@ -126,6 +128,28 @@ struct RecorderSheet: View {
         .interactiveDismissDisabled(true)
         .task { await begin() }
         .onDisappear { ticker?.invalidate() }
+        .onReceive(
+            NotificationCenter.default.publisher(for: .recordingLivePause).receive(on: RunLoop.main)
+        ) { _ in
+            guard capture.isRunning else { return }
+            pause()
+        }
+        .onReceive(
+            NotificationCenter.default.publisher(for: .recordingLiveResume).receive(on: RunLoop.main)
+        ) { _ in
+            guard !capture.isRunning else { return }
+            Task { await resume() }
+        }
+        .onReceive(
+            NotificationCenter.default.publisher(for: .recordingLiveStop).receive(on: RunLoop.main)
+        ) { _ in
+            Task { await finish() }
+        }
+        .onReceive(
+            NotificationCenter.default.publisher(for: .recordingLiveFlag).receive(on: RunLoop.main)
+        ) { _ in
+            flag()
+        }
         .alert("End this lecture?", isPresented: $askStop) {
             Button("Yes", role: .destructive) { Task { await finish() } }
             Button("No", role: .cancel) { pause() }
@@ -193,6 +217,13 @@ struct RecorderSheet: View {
                 lecture.audioRelativePath = url.path.replacingOccurrences(of: root.path + "/", with: "")
             }
             lecture.state = LectureState.recording.rawValue
+            capture.onInterrupted = {
+                Task { @MainActor in
+                    elapsed = capture.elapsedSeconds()
+                    lecture.recordedSeconds = elapsed
+                    await RecordingLiveActivity.update(elapsedSeconds: elapsed, isPaused: true)
+                }
+            }
             capture.onInterruptionEnded = {
                 Task { @MainActor in
                     askResume = true
@@ -204,25 +235,41 @@ struct RecorderSheet: View {
                     lecture.recordedSeconds = elapsed
                 }
             }
+            await RecordingLiveActivity.start(courseName: lecture.course?.name ?? String(localized: "Course"))
         } catch {
             Self.log.error("Recorder: start failed: \(error.localizedDescription, privacy: .public)")
             failed = String(localized: "Recording did not start.")
             lecture.state = LectureState.failed.rawValue
             lecture.failureMessageKey = failed
+            await RecordingLiveActivity.end()
         }
     }
 
     private func pause() {
+        Self.tapFeedback()
         capture.pauseCapture()
         lecture.state = LectureState.paused.rawValue
         let segment = PauseSegment(startedAt: .now, lecture: lecture)
         modelContext.insert(segment)
+        Task {
+            await RecordingLiveActivity.update(
+                elapsedSeconds: elapsed,
+                isPaused: true,
+                flagCount: lecture.flaggedSeconds.count
+            )
+        }
     }
 
     private func resume() async {
+        Self.tapFeedback()
         do {
             try await capture.resumeCapture()
             lecture.state = LectureState.recording.rawValue
+            await RecordingLiveActivity.update(
+                elapsedSeconds: elapsed,
+                isPaused: false,
+                flagCount: lecture.flaggedSeconds.count
+            )
         } catch {
             Self.log.error("Recorder: resume failed: \(error.localizedDescription, privacy: .public)")
             failed = String(localized: "Recording did not resume.")
@@ -230,11 +277,27 @@ struct RecorderSheet: View {
     }
 
     private func flag() {
-        lecture.flaggedSeconds.append(capture.elapsedSeconds())
+        Self.tapFeedback()
+        let second = capture.elapsedSeconds()
+        lecture.flaggedSeconds.append(second)
+        Self.log.info("Recorder: flagged second=\(second) count=\(lecture.flaggedSeconds.count)")
+        Task {
+            await RecordingLiveActivity.update(
+                elapsedSeconds: second,
+                isPaused: !capture.isRunning,
+                flagCount: lecture.flaggedSeconds.count
+            )
+        }
+    }
+
+    private static func tapFeedback() {
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
     }
 
     private func finish() async {
+        Self.tapFeedback()
         ticker?.invalidate()
+        await RecordingLiveActivity.end()
         do {
             try await capture.stop()
             lecture.recordedSeconds = elapsed

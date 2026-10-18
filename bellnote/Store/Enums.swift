@@ -18,6 +18,20 @@ enum LectureState: String, Codable, Sendable {
     }
 }
 
+/// Which device held the microphone for this recording. Watch capture is not built yet; the value is stored so
+/// later runs can tell an iPhone recording from a Watch one. Do not store a marketing model name.
+enum CaptureSource: String, Codable, Sendable, CaseIterable {
+    case iPhone
+    case appleWatch
+
+    var title: String {
+        switch self {
+        case .iPhone: String(localized: "iPhone")
+        case .appleWatch: String(localized: "Apple Watch")
+        }
+    }
+}
+
 enum PipelineStage: String, Codable, Sendable, CaseIterable {
     case idle
     case audio

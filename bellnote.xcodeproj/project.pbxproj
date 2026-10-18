@@ -17,6 +17,9 @@
 		DE0BLD012F000000000000A /* MLXNN in Frameworks */ = {isa = PBXBuildFile; productRef = DE0PKG012F000000000000A /* MLXNN */; };
 		DE0BLD012F000000000000B /* sherpa-onnx in Frameworks */ = {isa = PBXBuildFile; productRef = DE0PKG012F000000000000B /* sherpa-onnx */; };
 		DE0BLD012F000000000000D /* WhisperKit in Frameworks */ = {isa = PBXBuildFile; productRef = DE0PKG012F000000000000D /* WhisperKit */; };
+		DEA39D083085132D004E5ECF /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = DEA39D073085132D004E5ECF /* WidgetKit.framework */; };
+		DEA39D0A3085132D004E5ECF /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = DEA39D093085132D004E5ECF /* SwiftUI.framework */; };
+		DEA39D173085132E004E5ECF /* liveactivityExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = DEA39D053085132D004E5ECF /* liveactivityExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -34,12 +37,34 @@
 			remoteGlobalIDString = DE0183D1307D921C007402E2;
 			remoteInfo = bellnote;
 		};
+		DEA39D153085132E004E5ECF /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = DE0183CA307D921C007402E2 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = DEA39D043085132D004E5ECF;
+			remoteInfo = liveactivityExtension;
+		};
 /* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		DEA39D183085132E004E5ECF /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			dstPath = "";
+			dstSubfolder = PlugIns;
+			files = (
+				DEA39D173085132E004E5ECF /* liveactivityExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		DE0183D2307D921C007402E2 /* bellnote.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = bellnote.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		DE0183E1307D921D007402E2 /* bellnoteTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = bellnoteTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		DE0183EB307D921D007402E2 /* bellnoteUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = bellnoteUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		DEA39D053085132D004E5ECF /* liveactivityExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = liveactivityExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		DEA39D073085132D004E5ECF /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
+		DEA39D093085132D004E5ECF /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -47,6 +72,20 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
+			);
+			target = DE0183D1307D921C007402E2 /* bellnote */;
+		};
+		DEA39D1C3085132E004E5ECF /* Exceptions for "liveactivity" folder in "liveactivityExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = DEA39D043085132D004E5ECF /* liveactivityExtension */;
+		};
+		DEA39D1D3085132E004E5ECF /* Exceptions for "liveactivity" folder in "bellnote" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				RecordingIntents.swift,
 			);
 			target = DE0183D1307D921C007402E2 /* bellnote */;
 		};
@@ -69,6 +108,15 @@
 		DE0183EE307D921D007402E2 /* bellnoteUITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = bellnoteUITests;
+			sourceTree = "<group>";
+		};
+		DEA39D0B3085132D004E5ECF /* liveactivity */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				DEA39D1C3085132E004E5ECF /* Exceptions for "liveactivity" folder in "liveactivityExtension" target */,
+				DEA39D1D3085132E004E5ECF /* Exceptions for "liveactivity" folder in "bellnote" target */,
+			);
+			path = liveactivity;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -99,6 +147,13 @@
 			files = (
 			);
 		};
+		DEA39D023085132D004E5ECF /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			files = (
+				DEA39D0A3085132D004E5ECF /* SwiftUI.framework in Frameworks */,
+				DEA39D083085132D004E5ECF /* WidgetKit.framework in Frameworks */,
+			);
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -108,6 +163,8 @@
 				DE0183D4307D921C007402E2 /* bellnote */,
 				DE0183E4307D921D007402E2 /* bellnoteTests */,
 				DE0183EE307D921D007402E2 /* bellnoteUITests */,
+				DEA39D0B3085132D004E5ECF /* liveactivity */,
+				DEA39D063085132D004E5ECF /* Frameworks */,
 				DE0183D3307D921C007402E2 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -118,8 +175,18 @@
 				DE0183D2307D921C007402E2 /* bellnote.app */,
 				DE0183E1307D921D007402E2 /* bellnoteTests.xctest */,
 				DE0183EB307D921D007402E2 /* bellnoteUITests.xctest */,
+				DEA39D053085132D004E5ECF /* liveactivityExtension.appex */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		DEA39D063085132D004E5ECF /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				DEA39D073085132D004E5ECF /* WidgetKit.framework */,
+				DEA39D093085132D004E5ECF /* SwiftUI.framework */,
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -132,8 +199,12 @@
 				DE0183CE307D921C007402E2 /* Sources */,
 				DE0183CF307D921C007402E2 /* Frameworks */,
 				DE0183D0307D921C007402E2 /* Resources */,
+				DEA39D183085132E004E5ECF /* Embed Foundation Extensions */,
 			);
 			buildRules = (
+			);
+			dependencies = (
+				DEA39D163085132E004E5ECF /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				DE0183D4307D921C007402E2 /* bellnote */,
@@ -197,6 +268,24 @@
 			productReference = DE0183EB307D921D007402E2 /* bellnoteUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
+		DEA39D043085132D004E5ECF /* liveactivityExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = DEA39D1B3085132E004E5ECF /* Build configuration list for PBXNativeTarget "liveactivityExtension" */;
+			buildPhases = (
+				DEA39D013085132D004E5ECF /* Sources */,
+				DEA39D023085132D004E5ECF /* Frameworks */,
+				DEA39D033085132D004E5ECF /* Resources */,
+			);
+			buildRules = (
+			);
+			fileSystemSynchronizedGroups = (
+				DEA39D0B3085132D004E5ECF /* liveactivity */,
+			);
+			name = liveactivityExtension;
+			productName = liveactivityExtension;
+			productReference = DEA39D053085132D004E5ECF /* liveactivityExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -204,7 +293,7 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
-				LastSwiftUpdateCheck = 2700;
+				LastSwiftUpdateCheck = 2710;
 				LastUpgradeCheck = 2700;
 				TargetAttributes = {
 					DE0183D1307D921C007402E2 = {
@@ -217,6 +306,9 @@
 					DE0183EA307D921D007402E2 = {
 						CreatedOnToolsVersion = 27.0;
 						TestTargetID = DE0183D1307D921C007402E2;
+					};
+					DEA39D043085132D004E5ECF = {
+						CreatedOnToolsVersion = 27.1;
 					};
 				};
 			};
@@ -247,6 +339,7 @@
 				DE0183D1307D921C007402E2 /* bellnote */,
 				DE0183E0307D921D007402E2 /* bellnoteTests */,
 				DE0183EA307D921D007402E2 /* bellnoteUITests */,
+				DEA39D043085132D004E5ECF /* liveactivityExtension */,
 			);
 		};
 /* End PBXProject section */
@@ -263,6 +356,11 @@
 			);
 		};
 		DE0183E9307D921D007402E2 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			files = (
+			);
+		};
+		DEA39D033085132D004E5ECF /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			files = (
 			);
@@ -285,6 +383,11 @@
 			files = (
 			);
 		};
+		DEA39D013085132D004E5ECF /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			files = (
+			);
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -297,6 +400,11 @@
 			isa = PBXTargetDependency;
 			target = DE0183D1307D921C007402E2 /* bellnote */;
 			targetProxy = DE0183EC307D921D007402E2 /* PBXContainerItemProxy */;
+		};
+		DEA39D163085132E004E5ECF /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = DEA39D043085132D004E5ECF /* liveactivityExtension */;
+			targetProxy = DEA39D153085132E004E5ECF /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -645,6 +753,71 @@
 			};
 			name = Release;
 		};
+		DEA39D193085132E004E5ECF /* Debug configuration for PBXNativeTarget "liveactivityExtension" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 39UPTB46U5;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = liveactivity/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = liveactivity;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 27.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.canbasci.bellnote.liveactivity;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		DEA39D1A3085132E004E5ECF /* Release configuration for PBXNativeTarget "liveactivityExtension" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 39UPTB46U5;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = liveactivity/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = liveactivity;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 27.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.canbasci.bellnote.liveactivity;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -677,6 +850,14 @@
 			buildConfigurations = (
 				DE0183FA307D921D007402E2 /* Debug configuration for PBXNativeTarget "bellnoteUITests" */,
 				DE0183FB307D921D007402E2 /* Release configuration for PBXNativeTarget "bellnoteUITests" */,
+			);
+			defaultConfigurationName = Release;
+		};
+		DEA39D1B3085132E004E5ECF /* Build configuration list for PBXNativeTarget "liveactivityExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				DEA39D193085132E004E5ECF /* Debug configuration for PBXNativeTarget "liveactivityExtension" */,
+				DEA39D1A3085132E004E5ECF /* Release configuration for PBXNativeTarget "liveactivityExtension" */,
 			);
 			defaultConfigurationName = Release;
 		};
