@@ -15,6 +15,10 @@ final class TalkListenEngine {
     private static let silenceSeconds: TimeInterval = 2.0
 
     private let engine = AVAudioEngine()
+    /// Same graph as the mic so Voice Processing can cancel the loudspeaker.
+    private let player = AVAudioPlayerNode()
+    private var playerReady = false
+    private(set) var isPlaybackActive = false
     private var inputContinuation: AsyncStream<AnalyzerInput>.Continuation?
     private var analyzer: SpeechAnalyzer?
     private var inputConverter: AnalyzerInputConverter?
@@ -32,6 +36,8 @@ final class TalkListenEngine {
     private var bargeInArmed = false
     /// Mic energy barge — SpeechDetector often misses the user over the loudspeaker.
     private let bargeMeter = BargeMeter()
+    /// Folded TTS text so loudspeaker echo is not treated as the student’s words.
+    private var bargeEchoSource = ""
 
     var partialText: String {
         let joined = [committed, volatile].filter { !$0.isEmpty }.joined(separator: " ")
@@ -85,12 +91,17 @@ final class TalkListenEngine {
     }
 
     /// Starts the mic and analyzer, then waits until silence ends the user turn.
-    func listenTurn(locale: Locale) async throws -> String {
+    /// `seed` keeps words already heard during barge-in so the student does not have to repeat.
+    func listenTurn(locale: Locale, seed: String = "") async throws -> String {
         stopListening(cancelTurn: false)
-        committed = ""
+        let prefix = seed.trimmingCharacters(in: .whitespacesAndNewlines)
+        committed = prefix
         volatile = ""
-        heardSpeech = false
+        heardSpeech = !prefix.isEmpty
         lastActivity = Date()
+        if !prefix.isEmpty {
+            Self.log.info("Talk listen seed characters=\(prefix.count) head=\(String(prefix.prefix(60)), privacy: .public)")
+        }
         try await Self.activateTalkSession()
         // Live talk uses Dictation (same family as the lecture transcript). Bare "tr" is not reservable;
         // resolve to an installed/supported locale such as tr_TR.
@@ -180,11 +191,13 @@ final class TalkListenEngine {
     }
 
     /// Mic + detector while Supertonic speaks. Speech requires a transcriber beside the detector.
-    func startBargeMonitor(locale: Locale) async throws {
+    /// `echoOf` is the reply being spoken — ASR hits that match its start are ignored (speaker bleed).
+    func startBargeMonitor(locale: Locale, echoOf spoken: String) async throws {
         stopListening(cancelTurn: false)
         heardSpeech = false
         committed = ""
         volatile = ""
+        bargeEchoSource = Self.asciiFold(spoken)
         try await Self.activateTalkSession()
         let resolved = try await Self.resolveDictationLocale(locale)
         let transcriber = Self.makeDictationTranscriber(locale: resolved)
@@ -207,8 +220,13 @@ final class TalkListenEngine {
 
         let input = engine.inputNode
         input.removeTap(onBus: 0)
-        // Echo cancel while Supertonic plays so barge-in can hear the student over the speaker.
-        // Format must be read after enabling — VPIO changes the input node's format.
+        // One engine: attach the speaker first, then enable Voice Processing, then the mic tap.
+        // VP needs the playback node in the graph so it can subtract the reply from the mic.
+        do {
+            try ensurePlayer()
+        } catch {
+            Self.log.error("Talk player attach failed \(error.localizedDescription, privacy: .public)")
+        }
         applyVoiceProcessing(true)
         let format = input.outputFormat(forBus: 0)
         nonisolated(unsafe) let tapConverter = converter
@@ -265,7 +283,96 @@ final class TalkListenEngine {
                 Self.log.error("Talk barge detector failed \(error.localizedDescription, privacy: .public)")
             }
         }
-        Self.log.info("Talk barge monitor started")
+        Self.log.info("Talk barge monitor started voiceProcessing=\(self.engine.inputNode.isVoiceProcessingEnabled)")
+    }
+
+    /// Plays a Supertonic clip on this engine (the barge mic must already be running).
+    func play(_ clip: SupertonicClip) {
+        guard !clip.samples.isEmpty else { return }
+        let format = AVAudioFormat(
+            commonFormat: .pcmFormatFloat32,
+            sampleRate: Double(clip.sampleRate),
+            channels: 1,
+            interleaved: false
+        )
+        guard let format,
+              let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(clip.samples.count))
+        else {
+            Self.log.error("Talk play buffer failed")
+            return
+        }
+        buffer.frameLength = buffer.frameCapacity
+        clip.samples.withUnsafeBufferPointer { source in
+            guard let address = source.baseAddress, let channel = buffer.floatChannelData else { return }
+            channel[0].update(from: address, count: source.count)
+        }
+        guard engine.isRunning else {
+            Self.log.error("Talk play skipped engine stopped")
+            return
+        }
+        isPlaybackActive = true
+        player.stop()
+        player.scheduleBuffer(buffer, completionCallbackType: .dataPlayedBack) { [weak self] _ in
+            Task { @MainActor in
+                self?.isPlaybackActive = false
+                Self.log.info("Talk play finished")
+            }
+        }
+        do {
+            try player.playAudio()
+            Self.log.info("Talk play started seconds=\(Double(clip.samples.count) / Double(max(clip.sampleRate, 1)))")
+        } catch {
+            isPlaybackActive = false
+            Self.log.error("Talk play failed \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    /// Stops the speaker only. The mic tap stays up so barge-in can finish the turn.
+    func stopPlayback() {
+        player.stop()
+        isPlaybackActive = false
+    }
+
+    /// Attaches the speaker while the engine is stopped, before Voice Processing is enabled.
+    private func ensurePlayer() throws {
+        let format = AVAudioFormat(
+            commonFormat: .pcmFormatFloat32,
+            sampleRate: 44_100,
+            channels: 1,
+            interleaved: false
+        )
+        guard let format else { return }
+        if !playerReady {
+            engine.attach(player)
+            try engine.connectNode(player, to: engine.mainMixerNode, format: format)
+            playerReady = true
+            Self.log.info("Talk player attached")
+        }
+        engine.mainMixerNode.outputVolume = 1
+        player.volume = 1
+    }
+
+    /// After barge-in stopped TTS, keep the same mic session until silence ends the user turn.
+    /// Avoids tearing down ASR mid-sentence (which left `carried=0` and an empty You card).
+    func finishBargeListenTurn() async throws -> String {
+        disarmBargeIn()
+        bargeMeter.disarm()
+        // Drop loudspeaker leftovers ("Deneme" from the reply) before collecting the real question.
+        if isBargeEcho(partialText) {
+            Self.log.info("Talk barge drop echo characters=\(self.partialText.count)")
+            committed = ""
+            volatile = ""
+            heardSpeech = false
+        }
+        if !partialText.isEmpty { heardSpeech = true }
+        lastActivity = Date()
+        Self.log.info(
+            "Talk barge finish-listen characters=\(self.partialText.count) head=\(String(self.partialText.prefix(60)), privacy: .public)"
+        )
+        return try await withCheckedThrowingContinuation { continuation in
+            turnContinuation = continuation
+            bumpSilenceWatch()
+        }
     }
 
     func stopListening(cancelTurn: Bool = true) {
@@ -417,7 +524,8 @@ final class TalkListenEngine {
             heardSpeech = true
             lastActivity = Date()
             bumpSilenceWatch()
-            fireBargeIn(reason: "speechDetected")
+            // While TTS plays, detector hears the loudspeaker — only mic-energy may barge.
+            if turnContinuation != nil { return }
         } else if heardSpeech {
             // Pause between phrases — lock what was heard so the next partial cannot wipe it.
             commitVolatile()
@@ -426,9 +534,63 @@ final class TalkListenEngine {
     }
 
     private func handleBargeTranscript(_ text: String) async {
-        // Mic-energy barge is primary; transcript is a backup once the student is clearly speaking.
-        guard text.count >= 4 else { return }
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        // After TTS stopped we already have a turn continuation — treat like a normal listen.
+        if turnContinuation != nil {
+            if isBargeEcho(trimmed) { return }
+            await handleTranscript(text: trimmed, isFinal: false)
+            return
+        }
+        // While Supertonic plays: never barge on transcript (echo of "Deneme…"). Mic-energy only.
+        if isBargeEcho(trimmed) {
+            Self.log.info("Talk barge ignore echo head=\(String(trimmed.prefix(40)), privacy: .public)")
+            return
+        }
+        if shouldCommitVolatile(before: trimmed) {
+            commitVolatile()
+        }
+        volatile = trimmed
+        heardSpeech = true
+        lastActivity = Date()
+        Self.log.info(
+            "Talk barge partial characters=\(self.partialText.count) head=\(String(self.partialText.prefix(60)), privacy: .public)"
+        )
+        // AEC can keep mic energy under the trip threshold. A non-echo phrase is the student.
+        let words = partialText.split(whereSeparator: \.isWhitespace).count
+        guard words >= 2 || partialText.count >= 12 else { return }
         fireBargeIn(reason: "transcript")
+    }
+
+    /// Loudspeaker bleed of the reply currently playing.
+    func looksLikeEcho(_ text: String) -> Bool {
+        isBargeEcho(text)
+    }
+
+    /// True when ASR is hearing the reply from the speaker, not the student.
+    private func isBargeEcho(_ text: String) -> Bool {
+        let folded = Self.asciiFold(text)
+        guard folded.count >= 2, !bargeEchoSource.isEmpty else { return false }
+        if bargeEchoSource.hasPrefix(folded) { return true }
+        if folded.count >= 4, bargeEchoSource.contains(folded) { return true }
+        let speakWord = bargeEchoSource.split(whereSeparator: { !$0.isLetter }).first.map(String.init)
+        let heardWord = folded.split(whereSeparator: { !$0.isLetter }).first.map(String.init)
+        if let speakWord, let heardWord, speakWord == heardWord, folded.count <= speakWord.count + 3 {
+            return true
+        }
+        return false
+    }
+
+    private static func asciiFold(_ text: String) -> String {
+        text.lowercased()
+            .replacingOccurrences(of: "ı", with: "i")
+            .replacingOccurrences(of: "İ", with: "i")
+            .replacingOccurrences(of: "ş", with: "s")
+            .replacingOccurrences(of: "ğ", with: "g")
+            .replacingOccurrences(of: "ü", with: "u")
+            .replacingOccurrences(of: "ö", with: "o")
+            .replacingOccurrences(of: "ç", with: "c")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     nonisolated private static func bufferRMS(_ buffer: AVAudioPCMBuffer) -> Float {
@@ -482,10 +644,13 @@ final class TalkListenEngine {
 
     /// Removes the mic tap, turns Voice Processing off if it was left on, then stops the engine.
     private func tearDownMicTap() {
+        player.stop()
+        isPlaybackActive = false
         let input = engine.inputNode
         input.removeTap(onBus: 0)
-        applyVoiceProcessing(false)
         if engine.isRunning { engine.stop() }
+        // VP can only change while the engine is stopped.
+        applyVoiceProcessing(false)
     }
 
     private func failTurn(_ error: Error) async {

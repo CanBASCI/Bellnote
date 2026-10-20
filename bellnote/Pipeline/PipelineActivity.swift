@@ -54,7 +54,7 @@ final class PipelineActivity {
     /// The AI model runs on the GPU, and iOS does not let an app use the GPU in the background.
     /// A locked screen would stop the work, so the screen stays on while any lecture is processed.
     private func keepScreenAwake() {
-        UIApplication.shared.isIdleTimerDisabled = !stages.isEmpty
+        ScreenIdleGate.setPipelineBusy(!stages.isEmpty)
     }
 
     func setDetail(_ step: Step, for lecture: Lecture) {
@@ -92,5 +92,26 @@ final class PipelineActivity {
         tasks[id] = nil
         stopping.remove(id)
         keepScreenAwake()
+    }
+}
+
+/// Shared idle-timer gate so pipeline processing and Assistant Talk do not overwrite each other.
+@MainActor
+enum ScreenIdleGate {
+    private static var pipelineBusy = false
+    private static var talkActive = false
+
+    static func setPipelineBusy(_ busy: Bool) {
+        pipelineBusy = busy
+        apply()
+    }
+
+    static func setTalkActive(_ active: Bool) {
+        talkActive = active
+        apply()
+    }
+
+    private static func apply() {
+        UIApplication.shared.isIdleTimerDisabled = pipelineBusy || talkActive
     }
 }

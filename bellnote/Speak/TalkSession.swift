@@ -6,6 +6,7 @@ import SwiftData
 
 enum TalkPhase: Equatable {
     case idle
+    case preparing
     case listening
     case thinking
     case speaking
@@ -47,6 +48,7 @@ final class TalkSession {
 
     private let listen = TalkListenEngine()
     private let reader = SpeechReader()
+    private var speakCancel = SupertonicCancel()
     private var loopTask: Task<Void, Never>?
     private var warmTask: Task<Void, Never>?
     private var running = false
@@ -74,19 +76,12 @@ final class TalkSession {
         }
         running = true
         reader.ownsAudioSession = false
+        // Same idea as processing: keep the screen awake so Talk is not cut by auto-lock.
+        ScreenIdleGate.setTalkActive(true)
         Self.log.info(
             "Talk start terms=\(terms.count) locale=\(self.locale.identifier, privacy: .public) notes=\(self.cachedNotes.count) catalog=\(self.cachedCatalog.count)"
         )
         Task { await LocalModelRuntime.shared.setHoldResident(true) }
-        warmTask?.cancel()
-        warmTask = Task {
-            let warmStarted = Date()
-            // Load text + voice while the first listen starts, so the first answer is not cold.
-            async let model: Void = LocalModelRuntime.shared.warmTextModel()
-            async let voice: Void = SupertonicSpeech.warm()
-            _ = await (model, voice)
-            Self.log.info("Talk warm done ms=\(Int(Date().timeIntervalSince(warmStarted) * 1000))")
-        }
         loopTask?.cancel()
         loopTask = Task { await runLoop() }
     }
@@ -98,13 +93,16 @@ final class TalkSession {
         loopTask = nil
         warmTask?.cancel()
         warmTask = nil
+        speakCancel.stopped = true
         listen.disarmBargeIn()
+        listen.stopPlayback()
         listen.stopListening(cancelTurn: true)
         reader.stop(force: true)
         reader.ownsAudioSession = true
+        ScreenIdleGate.setTalkActive(false)
         Task { await LocalModelRuntime.shared.setHoldResident(false) }
         partialTranscript = ""
-        if phase == .listening || phase == .thinking || phase == .speaking {
+        if phase == .preparing || phase == .listening || phase == .thinking || phase == .speaking {
             phase = .idle
         }
         statusLine = ""
@@ -144,6 +142,35 @@ final class TalkSession {
             statusLine = String(localized: "Download Supertonic in Settings to talk.")
             running = false
             return
+        }
+
+        // Cold start: show preparing until weights (+ voice) are ready. Skip when already hot.
+        let alreadyReady = await LocalModelRuntime.shared.isComposeModelReady()
+        if !alreadyReady {
+            phase = .preparing
+            statusLine = String(localized: "Preparing…")
+            Self.log.info("Talk phase=preparing")
+            let warmStarted = Date()
+            do {
+                async let voice: Void = SupertonicSpeech.warm()
+                try await LocalModelRuntime.shared.warmTextModel()
+                await voice
+                Self.log.info("Talk warm done ms=\(Int(Date().timeIntervalSince(warmStarted) * 1000))")
+            } catch is CancellationError {
+                Self.log.info("Talk warm cancelled")
+                return
+            } catch {
+                Self.log.error("Talk warm failed \(error.localizedDescription, privacy: .public)")
+                phase = .needsModel
+                statusLine = String(localized: "A model is not available.")
+                running = false
+                return
+            }
+            guard running, !Task.isCancelled else { return }
+        } else {
+            Self.log.info("Talk warm skipped model already ready")
+            warmTask?.cancel()
+            warmTask = Task { await SupertonicSpeech.warm() }
         }
 
         Self.log.info("Talk loop ready")
@@ -440,52 +467,71 @@ final class TalkSession {
         case bargedIn(String)
     }
 
-    /// Speaks the reply. If the student talks over it, stops TTS and listens for a new turn.
+    /// Speaks the reply on the same audio engine as the mic, so Voice Processing can cancel echo.
     private func speak(_ text: String) async -> SpeakOutcome {
         listen.disarmBargeIn()
         listen.stopListening(cancelTurn: false)
         let bargeFlag = BargeFlag()
+        let cancel = SupertonicCancel()
+        speakCancel = cancel
 
-        // Start TTS first. The barge mic must attach *after* the playback engine is running —
-        // otherwise the second AVAudioEngine steals the session and the mic tap dies.
         Self.log.info("Talk speak begin characters=\(text.count)")
-        reader.playbackGain = 0.48
-        reader.readSupertonicOnly(text, locale: locale)
+        let code = locale.language.languageCode?.identifier ?? locale.identifier
+        let language = code.hasPrefix("tr") ? "tr" : "en"
+        let speaker = SupertonicVoice.clamped(UserDefaults.standard.integer(forKey: AppPreferences.supertonicVoiceKey))
+        let clip: SupertonicClip
+        do {
+            clip = try await SupertonicSpeech.clip(text: text, language: language, speaker: speaker, cancel: cancel)
+        } catch {
+            Self.log.error("Talk speak clip failed \(error.localizedDescription, privacy: .public)")
+            return .finished
+        }
+        guard running, !Task.isCancelled, !cancel.stopped, !clip.samples.isEmpty else { return .finished }
 
-        var bargeStarted = false
-        while !Task.isCancelled, reader.isSpeaking {
-            if !bargeStarted, reader.isAudioPlaying {
-                bargeStarted = true
-                do {
-                    try await listen.startBargeMonitor(locale: locale)
-                    listen.armBargeIn(after: .milliseconds(280)) { [weak self] in
-                        guard let self else { return }
-                        bargeFlag.value = true
-                        Self.log.info("Talk barge-in stop speech → listen")
-                        self.reader.stop(force: true)
-                    }
-                } catch {
-                    Self.log.error("Talk barge monitor failed \(error.localizedDescription, privacy: .public)")
-                }
-            }
+        do {
+            try await listen.startBargeMonitor(locale: locale, echoOf: text)
+        } catch {
+            Self.log.error("Talk barge monitor failed \(error.localizedDescription, privacy: .public)")
+            return .finished
+        }
+        listen.armBargeIn(after: .milliseconds(280)) { [weak self] in
+            guard let self else { return }
+            bargeFlag.value = true
+            Self.log.info("Talk barge-in stop speech → listen")
+            self.listen.stopPlayback()
+        }
+        listen.play(clip)
+
+        while !Task.isCancelled, listen.isPlaybackActive {
+            let live = listen.partialText
+            if !live.isEmpty { partialTranscript = live }
             try? await Task.sleep(for: .milliseconds(80))
         }
-        reader.playbackGain = 1
-        listen.disarmBargeIn()
-        listen.stopListening(cancelTurn: false)
-        let wasBarged = bargeFlag.value
-        Self.log.info("Talk speak end barged=\(wasBarged)")
+        var wasBarged = bargeFlag.value
+        let carried = listen.partialText
+        // Playback can finish before the energy trip; keep a real student line instead of dropping it.
+        if !wasBarged, !carried.isEmpty, !listen.looksLikeEcho(carried) {
+            wasBarged = true
+            listen.stopPlayback()
+            Self.log.info("Talk barge from leftover transcript characters=\(carried.count)")
+        }
+        Self.log.info("Talk speak end barged=\(wasBarged) carried=\(carried.count)")
 
         guard wasBarged, running, !Task.isCancelled else {
+            listen.disarmBargeIn()
+            listen.stopListening(cancelTurn: false)
             return .finished
         }
 
+        // Keep the barge mic/ASR alive so the interrupting question is not discarded mid-sentence.
         phase = .listening
         statusLine = String(localized: "Listening…")
-        partialTranscript = ""
-        // Let speaker audio settle so the barge mic does not echo the last syllables.
-        try? await Task.sleep(for: .milliseconds(250))
-        guard running, !Task.isCancelled else { return .finished }
+        partialTranscript = carried
+        try? await Task.sleep(for: .milliseconds(150))
+        guard running, !Task.isCancelled else {
+            listen.stopListening(cancelTurn: false)
+            return .finished
+        }
 
         do {
             let poll = Task { @MainActor in
@@ -495,12 +541,14 @@ final class TalkSession {
                 }
             }
             defer { poll.cancel() }
-            let next = try await listen.listenTurn(locale: locale)
+            let next = try await listen.finishBargeListenTurn()
             return .bargedIn(next)
         } catch is CancellationError {
+            listen.stopListening(cancelTurn: false)
             return .finished
         } catch {
             Self.log.error("Talk barge listen failed \(error.localizedDescription, privacy: .public)")
+            listen.stopListening(cancelTurn: false)
             return .finished
         }
     }

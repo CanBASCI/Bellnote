@@ -19,6 +19,8 @@ actor LocalModelRuntime {
     nonisolated private static let log = Logger(subsystem: "app.bellnote", category: "model")
 
     private var resident: ModelRole?
+    /// True after weights were preloaded or used for a generation — not just `ensure` bookkeeping.
+    private var composeReady = false
     private var activeCalls = 0
     private var idleTask: Task<Void, Never>?
     /// When true (Talk tab open), the text model stays loaded between turns.
@@ -46,7 +48,15 @@ actor LocalModelRuntime {
         Memory.clearCache()
         await gate.unload()
         resident = nil
+        composeReady = false
         Self.log.info("Memory after evict \(MemoryProbe.summary())")
+    }
+
+    /// Talk preparing: skip the warm UI when weights are already in memory (Ask / prior Talk / etc.).
+    func isComposeModelReady() -> Bool {
+        guard composeReady, let resident else { return false }
+        guard let role = try? composeRole() else { return false }
+        return resident == role
     }
 
     /// Runs one model call so that an MLX error is thrown to the caller and does not stop the app.
@@ -109,17 +119,29 @@ actor LocalModelRuntime {
         }
     }
 
-    /// Loads the compose text model before the first Talk answer, so the student is not waiting on cold start.
-    func warmTextModel() async {
+    /// Loads compose weights into memory so the first Talk answer is not a cold start.
+    /// Skips work when `isComposeModelReady()` is already true.
+    func warmTextModel() async throws {
         beginCall()
         defer { endCall() }
-        do {
-            let role = try composeRole()
-            try await ensure(role)
-            Self.log.info("Talk warm ok role=\(role.rawValue, privacy: .public) footprintMB=\(MemoryProbe.footprintMB())")
-        } catch {
-            Self.log.error("Talk warm failed \(error.localizedDescription, privacy: .public)")
+        let role = try composeRole()
+        if isComposeModelReady() {
+            Self.log.info(
+                "Talk warm skip ready role=\(role.rawValue, privacy: .public) footprintMB=\(MemoryProbe.footprintMB())"
+            )
+            return
         }
+        let started = Date()
+        Self.log.info(
+            "Talk warm begin role=\(role.rawValue, privacy: .public) footprintMB=\(MemoryProbe.footprintMB())"
+        )
+        try await ensure(role)
+        let model = try makeModel(role)
+        try await model.preload()
+        composeReady = true
+        Self.log.info(
+            "Talk warm ok role=\(role.rawValue, privacy: .public) ms=\(Int(Date().timeIntervalSince(started) * 1000)) footprintMB=\(MemoryProbe.footprintMB())"
+        )
     }
 
     func tag(window: String, locale: Locale) async throws -> WindowTagging {
@@ -264,6 +286,8 @@ actor LocalModelRuntime {
             try Task.checkCancellation()
             Self.log.info("Answer model ready seconds=\(Int(Date().timeIntervalSince(started))) footprintMB=\(MemoryProbe.footprintMB())")
             let session = try makeSession(role: role, instructions: answerInstructions)
+            // Generation path loads weights; mark ready so Talk can skip preparing next time.
+            composeReady = true
             let source = tags.map(\.text).joined(separator: "\n")
             // Fresh from the phone each call — not a static catalogue line the model can confuse with notes.
             let clock = Self.deviceClockBlock()
