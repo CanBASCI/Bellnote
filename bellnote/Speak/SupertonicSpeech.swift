@@ -124,6 +124,23 @@ enum SupertonicSpeech {
         }
     }
 
+    /// Loads the voice weights before the first Talk reply so speak is not cold.
+    static func warm() async {
+        guard isInstalled else { return }
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            queue.async {
+                do {
+                    _ = try loaded()
+                    markUsed()
+                    log.info("Supertonic warm ok")
+                } catch {
+                    log.error("Supertonic warm failed \(error.localizedDescription, privacy: .public)")
+                }
+                continuation.resume()
+            }
+        }
+    }
+
     static func delete() throws {
         queue.async { engine = nil }
         try HubWeights.remove(ModelCatalog.supertonicRepo)

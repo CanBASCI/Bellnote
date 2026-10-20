@@ -279,6 +279,22 @@
         }
       }
     },
+    "AI, speech and voice" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI, speech and voice"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yapay zekâ, konuşma ve ses"
+          }
+        }
+      }
+    },
     "All courses, recordings, notes, assignments and exams of this term will be deleted. This cannot be undone." : {
       "localizations" : {
         "en" : {
@@ -327,22 +343,6 @@
         }
       }
     },
-    "Appearance" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Appearance"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Görünüm"
-          }
-        }
-      }
-    },
     "App" : {
       "localizations" : {
         "en" : {
@@ -359,18 +359,18 @@
         }
       }
     },
-    "AI, speech and voice" : {
+    "Appearance" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "AI, speech and voice"
+            "value" : "Appearance"
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Yapay zekâ, konuşma ve ses"
+            "value" : "Görünüm"
           }
         }
       }
@@ -500,6 +500,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ödevler"
+          }
+        }
+      }
+    },
+    "Assistant" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Assistant"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Asistan"
+          }
+        }
+      }
+    },
+    "Assistant pauses while a recording is processed." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Assistant pauses while a recording is processed."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bir kayıt işlenirken Asistan durur."
           }
         }
       }
@@ -1049,22 +1081,6 @@
         }
       }
     },
-    "Download the models Bellnote uses for notes. Nothing is uploaded." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Download the models Bellnote uses for notes. Nothing is uploaded."
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Notlar için Bellnote’un kullandığı modelleri indir. Hiçbir şey yüklenmez."
-          }
-        }
-      }
-    },
     "Download starts when you confirm this row." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1078,6 +1094,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "İndirme bu satırı onaylayınca başlar."
+          }
+        }
+      }
+    },
+    "Download Supertonic in Settings to talk." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Download Supertonic in Settings to talk."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Konuşmak için Ayarlar’dan Supertonic indir."
+          }
+        }
+      }
+    },
+    "Download the models Bellnote uses for notes. Nothing is uploaded." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Download the models Bellnote uses for notes. Nothing is uploaded."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notlar için Bellnote’un kullandığı modelleri indir. Hiçbir şey yüklenmez."
           }
         }
       }
@@ -1482,6 +1530,22 @@
         }
       }
     },
+    "Hi. Ask about your lectures or what's stored in the app." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hi. Ask about your lectures or what's stored in the app."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Merhaba. Derslerin veya uygulamadaki kayıtların hakkında sor."
+          }
+        }
+      }
+    },
     "Home" : {
       "localizations" : {
         "en" : {
@@ -1656,6 +1720,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Listeden kaldırılır. Kayıt silinmez. Kaydı yeniden işlersen ödev tekrar eklenebilir."
+          }
+        }
+      }
+    },
+    "It's %@." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "It's %@."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saat %@."
           }
         }
       }
@@ -1870,6 +1951,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Dinle bu sesi kullanır."
+          }
+        }
+      }
+    },
+    "Listening…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Listening…"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dinliyor…"
           }
         }
       }
@@ -2432,6 +2529,22 @@
         }
       }
     },
+    "Notes, audio and the timetable stay behind Face ID or the device passcode. Turning the lock off keeps this session open." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notes, audio and the timetable stay behind Face ID or the device passcode. Turning the lock off keeps this session open."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notlar, ses ve ders programı Face ID veya cihaz parolasının arkasında kalır. Kilidi kapatmak bu oturumu açık tutar."
+          }
+        }
+      }
+    },
     "Nothing named in a lecture yet." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2756,6 +2869,22 @@
         }
       }
     },
+    "Privacy" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Privacy"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gizlilik"
+          }
+        }
+      }
+    },
     "Process" : {
       "localizations" : {
         "en" : {
@@ -2867,54 +2996,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "İşleniyor"
-          }
-        }
-      }
-    },
-    "Privacy" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Privacy"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Gizlilik"
-          }
-        }
-      }
-    },
-    "Require Face ID" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Require Face ID"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Face ID iste"
-          }
-        }
-      }
-    },
-    "Notes, audio and the timetable stay behind Face ID or the device passcode. Turning the lock off keeps this session open." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Notes, audio and the timetable stay behind Face ID or the device passcode. Turning the lock off keeps this session open."
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Notlar, ses ve ders programı Face ID veya cihaz parolasının arkasında kalır. Kilidi kapatmak bu oturumu açık tutar."
           }
         }
       }
@@ -3127,6 +3208,22 @@
         }
       }
     },
+    "Require Face ID" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Require Face ID"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Face ID iste"
+          }
+        }
+      }
+    },
     "Restore" : {
       "localizations" : {
         "en" : {
@@ -3323,6 +3420,22 @@
         }
       }
     },
+    "Something went wrong. Try again." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Something went wrong. Try again."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bir şey ters gitti. Yeniden dene."
+          }
+        }
+      }
+    },
     "Source" : {
       "localizations" : {
         "en" : {
@@ -3384,6 +3497,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Konuşmacı ayrımı için FluidAudio modellerinin bu cihazda yüklü olması gerekir. Şimdi indirilsin mi?"
+          }
+        }
+      }
+    },
+    "Speaking…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Speaking…"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Konuşuyor…"
+          }
+        }
+      }
+    },
+    "Speech is not available for this language." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Speech is not available for this language."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bu dil için konuşma tanıma yok."
           }
         }
       }
@@ -4022,6 +4167,22 @@
         }
       }
     },
+    "Thinking…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Thinking…"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Düşünüyor…"
+          }
+        }
+      }
+    },
     "This is your confirmation, not proof that the lecturer consented." : {
       "localizations" : {
         "en" : {
@@ -4615,6 +4776,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Dün"
+          }
+        }
+      }
+    },
+    "You" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sen"
           }
         }
       }

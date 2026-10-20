@@ -8,6 +8,8 @@ import OSLog
 final class SpeechReader: NSObject, AVSpeechSynthesizerDelegate {
     private static let log = Logger(subsystem: "app.bellnote", category: "listen")
     private(set) var isSpeaking = false
+    /// True only while a Supertonic buffer is on the speaker (not during clip generation).
+    private(set) var isAudioPlaying = false
     private let synthesizer = AVSpeechSynthesizer()
     private var paragraphs: [String] = []
     private var index = 0
@@ -34,6 +36,17 @@ final class SpeechReader: NSObject, AVSpeechSynthesizerDelegate {
         allowAppleFallback = false
         guard prefersSupertonic else { return }
         Self.log.info("Listen preview characters=\(text.count) locale=\(locale.identifier, privacy: .public)")
+        beginSupertonic(text, locale: locale)
+    }
+
+    /// Talk tab: always Supertonic when installed, ignoring the Settings read-aloud picker.
+    func readSupertonicOnly(_ text: String, locale: Locale) {
+        allowAppleFallback = false
+        guard SupertonicSpeech.isInstalled else {
+            Self.log.error("Listen supertonic-only skipped; not installed")
+            return
+        }
+        Self.log.info("Listen supertonic-only characters=\(text.count) locale=\(locale.identifier, privacy: .public)")
         beginSupertonic(text, locale: locale)
     }
 
@@ -74,15 +87,21 @@ final class SpeechReader: NSObject, AVSpeechSynthesizerDelegate {
         synthesizer.continueSpeaking()
     }
 
-    func stop() {
-        guard Date().timeIntervalSince(startedAt) > 0.4 else {
+    /// When false, playback uses the already-active session (Talk screen keeps `.playAndRecord` for barge-in).
+    var ownsAudioSession = true
+    /// 0...1. Talk ducks slightly while speaking so barge-in can hear the student over the loudspeaker.
+    var playbackGain: Float = 1
+
+    func stop(force: Bool = false) {
+        guard force || Date().timeIntervalSince(startedAt) > 0.4 else {
             Self.log.info("Listen ignored stop")
             return
         }
-        Self.log.info("Listen stop")
+        Self.log.info("Listen stop force=\(force)")
         turn += 1
         isSpeaking = false
-        sessionReady = false
+        isAudioPlaying = false
+        if ownsAudioSession { sessionReady = false }
         supertonicCancel.stopped = true
         synthesizer.stopSpeaking(at: .immediate)
         playbackNode.stop()
@@ -117,6 +136,7 @@ final class SpeechReader: NSObject, AVSpeechSynthesizerDelegate {
     private func playSupertonicParagraph(cancel: SupertonicCancel) async {
         guard paragraphs.indices.contains(index), isSpeaking else {
             isSpeaking = false
+            isAudioPlaying = false
             return
         }
         let text = paragraphs[index]
@@ -132,6 +152,7 @@ final class SpeechReader: NSObject, AVSpeechSynthesizerDelegate {
             guard spokenTurn == turn, isSpeaking, !cancel.stopped else { return }
             guard allowAppleFallback else {
                 isSpeaking = false
+                isAudioPlaying = false
                 return
             }
             speakCurrent()
@@ -154,6 +175,7 @@ final class SpeechReader: NSObject, AVSpeechSynthesizerDelegate {
         guard let format, let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(clip.samples.count)) else {
             Self.log.error("Listen supertonic buffer failed")
             isSpeaking = false
+            isAudioPlaying = false
             return
         }
         buffer.frameLength = buffer.frameCapacity
@@ -164,6 +186,7 @@ final class SpeechReader: NSObject, AVSpeechSynthesizerDelegate {
         guard await activatePlaybackSession() else {
             Self.log.error("Listen supertonic session failed")
             isSpeaking = false
+            isAudioPlaying = false
             return
         }
         guard spokenTurn == turn, isSpeaking else { return }
@@ -173,10 +196,14 @@ final class SpeechReader: NSObject, AVSpeechSynthesizerDelegate {
                 try playback.connectNode(playbackNode, to: playback.mainMixerNode, format: format)
                 playbackReady = true
             }
+            let gain = min(1, max(0, playbackGain))
+            playback.mainMixerNode.outputVolume = gain
+            playbackNode.volume = gain
             if !playback.isRunning { try playback.start() }
         } catch {
             Self.log.error("Listen supertonic audio \(error.localizedDescription, privacy: .public)")
             isSpeaking = false
+            isAudioPlaying = false
             return
         }
         playbackNode.scheduleBuffer(buffer, completionCallbackType: .dataPlayedBack) { [weak self] _ in
@@ -186,13 +213,16 @@ final class SpeechReader: NSObject, AVSpeechSynthesizerDelegate {
         }
         do {
             try playbackNode.playAudio()
+            isAudioPlaying = true
         } catch {
             Self.log.error("Listen supertonic play \(error.localizedDescription, privacy: .public)")
+            isAudioPlaying = false
             isSpeaking = false
         }
     }
 
     private func activatePlaybackSession() async -> Bool {
+        if !ownsAudioSession { return true }
         if sessionReady { return true }
         let ready = await withCheckedContinuation { continuation in
             sessionQueue.async {
@@ -213,6 +243,7 @@ final class SpeechReader: NSObject, AVSpeechSynthesizerDelegate {
     }
 
     private func supertonicParagraphFinished(turn spokenTurn: Int) {
+        isAudioPlaying = false
         guard spokenTurn == turn, isSpeaking else { return }
         index += 1
         Task { await playSupertonicParagraph(cancel: supertonicCancel) }

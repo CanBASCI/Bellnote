@@ -21,6 +21,8 @@ actor LocalModelRuntime {
     private var resident: ModelRole?
     private var activeCalls = 0
     private var idleTask: Task<Void, Never>?
+    /// When true (Talk tab open), the text model stays loaded between turns.
+    private var holdResident = false
     private static let idleSeconds = 45
     private let gate = ModelGate()
 
@@ -79,10 +81,44 @@ actor LocalModelRuntime {
         activeCalls -= 1
         guard activeCalls == 0 else { return }
         idleTask?.cancel()
+        idleTask = nil
+        // Talk keeps the weights warm so the next question does not pay load cost again.
+        guard !holdResident else { return }
         idleTask = Task { [weak self] in
             try? await Task.sleep(for: .seconds(Self.idleSeconds))
             guard !Task.isCancelled else { return }
             await self?.unloadAll()
+        }
+    }
+
+    /// Talk tab: keep the text model resident while the student is in the conversation.
+    func setHoldResident(_ hold: Bool) {
+        holdResident = hold
+        if hold {
+            idleTask?.cancel()
+            idleTask = nil
+            Self.log.info("Model hold on for Talk")
+        } else if activeCalls == 0 {
+            Self.log.info("Model hold off after Talk")
+            idleTask?.cancel()
+            idleTask = Task { [weak self] in
+                try? await Task.sleep(for: .seconds(Self.idleSeconds))
+                guard !Task.isCancelled else { return }
+                await self?.unloadAll()
+            }
+        }
+    }
+
+    /// Loads the compose text model before the first Talk answer, so the student is not waiting on cold start.
+    func warmTextModel() async {
+        beginCall()
+        defer { endCall() }
+        do {
+            let role = try composeRole()
+            try await ensure(role)
+            Self.log.info("Talk warm ok role=\(role.rawValue, privacy: .public) footprintMB=\(MemoryProbe.footprintMB())")
+        } catch {
+            Self.log.error("Talk warm failed \(error.localizedDescription, privacy: .public)")
         }
     }
 
@@ -199,12 +235,19 @@ actor LocalModelRuntime {
 
     /// Answers one question from the notes. The notes come first and the question last,
     /// otherwise a small model copies the notes back instead of answering.
-    func answer(question: String, tags: [WindowTag]) async throws -> String {
+    /// `history` is prior turns in this session only (Talk tab); Ask leaves it empty.
+    func answer(
+        question: String,
+        tags: [WindowTag],
+        history: [(role: String, text: String)] = [],
+        maximumResponseTokens: Int = 120,
+        temperature: Double? = nil
+    ) async throws -> String {
         beginCall()
         defer { endCall() }
         let role = try composeRole()
         let started = Date()
-        Self.log.info("Answer begin tags=\(tags.count) role=\(role.rawValue, privacy: .public) footprintMB=\(MemoryProbe.footprintMB())")
+        Self.log.info("Answer begin tags=\(tags.count) history=\(history.count) maxTokens=\(maximumResponseTokens) role=\(role.rawValue, privacy: .public) footprintMB=\(MemoryProbe.footprintMB())")
         // The model call is silent while it reads the notes. This line says every 15 seconds that it still runs,
         // how much memory it uses and how warm the phone is.
         let heartbeat = Task.detached {
@@ -216,20 +259,46 @@ actor LocalModelRuntime {
         }
         defer { heartbeat.cancel() }
         do {
+            try Task.checkCancellation()
             try await ensure(role)
+            try Task.checkCancellation()
             Self.log.info("Answer model ready seconds=\(Int(Date().timeIntervalSince(started))) footprintMB=\(MemoryProbe.footprintMB())")
             let session = try makeSession(role: role, instructions: answerInstructions)
             let source = tags.map(\.text).joined(separator: "\n")
-            Self.log.info("Answer question=\(question, privacy: .public) notesCharacters=\(source.count) notesHead=\(String(source.prefix(200)), privacy: .public)")
-            let response = try await guarded {
-                try await session.respond(
-                    to: "Notes:\n\(source)\n\nQuestion: \(question)\nShort answer:",
-                    options: GenerationOptions(maximumResponseTokens: 120)
-                )
+            // Fresh from the phone each call — not a static catalogue line the model can confuse with notes.
+            let clock = Self.deviceClockBlock()
+            var assembled = "Device clock (authoritative for today/tomorrow/yesterday; never invent dates):\n\(clock)\n\n"
+            assembled += "Notes:\n\(source)\n\n"
+            if !history.isEmpty {
+                assembled += "Conversation so far:\n"
+                for turn in history {
+                    let label = turn.role == "assistant" ? "Assistant" : "User"
+                    assembled += "\(label): \(turn.text)\n"
+                }
+                assembled += "\n"
             }
+            assembled += "Question: \(question)\nShort answer:"
+            let prompt = assembled
+            Self.log.info(
+                "Answer question=\(question, privacy: .public) clock=\(clock, privacy: .public) notesCharacters=\(source.count) notesHead=\(String(source.prefix(200)), privacy: .public)"
+            )
+            let options: GenerationOptions
+            if let temperature {
+                options = GenerationOptions(temperature: temperature, maximumResponseTokens: maximumResponseTokens)
+            } else {
+                options = GenerationOptions(maximumResponseTokens: maximumResponseTokens)
+            }
+            try Task.checkCancellation()
+            let response = try await guarded {
+                try await session.respond(to: prompt, options: options)
+            }
+            try Task.checkCancellation()
             let text = response.content.trimmingCharacters(in: .whitespacesAndNewlines)
             Self.log.info("Answer ok seconds=\(Int(Date().timeIntervalSince(started))) footprintMB=\(MemoryProbe.footprintMB()) characters=\(text.count) text=\(text, privacy: .public)")
             return text
+        } catch is CancellationError {
+            Self.log.info("Answer cancelled seconds=\(Int(Date().timeIntervalSince(started))) footprintMB=\(MemoryProbe.footprintMB())")
+            throw CancellationError()
         } catch {
             Self.log.error("Answer failed seconds=\(Int(Date().timeIntervalSince(started))) footprintMB=\(MemoryProbe.footprintMB()) message=\(error.localizedDescription, privacy: .public)")
             throw error
@@ -518,11 +587,39 @@ actor LocalModelRuntime {
 
     private var answerInstructions: String {
         """
-        Answer the question using only the notes. Reply with the answer alone, \
-        in one or two short sentences, in the language of the question. \
+        Answer the question using only the notes and the Device clock block. \
+        The Device clock is the phone’s real local date and time; use it for relative days \
+        (today, tomorrow, yesterday) and never invent a calendar day. \
+        The notes may include an app catalogue (terms, courses, timetable, assignments, exams, settings) \
+        and timestamped lecture lines. When a lecture line names a term, course, date or minute, \
+        you may use those to say where and when something was said. \
+        Reply with the answer alone, in one or two short sentences, in the language of the question. \
         Never repeat or list the notes. \
         If the notes do not contain the answer, reply exactly: NOT_IN_NOTES
         """
+    }
+
+    /// Built at call time from `Date.now` + the phone time zone — not stored, not cached.
+    private static func deviceClockBlock() -> String {
+        let calendar = Calendar.autoupdatingCurrent
+        let zone = TimeZone.autoupdatingCurrent
+        let locale = Locale.autoupdatingCurrent
+        let now = Date.now
+        let tomorrow = calendar.date(byAdding: .day, value: 1, to: now) ?? now
+        let yesterday = calendar.date(byAdding: .day, value: -1, to: now) ?? now
+        var stamp = Date.FormatStyle(date: .complete, time: .shortened).locale(locale)
+        stamp.timeZone = zone
+        var day = Date.FormatStyle(date: .complete, time: .omitted).locale(locale)
+        day.timeZone = zone
+        let iso = ISO8601DateFormatter()
+        iso.formatOptions = [.withFullDate]
+        iso.timeZone = zone
+        return
+            "now=\(now.formatted(stamp)); "
+            + "today=\(now.formatted(day)) iso=\(iso.string(from: now)); "
+            + "tomorrow=\(tomorrow.formatted(day)) iso=\(iso.string(from: tomorrow)); "
+            + "yesterday=\(yesterday.formatted(day)) iso=\(iso.string(from: yesterday)); "
+            + "timeZone=\(zone.identifier)"
     }
 
     private var pageInstructions: String {

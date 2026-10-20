@@ -113,8 +113,8 @@
 		DEA39D0B3085132D004E5ECF /* liveactivity */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				DEA39D1C3085132E004E5ECF /* Exceptions for "liveactivity" folder in "liveactivityExtension" target */,
 				DEA39D1D3085132E004E5ECF /* Exceptions for "liveactivity" folder in "bellnote" target */,
+				DEA39D1C3085132E004E5ECF /* Exceptions for "liveactivity" folder in "liveactivityExtension" target */,
 			);
 			path = liveactivity;
 			sourceTree = "<group>";

@@ -35,6 +35,9 @@ final class PipelineActivity {
         stages[lecture.persistentModelID] != nil
     }
 
+    /// True while any lecture is in the process pipeline. Assistant must stay off so the run keeps the memory.
+    var isBusy: Bool { !stages.isEmpty }
+
     /// A finer step inside the stage, such as Whisper getting ready. Falls back to the stage.
     func step(for lecture: Lecture) -> Step? {
         let id = lecture.persistentModelID

@@ -34,18 +34,22 @@ struct TermHomeView: View {
                         ProgramPage(term: term)
                     }
                     .tabItem { Label("Timetable", systemImage: "calendar.day.timeline.left") }
+                    // Off while a recording is processed — keep focus on the run.
+                    .disabled(PipelineActivity.shared.isBusy)
 
-                    // A placeholder. The content comes later.
                     NavigationStack {
-                        Color.clear
-                            .navigationTitle(Text(verbatim: "Test"))
+                        AssistantPage()
                     }
-                    .tabItem { Label { Text(verbatim: "Test") } icon: { Image(systemName: "square.dashed") } }
+                    .tabItem { Label("Assistant", systemImage: "waveform.and.mic") }
+                    // Off while a recording is processed — Talk and the pipeline share the text model and memory.
+                    .disabled(PipelineActivity.shared.isBusy)
 
                     NavigationStack {
                         SettingsPage()
                     }
                     .tabItem { Label("Settings", systemImage: "gearshape") }
+                    // Off while a recording is processed — model changes must not race the pipeline.
+                    .disabled(PipelineActivity.shared.isBusy)
                 }
                 .tabBarMinimizeBehavior(.onScrollDown)
                 .tabViewBottomAccessory(isEnabled: session.player != nil) {
