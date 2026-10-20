@@ -299,7 +299,7 @@ private struct AssistantVoiceOrb: View {
             Int((Double(Self.particleCount) * (1 - r) + Double(ringDotCount) * r).rounded())
         )
         // Speaking is one wave. Fewer dots so the gaps stay visible.
-        let speakDotCount = 28
+        let speakDotCount = 96
         let withWave = max(
             1,
             Int((Double(baseDraw) * (1 - w) + Double(speakDotCount) * w).rounded())
@@ -328,16 +328,9 @@ private struct AssistantVoiceOrb: View {
             let fibAngle = atan2(sz, sx)
             let evenAngle = Double(slot) / Double(drawCount) * 2 * .pi
             let angle = fibAngle * (1 - r) + evenAngle * r
-            // Same circle. A small tube keeps the band from collapsing to a line.
-            // Tube follows the ring weight, so listening (ring ≈ 0.08) stays put.
-            // Outer edge stays on the unit circle, matching the listen sphere.
-            let tube = 0.10 * r
-            let major = 1 - tube
-            let twist = Double(slot) * 1.15 + time * 0.85
-            let radial = major + cos(twist) * tube
-            let ringX = cos(angle) * radial
-            let ringY = sin(angle * 3 + time * 1.2) * 0.12 * major + sin(twist) * tube
-            let ringZ = sin(angle) * radial
+            let ringX = cos(angle)
+            let ringY = sin(angle * 3 + time * 1.2) * 0.12
+            let ringZ = sin(angle)
 
             // Speaking only: frequency ribbon.
             let u = Double(index) / count
@@ -394,9 +387,10 @@ private struct AssistantVoiceOrb: View {
             let scale = radius * (0.78 + 0.42 * depth)
             let px = mid.x + CGFloat(x1) * scale
             let py = mid.y + CGFloat(y1) * scale
-            // Same dot size for listen and think (ring no longer shrinks the points).
+            // Thinking only: same ring, slightly larger dots. Listening ring weight is ~0.08.
+            let thinkDots = 1 + 0.4 * r
             let dotBoost = 1 + Double(hear) * 0.75 * pulse
-            let dot = CGFloat(1.4 + 2.6 * depth) * CGFloat(0.85 + 0.25 * shownEnergy) * CGFloat(dotBoost)
+            let dot = CGFloat(1.4 + 2.6 * depth) * CGFloat(0.85 + 0.25 * shownEnergy) * CGFloat(dotBoost * thinkDots)
             let particleAlpha = (0.18 + 0.72 * depth) * (1 - 0.12 * r)
             let helixAlpha = 0.28 + 0.62 * depth
             let alpha = particleAlpha * (1 - h) + helixAlpha * h
