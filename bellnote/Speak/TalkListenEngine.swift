@@ -38,6 +38,8 @@ final class TalkListenEngine {
     private let bargeMeter = BargeMeter()
     /// Folded TTS text so loudspeaker echo is not treated as the student’s words.
     private var bargeEchoSource = ""
+    /// Last analyzer / locale release. The next listen must wait or ASR stays silent.
+    private var teardownTask: Task<Void, Never>?
 
     var partialText: String {
         let joined = [committed, volatile].filter { !$0.isEmpty }.joined(separator: " ")
@@ -94,6 +96,7 @@ final class TalkListenEngine {
     /// `seed` keeps words already heard during barge-in so the student does not have to repeat.
     func listenTurn(locale: Locale, seed: String = "") async throws -> String {
         stopListening(cancelTurn: false)
+        await waitForTeardown()
         let prefix = seed.trimmingCharacters(in: .whitespacesAndNewlines)
         committed = prefix
         volatile = ""
@@ -103,6 +106,7 @@ final class TalkListenEngine {
             Self.log.info("Talk listen seed characters=\(prefix.count) head=\(String(prefix.prefix(60)), privacy: .public)")
         }
         try await Self.activateTalkSession()
+        prepareEngineForInput()
         // Live talk uses Dictation (same family as the lecture transcript). Bare "tr" is not reservable;
         // resolve to an installed/supported locale such as tr_TR.
         let resolved = try await Self.resolveDictationLocale(locale)
@@ -128,7 +132,18 @@ final class TalkListenEngine {
         input.removeTap(onBus: 0)
         // Listening has no loudspeaker playback — keep Voice Processing off.
         applyVoiceProcessing(false)
-        let format = input.outputFormat(forBus: 0)
+        var format = input.outputFormat(forBus: 0)
+        // After Source → lecture playback, the first activate can still report 0 Hz.
+        if format.sampleRate < 1 {
+            Self.log.info("Talk input format empty — reactivate session")
+            try await Self.activateTalkSession()
+            prepareEngineForInput()
+            format = engine.inputNode.outputFormat(forBus: 0)
+        }
+        guard format.sampleRate >= 1 else {
+            Self.log.error("Talk input format still empty")
+            throw TalkListenError.sessionFailed
+        }
         // AnalyzerInputConverter is not Sendable; the tap runs on the audio thread for one listen turn.
         nonisolated(unsafe) let tapConverter = converter
         try input.installAudioTap(onBus: 0, bufferSize: 2_048, format: format) { buffer, time in
@@ -194,11 +209,13 @@ final class TalkListenEngine {
     /// `echoOf` is the reply being spoken — ASR hits that match its start are ignored (speaker bleed).
     func startBargeMonitor(locale: Locale, echoOf spoken: String) async throws {
         stopListening(cancelTurn: false)
+        await waitForTeardown()
         heardSpeech = false
         committed = ""
         volatile = ""
         bargeEchoSource = Self.asciiFold(spoken)
         try await Self.activateTalkSession()
+        prepareEngineForInput()
         let resolved = try await Self.resolveDictationLocale(locale)
         let transcriber = Self.makeDictationTranscriber(locale: resolved)
         // High sensitivity so user speech over the loudspeaker still trips barge-in.
@@ -390,17 +407,35 @@ final class TalkListenEngine {
         inputConverter = nil
         let finishing = analyzer
         analyzer = nil
-        if let finishing {
-            Task { await finishing.cancelAndFinishNow() }
-        }
-        if let locale = reservedLocale {
-            reservedLocale = nil
-            Task { _ = await AssetInventory.release(reservedLocale: locale) }
+        let locale = reservedLocale
+        reservedLocale = nil
+        // Do not start a new SpeechAnalyzer until this finishes — otherwise ASR accepts no audio.
+        teardownTask = Task {
+            if let finishing {
+                await finishing.cancelAndFinishNow()
+            }
+            if let locale {
+                _ = await AssetInventory.release(reservedLocale: locale)
+            }
         }
         if cancelTurn, let turnContinuation {
             self.turnContinuation = nil
             turnContinuation.resume(throwing: CancellationError())
         }
+    }
+
+    private func waitForTeardown() async {
+        await teardownTask?.value
+        teardownTask = nil
+    }
+
+    /// After another player (lecture Source) released the session, rebuild the graph.
+    private func prepareEngineForInput() {
+        if engine.isRunning {
+            engine.stop()
+        }
+        engine.reset()
+        playerReady = false
     }
 
     private func handleTranscript(text raw: String, isFinal: Bool) async {
@@ -440,13 +475,30 @@ final class TalkListenEngine {
     }
 
     /// True when the new partial looks like a new utterance, not an edit of the current one.
+    /// A rewrite that drops or fixes a word (“elektrik elektrikli” → “elektrikli”) shares most words
+    /// and replaces the hypothesis. A real next phrase (“bu hafta var” → “ve ne zaman”) does not.
     private func shouldCommitVolatile(before text: String) -> Bool {
         let prev = volatile.trimmingCharacters(in: .whitespacesAndNewlines)
         guard prev.count >= 8 else { return false }
         if text.hasPrefix(prev) || prev.hasPrefix(text) { return false }
+        if sharesMostWords(prev, text) { return false }
         let shared = zip(prev, text).prefix(while: { $0 == $1 }).count
         let need = max(6, min(prev.count, text.count) * 2 / 3)
         return shared < need
+    }
+
+    private func sharesMostWords(_ left: String, _ right: String) -> Bool {
+        let a = wordSet(left)
+        let b = wordSet(right)
+        guard !a.isEmpty, !b.isEmpty else { return false }
+        let overlap = a.intersection(b).count
+        return overlap * 2 >= min(a.count, b.count)
+    }
+
+    private func wordSet(_ text: String) -> Set<String> {
+        Set(
+            text.lowercased().split { !$0.isLetter }.map(String.init).filter { $0.count >= 2 }
+        )
     }
 
     /// Progressive preset gives volatile partials; shortForm matches Talk turn length.

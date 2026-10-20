@@ -1546,6 +1546,150 @@
         }
       }
     },
+    "You're welcome." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You're welcome."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rica ederim."
+          }
+        }
+      }
+    },
+    "Take care." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Take care."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kendine iyi bak."
+          }
+        }
+      }
+    },
+    "I'm well. Ask about your lectures when you want." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "I'm well. Ask about your lectures when you want."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "İyiyim. İstediğinde derslerin hakkında sor."
+          }
+        }
+      }
+    },
+    "I answer from your lectures, timetable, and what's stored in the app. Ask a question." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "I answer from your lectures, timetable, and what's stored in the app. Ask a question."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Derslerin, programın ve uygulamadaki kayıtlarından cevap veririm. Bir soru sor."
+          }
+        }
+      }
+    },
+    "Say that again, or ask another question." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Say that again, or ask another question."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bir daha söyle, ya da başka bir soru sor."
+          }
+        }
+      }
+    },
+    "Okay." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Okay."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tamam."
+          }
+        }
+      }
+    },
+    "No problem." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No problem."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sorun değil."
+          }
+        }
+      }
+    },
+    "Glad it helped." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Glad it helped."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yararlı olduysa ne güzel."
+          }
+        }
+      }
+    },
+    "Yes, I'm listening." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yes, I'm listening."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Evet, dinliyorum."
+          }
+        }
+      }
+    },
     "Home" : {
       "localizations" : {
         "en" : {

@@ -16,6 +16,24 @@ enum TalkPhase: Equatable {
     case failed(String)
 }
 
+/// One tappable Source row under a Talk reply. Note → Raw; course → that course page.
+struct TalkSourceItem: Identifiable, Equatable, Hashable {
+    enum Target: Equatable, Hashable {
+        case note(blockID: UUID, second: Int)
+        case course(id: PersistentIdentifier)
+    }
+
+    let id: UUID
+    let title: String
+    let target: Target
+
+    init(title: String, target: Target) {
+        self.id = UUID()
+        self.title = title
+        self.target = target
+    }
+}
+
 struct TalkTurn: Identifiable, Equatable {
     enum Role: Equatable {
         case user
@@ -25,11 +43,14 @@ struct TalkTurn: Identifiable, Equatable {
     let id: UUID
     let role: Role
     let text: String
+    /// Note or timetable sources for the Source control. Empty for greetings, clock, or missing notes.
+    let sources: [TalkSourceItem]
 
-    init(role: Role, text: String) {
+    init(role: Role, text: String, sources: [TalkSourceItem] = []) {
         self.id = UUID()
         self.role = role
         self.text = text
+        self.sources = sources
     }
 }
 
@@ -220,17 +241,19 @@ final class TalkSession {
                     switch await thinkWhileListening(question: activeQuestion) {
                     case .answered(let reply):
                         Self.log.info(
-                            "Talk answered ms=\(Int(Date().timeIntervalSince(thinkStarted) * 1000)) characters=\(reply.count) text=\(reply, privacy: .public)"
+                            "Talk answered ms=\(Int(Date().timeIntervalSince(thinkStarted) * 1000)) characters=\(reply.text.count) sources=\(reply.sources.count) text=\(reply.text, privacy: .public)"
                         )
                         guard running, !Task.isCancelled else { break thinkLoop }
-                        turns.append(TalkTurn(role: .assistant, text: reply))
+                        turns.append(
+                            TalkTurn(role: .assistant, text: reply.text, sources: reply.sources)
+                        )
                         trimHistory()
 
                         phase = .speaking
                         statusLine = String(localized: "Speaking…")
                         Self.log.info("Talk phase=speaking")
                         let speakStarted = Date()
-                        switch await speak(reply) {
+                        switch await speak(reply.text) {
                         case .finished:
                             Self.log.info("Talk spoke ms=\(Int(Date().timeIntervalSince(speakStarted) * 1000))")
                             break thinkLoop
@@ -279,8 +302,13 @@ final class TalkSession {
         Self.log.info("Talk loop ended phase=\(String(describing: self.phase), privacy: .public)")
     }
 
+    private struct TalkReply: Equatable {
+        var text: String
+        var sources: [TalkSourceItem] = []
+    }
+
     private enum ThinkRace {
-        case answered(String)
+        case answered(TalkReply)
         case interrupted(String)
     }
 
@@ -303,13 +331,14 @@ final class TalkSession {
                 break
             }
             self.finishThinkRace()
-            return outcome ?? .answered(String(localized: "Something went wrong. Try again."))
+            return outcome
+                ?? .answered(TalkReply(text: String(localized: "Something went wrong. Try again.")))
         }
     }
 
     private func thinkAnswerBranch(question: String) async -> ThinkRace? {
         let reply = await answer(question: question)
-        guard !Task.isCancelled, !reply.isEmpty else { return nil }
+        guard !Task.isCancelled, !reply.text.isEmpty else { return nil }
         return .answered(reply)
     }
 
@@ -336,11 +365,10 @@ final class TalkSession {
     private func pollThinkPartial() async {
         while !Task.isCancelled {
             let partial = listen.partialText
+            // Keep status on Thinking… — phase stays thinking until the race ends.
+            // Partial still fills the You card so barge-in speech is visible.
             if !partial.isEmpty {
                 partialTranscript = partial
-                if phase == .thinking {
-                    statusLine = String(localized: "Listening…")
-                }
             }
             try? await Task.sleep(for: .milliseconds(120))
         }
@@ -350,19 +378,18 @@ final class TalkSession {
         listen.stopListening(cancelTurn: true)
     }
 
-    private func answer(question: String) async -> String {
+    private func answer(question: String) async -> TalkReply {
         let answerStarted = Date()
-        if Task.isCancelled { return "" }
-        if isGreeting(question) {
-            Self.log.info("Talk greeting short-circuit text=\(question, privacy: .public)")
-            return String(localized: "Hi. Ask about your lectures or what's stored in the app.")
+        if Task.isCancelled { return TalkReply(text: "") }
+        if let social = socialReply(for: question) {
+            return social
         }
         if isClockQuestion(question) {
             var style = Date.FormatStyle(date: .complete, time: .shortened).locale(locale)
             style.timeZone = TimeZone.autoupdatingCurrent
             let stamp = Date.now.formatted(style)
             Self.log.info("Talk clock short-circuit local=\(stamp, privacy: .public)")
-            return stamp
+            return TalkReply(text: stamp)
         }
         if cachedNotes.isEmpty && cachedCatalog.isEmpty {
             refreshCache()
@@ -412,7 +439,7 @@ final class TalkSession {
         )
         guard !tags.isEmpty else {
             Self.log.info("Talk answer empty tags ms=\(Int(Date().timeIntervalSince(answerStarted) * 1000))")
-            return String(localized: "The lectures do not contain that.")
+            return TalkReply(text: String(localized: "The lectures do not contain that."))
         }
 
         // The current user question is already appended; prior turns only go into history.
@@ -450,16 +477,320 @@ final class TalkSession {
             Self.log.info(
                 "Talk answer done modelMs=\(modelMs) totalMs=\(totalMs) retrieveMs=\(retrieveMs) notInNotes=\(missing) characters=\(reply.count) text=\(reply, privacy: .public)"
             )
-            return missing ? String(localized: "The lectures do not contain that.") : reply
+            if missing {
+                return TalkReply(text: String(localized: "The lectures do not contain that."))
+            }
+            let sources = sourcesForAnswer(question: question, pick: pick)
+            let sourceKind =
+                isScheduleQuestion(question) ? "schedule"
+                : isAssignmentCatalogQuestion(question) ? "assignment"
+                : isExamCatalogQuestion(question) ? "exam"
+                : isInventoryCatalogQuestion(question) ? "inventory"
+                : "note"
+            Self.log.info(
+                "Talk sources count=\(sources.count) kind=\(sourceKind, privacy: .public) question=\(question, privacy: .public)"
+            )
+            for (index, item) in sources.enumerated() {
+                Self.log.info(
+                    "Talk sourceMenu[\(index)] title=\(item.title, privacy: .public) target=\(String(describing: item.target), privacy: .public)"
+                )
+            }
+            return TalkReply(text: reply, sources: sources)
         } catch is CancellationError {
             Self.log.info("Talk answer cancelled ms=\(Int(Date().timeIntervalSince(answerStarted) * 1000))")
-            return ""
+            return TalkReply(text: "")
         } catch {
             Self.log.error(
                 "Talk answer failed ms=\(Int(Date().timeIntervalSince(answerStarted) * 1000)) \(error.localizedDescription, privacy: .public)"
             )
-            return String(localized: "A model is not available.")
+            return TalkReply(text: String(localized: "A model is not available."))
         }
+    }
+
+    /// Catalogue inventory (slots / assignments / exams / books) → course rows. Lecture content → BM25 notes.
+    private func sourcesForAnswer(question: String, pick: StudySelection.Pick) -> [TalkSourceItem] {
+        if isScheduleQuestion(question) {
+            return timetableSources(for: question)
+        }
+        if isAssignmentCatalogQuestion(question) {
+            return courseSourcesWhere { !$0.assignments.filter { !$0.cancelled }.isEmpty }
+        }
+        if isExamCatalogQuestion(question) {
+            return courseSourcesWhere { !$0.sittings.isEmpty }
+        }
+        if isInventoryCatalogQuestion(question) {
+            return courseSourcesWhere { !$0.inventory.isEmpty }
+        }
+        return noteSources(question: question, pick: pick)
+    }
+
+    /// Same idea as Ask’s Source: one Raw minute. Ask scopes to a course/lecture so BM25
+    /// `pick.source` is enough; Talk searches the whole library, so when the topic stem hits
+    /// another picked block harder than that primary, use that block instead (still one row).
+    private func noteSources(question: String, pick: StudySelection.Pick) -> [TalkSourceItem] {
+        let keys = Self.contentTokens(for: question)
+        Self.log.info(
+            "Talk source keys count=\(keys.count) keys=\(keys.joined(separator: ","), privacy: .public) question=\(question, privacy: .public)"
+        )
+        func stems(in hay: String) -> Set<String> {
+            Set(
+                hay.split { !$0.isLetter }
+                    .map { String($0.prefix(4)) }
+                    .filter { $0.count >= 4 }
+            )
+        }
+        func hayHits(_ hay: String, key: String) -> Bool {
+            if hay.contains(key) { return true }
+            let stem = String(key.prefix(4))
+            guard stem.count >= 4 else { return false }
+            return stems(in: hay).contains(stem)
+        }
+        func score(_ block: StudyBlock) -> Int {
+            guard !keys.isEmpty else { return 0 }
+            let hay = Self.asciiFold(block.text)
+            return keys.reduce(0) { partial, key in
+                partial + (hayHits(hay, key: key) ? max(key.count, 1) : 0)
+            }
+        }
+        let primary = pick.source
+        let topicBest = pick.blocks.max { score($0) < score($1) }
+        let chosen: StudyBlock?
+        if let topicBest, score(topicBest) > 0 {
+            let primaryScore = primary.map(score) ?? 0
+            // Whole-library BM25 often ranks a “nedir / anlat” neighbour first; prefer topic hit.
+            chosen = score(topicBest) > primaryScore ? topicBest : (primary ?? topicBest)
+        } else {
+            chosen = primary ?? pick.blocks.first
+        }
+        guard let chosen else { return [] }
+        Self.log.info(
+            "Talk source chosen score=\(score(chosen)) primaryScore=\(primary.map(score) ?? -1) second=\(chosen.second) title=\(Self.noteSourceTitle(chosen), privacy: .public)"
+        )
+        return [
+            TalkSourceItem(
+                title: Self.noteSourceTitle(chosen),
+                target: .note(blockID: chosen.id, second: chosen.second)
+            )
+        ]
+    }
+
+    /// Topic words from the question; drops filler so “anlatıldı / bana / nedir” do not steer Source.
+    private static func contentTokens(for text: String) -> [String] {
+        let stop: Set<String> = [
+            "ne", "neler", "nedir", "nasil", "hangi", "var", "mi", "misin", "bir", "bu", "su", "o",
+            "hakkinda", "hakkindaki", "icin", "ile", "ve", "de", "da", "ki", "kadar",
+            "ders", "dersler", "derslerde", "dersin", "dersimi", "kayit", "kayitlar",
+            "not", "notlar", "notlarda", "notes", "lecture", "lectures", "class", "classes",
+            "what", "about", "tell", "was", "were", "did", "the", "in", "on", "for", "whats",
+            "pardon", "tamam", "ok", "okay", "lutfen", "please",
+            "selam", "merhaba", "hello", "hiya", "hey",
+            "bana", "bizi", "beni", "sana", "size", "seni",
+            "detay", "detayli", "kisa", "kisaca", "biraz",
+        ]
+        return asciiFold(text)
+            .split { !$0.isLetter }
+            .map(String.init)
+            .filter { token in
+                token.count >= 4
+                    && !stop.contains(token)
+                    && !token.hasPrefix("anlat")
+                    && !token.hasPrefix("soyle")
+                    && !token.hasPrefix("ders")
+            }
+    }
+
+    private func timetableSources(for _: String) -> [TalkSourceItem] {
+        let calendar = Calendar.current
+        let symbols = calendar.shortWeekdaySymbols
+        var items: [TalkSourceItem] = []
+        let pool = terms.filter(\.isOpen)
+        let termsToScan = pool.isEmpty ? terms : pool
+        for term in termsToScan {
+            for slot in term.slots.sorted(by: { ($0.weekday, $0.startMinutes) < ($1.weekday, $1.startMinutes) }) {
+                guard let course = slot.course else { continue }
+                let day = symbols.indices.contains(slot.weekday - 1) ? symbols[slot.weekday - 1] : "?"
+                let clock = ReminderScheduler.clock(slot.startMinutes)
+                items.append(
+                    TalkSourceItem(
+                        title: "\(day) \(clock) · \(course.name)",
+                        target: .course(id: course.persistentModelID)
+                    )
+                )
+            }
+        }
+        return items
+    }
+
+    /// Courses that match a catalogue filter — opens the course page, not a Raw block.
+    private func courseSourcesWhere(_ include: (Course) -> Bool) -> [TalkSourceItem] {
+        var items: [TalkSourceItem] = []
+        let pool = terms.filter(\.isOpen)
+        let termsToScan = pool.isEmpty ? terms : pool
+        for term in termsToScan {
+            let courses = term.courses.sorted {
+                $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+            }
+            for course in courses where include(course) {
+                let openAssignments = course.assignments.filter { !$0.cancelled && !$0.done }.count
+                let assignments = course.assignments.filter { !$0.cancelled }.count
+                let exams = course.sittings.count
+                let books = course.inventory.count
+                let detail: String
+                if assignments > 0 {
+                    detail = "\(openAssignments)/\(assignments)"
+                } else if exams > 0 {
+                    detail = "\(exams)"
+                } else if books > 0 {
+                    detail = "\(books)"
+                } else {
+                    detail = ""
+                }
+                let title = detail.isEmpty ? course.name : "\(course.name) · \(detail)"
+                items.append(
+                    TalkSourceItem(
+                        title: title,
+                        target: .course(id: course.persistentModelID)
+                    )
+                )
+            }
+        }
+        return items
+    }
+
+    private static func noteSourceTitle(_ block: StudyBlock) -> String {
+        let text = block.text
+        guard text.hasPrefix("["), let close = text.firstIndex(of: "]") else {
+            return String(text.prefix(48))
+        }
+        let parts = String(text[text.index(after: text.startIndex)..<close])
+            .split(separator: ";")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        var course = ""
+        var lecture = ""
+        let clock = parts.last ?? ""
+        for part in parts {
+            if part.hasPrefix("course ") {
+                course = String(part.dropFirst(7))
+            } else if part.hasPrefix("lecture ") {
+                lecture = String(part.dropFirst(8))
+            }
+        }
+        if !course.isEmpty, !lecture.isEmpty {
+            return "\(course) · \(lecture) · \(clock)"
+        }
+        if !course.isEmpty {
+            return "\(course) · \(clock)"
+        }
+        return String(parts.joined(separator: " · ").prefix(64))
+    }
+
+    /// How many classes / when is my slot — answered from the catalogue, not a lecture Raw block.
+    private func isScheduleQuestion(_ text: String) -> Bool {
+        let folded = Self.asciiFold(text)
+        if folded.contains("timetable") || folded.contains("ders program") || folded.contains("programim") {
+            return true
+        }
+        if folded.contains("kac ders") || folded.contains("dersim var") || folded.contains("derslerim") {
+            return true
+        }
+        if folded.contains("how many class") || folded.contains("how many course")
+            || folded.contains("how many lecture") || folded.contains("how many slot")
+        {
+            return true
+        }
+        if folded.contains("when is my") && (folded.contains("class") || folded.contains("lecture") || folded.contains("course")) {
+            return true
+        }
+        if folded.contains("ne zaman") && (folded.contains("ders") || folded.contains("slot")) {
+            return true
+        }
+        return false
+    }
+
+    /// How many / list / due / “do I have any” assignments — catalogue; Source opens the course.
+    /// Lecture-content asks (“what was in the notes”) stay on BM25 Raw notes.
+    private func isAssignmentCatalogQuestion(_ text: String) -> Bool {
+        let folded = Self.asciiFold(text)
+        let hasTask =
+            folded.contains("odev") || folded.contains("assignment") || folded.contains("homework")
+        guard hasTask else { return false }
+        // “ödevlerde pardon notlarda…” — ASR keeps the slip; notes win over assignment Source.
+        if asksForLectureNotes(folded) { return false }
+
+        if folded.contains("kac") || folded.contains("how many") || folded.contains("toplam") {
+            return true
+        }
+        if folded.contains("odevler") || folded.contains("assignments") || folded.contains("homeworks") {
+            return true
+        }
+        // “ödev var mı”, “any homework”, “gereken / yetiştirmem gereken”
+        if folded.contains("var mi") || folded.contains("any ")
+            || folded.contains("gereken") || folded.contains("yetistir") || folded.contains("yetisme")
+        {
+            return true
+        }
+        if folded.contains("open") || folded.contains("due") || folded.contains("teslim")
+            || folded.contains("bitmemis") || folded.contains("yapilacak")
+        {
+            return true
+        }
+        // Week / today scoped inventory (“bu hafta … ödev …”)
+        if (folded.contains("hafta") || folded.contains("week") || folded.contains("bugun")
+            || folded.contains("today") || folded.contains("tomorrow") || folded.contains("yarin"))
+            && hasTask
+        {
+            return true
+        }
+        if folded.contains("ne zaman") {
+            return true
+        }
+        return false
+    }
+
+    /// Exam dates / sittings from the catalogue — Source opens the course, not BM25 notes.
+    private func isExamCatalogQuestion(_ text: String) -> Bool {
+        let folded = Self.asciiFold(text)
+        let hasExam =
+            folded.contains("sinav") || folded.contains("exam") || folded.contains("midterm")
+            || folded.contains("final") || folded.contains("vize") || folded.contains("butunleme")
+        guard hasExam else { return false }
+        if asksForLectureNotes(folded) { return false }
+        return true
+    }
+
+    /// Books / inventory rows — Source opens the course. “What did they say about the book” stays notes.
+    private func isInventoryCatalogQuestion(_ text: String) -> Bool {
+        let folded = Self.asciiFold(text)
+        let hasInv =
+            folded.contains("kitap") || folded.contains("book") || folded.contains("inventory")
+            || folded.contains("envanter") || folded.contains("dosya") || folded.contains("file")
+            || (folded.contains("chapter") && (folded.contains("book") || folded.contains("kitap")))
+        guard hasInv else { return false }
+        if asksForLectureNotes(folded) { return false }
+        if folded.contains("hangi") || folded.contains("what") || folded.contains("list")
+            || folded.contains("var mi") || folded.contains("how many") || folded.contains("kac")
+            || folded.contains("named") || folded.contains("adin")
+        {
+            return true
+        }
+        return folded.contains("kitaplar") || folded.contains("books") || folded.contains("files")
+    }
+
+    /// Student wants lecture / Raw content, not the assignment or exam table.
+    private func asksForLectureNotes(_ folded: String) -> Bool {
+        if folded.contains("notlar") || folded.contains("notlarda") || folded.contains("notes") {
+            return true
+        }
+        if folded.contains("anlat") || folded.contains("soyled") || folded.contains("dedi")
+            || folded.contains("explain") || folded.contains("what did") || folded.contains("said about")
+        {
+            return true
+        }
+        // “Liberalizm hakkında … ne vardı” without a pure inventory cue.
+        if folded.contains("ne vardi") || folded.contains("ne yaz") || folded.contains("ne demis") {
+            return true
+        }
+        return false
     }
 
     private enum SpeakOutcome {
@@ -500,11 +831,16 @@ final class TalkSession {
             Self.log.info("Talk barge-in stop speech → listen")
             self.listen.stopPlayback()
         }
+        // Clear any leftover You line so the Bellnote card stays on the full reply while TTS plays.
+        partialTranscript = ""
         listen.play(clip)
 
         while !Task.isCancelled, listen.isPlaybackActive {
             let live = listen.partialText
-            if !live.isEmpty { partialTranscript = live }
+            // Ignore TTS echo on the card; only keep a real barge-in line.
+            if !live.isEmpty, !listen.looksLikeEcho(live) {
+                partialTranscript = live
+            }
             try? await Task.sleep(for: .milliseconds(80))
         }
         var wasBarged = bargeFlag.value
@@ -585,28 +921,367 @@ final class TalkSession {
         return hasSaat && hasAsk
     }
 
-    /// Pure hello / how-are-you — no lecture fact to invent, so skip the model.
-    private func isGreeting(_ text: String) -> Bool {
-        let tokens = Self.asciiFold(text)
+    /// Social / control turns (Alexa-style help/cancel/stop + small talk). No model, no Source.
+    private enum SocialKind: String {
+        case greeting
+        case howAreYou
+        case thanks
+        case farewell
+        case help
+        case repeatAsk
+        case cancel
+        case apology
+        case praise
+        case hearCheck
+    }
+
+    private func socialReply(for text: String) -> TalkReply? {
+        guard let kind = socialKind(for: text) else { return nil }
+        Self.log.info("Talk social short-circuit kind=\(kind.rawValue, privacy: .public) text=\(text, privacy: .public)")
+        let reply: String
+        switch kind {
+        case .greeting:
+            reply = String(localized: "Hi. Ask about your lectures or what's stored in the app.")
+        case .howAreYou:
+            reply = String(localized: "I'm well. Ask about your lectures when you want.")
+        case .thanks:
+            reply = String(localized: "You're welcome.")
+        case .farewell:
+            reply = String(localized: "Take care.")
+        case .help:
+            reply = String(localized: "I answer from your lectures, timetable, and what's stored in the app. Ask a question.")
+        case .repeatAsk:
+            reply = String(localized: "Say that again, or ask another question.")
+        case .cancel:
+            reply = String(localized: "Okay.")
+        case .apology:
+            reply = String(localized: "No problem.")
+        case .praise:
+            reply = String(localized: "Glad it helped.")
+        case .hearCheck:
+            reply = String(localized: "Yes, I'm listening.")
+        }
+        return TalkReply(text: reply)
+    }
+
+    private func socialKind(for text: String) -> SocialKind? {
+        guard text.count <= 80 else { return nil }
+        // Drop apostrophes so ASR “I'm” / “didn't” stay one token after fold.
+        let folded = Self.asciiFold(text).replacingOccurrences(of: "'", with: "")
+        let tokens = folded
             .split { !$0.isLetter }
             .map(String.init)
             .filter { !$0.isEmpty }
-        guard !tokens.isEmpty, tokens.count <= 8 else { return false }
-        let greet: Set<String> = [
-            "selam", "merhaba", "hey", "hi", "hello", "slm", "naber",
-            "nasilsin", "nasilsiniz", "nasil", "gidiyor", "gunaydin", "iyi",
-            "aksamlar", "geceler", "haber", "ne", "var", "misin", "misiniz",
-        ]
-        // Require at least one clear greeting word; the rest must stay in the hello set.
-        let hasHello = tokens.contains(where: {
-            ["selam", "merhaba", "hey", "hi", "hello", "slm", "naber", "gunaydin"].contains($0)
-                || $0.hasPrefix("nasil")
-        })
-        guard hasHello else { return false }
-        return tokens.allSatisfy { greet.contains($0) }
+        guard !tokens.isEmpty, tokens.count <= 10 else { return nil }
+
+        if matchesHelp(tokens) { return .help }
+        if matchesHearCheck(tokens) { return .hearCheck }
+        if matchesRepeat(tokens) { return .repeatAsk }
+        if matchesCancel(tokens) { return .cancel }
+        if matchesApology(tokens) { return .apology }
+        if matchesThanks(tokens) { return .thanks }
+        if matchesFarewell(tokens) { return .farewell }
+        if matchesHowAreYou(tokens) { return .howAreYou }
+        if matchesGreeting(tokens) { return .greeting }
+        if matchesPraise(tokens) { return .praise }
+        return nil
     }
 
-    /// Turkish ı/ş/ğ… do not fold via diacriticInsensitive — map to ASCII for matching.
+    private func matchesGreeting(_ tokens: [String]) -> Bool {
+        let hello = [
+            "selam", "merhaba", "hey", "hi", "hello", "slm", "naber", "gunaydin",
+            "selamunaleykum", "selamun",
+        ]
+        // ASR: “good morning / good afternoon / good evening” as separate tokens.
+        let goodDayEN =
+            tokens.contains("good")
+            && tokens.contains(where: { ["morning", "afternoon", "evening"].contains($0) })
+        guard
+            tokens.contains(where: { hello.contains($0) || $0.hasPrefix("selam") }) || goodDayEN
+        else { return false }
+        let filler: Set<String> = [
+            "selam", "merhaba", "hey", "hi", "hello", "slm", "naber", "gunaydin",
+            "selamunaleykum", "selamun", "aleykum", "nasilsin", "nasilsiniz", "nasil",
+            "gidiyor", "iyi", "aksamlar", "geceler", "haber", "ne", "var", "misin",
+            "misiniz", "there", "morning", "evening", "afternoon", "everyone", "arkadas",
+            "bellnote", "asistan", "good",
+        ]
+        return tokens.allSatisfy {
+            filler.contains($0) || $0.hasPrefix("nasil") || $0.hasPrefix("selam")
+        }
+    }
+
+    private func matchesHowAreYou(_ tokens: [String]) -> Bool {
+        let ask =
+            tokens.contains(where: { $0.hasPrefix("nasil") })
+            || (tokens.contains("how") && tokens.contains(where: { ["are", "is", "you", "ya", "u"].contains($0) }))
+            || tokens.contains(where: { ["whatsup", "wazzup", "sup"].contains($0) })
+            || (tokens.contains("what") && tokens.contains("up"))
+            || (tokens.contains("ne") && tokens.contains("haber"))
+            // OpenSubtitles top: “İyi misin?” — not a greeting root.
+            || (tokens.contains("iyi")
+                && tokens.contains(where: { ["misin", "misiniz", "mi"].contains($0) }))
+        guard ask else { return false }
+        let filler: Set<String> = [
+            "nasil", "nasilsin", "nasilsiniz", "gidiyor", "misin", "misiniz", "mi", "iyi",
+            "how", "are", "is", "you", "ya", "u", "doing", "feeling", "today",
+            "what", "up", "whatsup", "wazzup", "sup", "everything", "ne", "haber", "sen",
+            // “Selam ne haber nasılsın” — greeting words must not block how-are-you.
+            "selam", "merhaba", "hey", "hi", "hello", "slm", "naber",
+        ]
+        return tokens.allSatisfy { filler.contains($0) || $0.hasPrefix("nasil") }
+    }
+
+    private func matchesThanks(_ tokens: [String]) -> Bool {
+        let thanksRoots = ["tesekkur", "sagol", "thanks", "thank", "thx"]
+        // ASR often splits “sağ ol / sağ olasın / sağ olsun” into sag + ol…
+        let sagOl =
+            tokens.contains("sag")
+            && tokens.contains(where: {
+                ["ol", "olsun", "olasin", "olasiniz", "olun", "olunuz"].contains($0)
+                    || $0.hasPrefix("ola") || $0.hasPrefix("olu")
+            })
+        let hasThanks =
+            tokens.contains(where: { token in thanksRoots.contains(where: { token.hasPrefix($0) }) })
+            || sagOl
+        guard hasThanks else { return false }
+        let filler: Set<String> = [
+            "tamam", "ok", "okay", "pekala", "peki", "super", "harika", "sagol", "sag",
+            "ol", "olsun", "olasin", "olasiniz", "olun", "olunuz",
+            "eyvallah", "tesekkur", "tesekkurler", "tesekkurlerim", "ederim",
+            "thanks", "thank", "thx", "you", "very", "much", "a", "lot", "cok",
+            "yardim", "icin", "for", "that", "bu", "sana", "da", "de",
+        ]
+        return tokens.allSatisfy { token in
+            filler.contains(token)
+                || thanksRoots.contains(where: { token.hasPrefix($0) })
+                || token.hasPrefix("ola") || token.hasPrefix("olu")
+        }
+    }
+
+    private func matchesFarewell(_ tokens: [String]) -> Bool {
+        let byeRoots = [
+            "hosca", "gule", "goodbye", "bye", "bb", "eyvallah", "gorusuruz", "gorusmek", "cikis",
+            "allahismarladik", "allahaismarladik",
+        ]
+        let hasBye = tokens.contains { token in
+            byeRoots.contains(where: { token.hasPrefix($0) }) || token == "bay" || token == "exit"
+        }
+        // ASR splits: hoşça kal, güle güle (already root), take care, see you, görüşmek üzere.
+        let hasHoscaKal =
+            tokens.contains(where: { $0.hasPrefix("hosca") })
+            && tokens.contains(where: { $0.hasPrefix("kal") })
+        let hasTakeCare = tokens.contains("take") && tokens.contains("care")
+        let hasSeeYou = tokens.contains("see") && tokens.contains("you")
+        let hasCare =
+            tokens.contains("kendine")
+            && tokens.contains(where: { ["bak", "dikkat", "iyi"].contains($0) })
+        let hasGoodDay =
+            tokens.contains("iyi")
+            && tokens.contains(where: {
+                ["aksamlar", "geceler", "gunler", "sabahlar", "haftalar", "tatiller"].contains($0)
+                    || $0.hasPrefix("aksam") || $0.hasPrefix("gece") || $0.hasPrefix("gun")
+                    || $0.hasPrefix("tatil")
+            })
+        let hasGoodNight =
+            tokens.contains("good")
+            && tokens.contains(where: { ["night", "evening", "bye"].contains($0) })
+        guard
+            hasBye || hasHoscaKal || hasTakeCare || hasSeeYou || hasCare || hasGoodDay || hasGoodNight
+        else { return false }
+        let filler: Set<String> = [
+            "tamam", "ok", "okay", "pekala", "peki", "cok", "sana", "da", "de",
+            "iyi", "bak", "dikkat", "et", "ol", "kal", "kalin", "kendine",
+            "hosca", "hoscakal", "hoscakalin", "gule", "gulegule",
+            "aksamlar", "geceler", "gunler", "sabahlar", "haftalar", "tatiller",
+            "eyvallah", "bye", "goodbye", "bb", "bay", "see", "you", "later", "soon",
+            "take", "care", "night", "evening", "morning", "uzere", "gorusuruz",
+            "gorusmek", "good", "exit", "cikis", "hadi", "allahismarladik", "allahaismarladik",
+            "allah", "ismarladik",
+        ]
+        return tokens.allSatisfy { token in
+            filler.contains(token)
+                || byeRoots.contains(where: { token.hasPrefix($0) })
+                || token.hasPrefix("aksam") || token.hasPrefix("gece") || token.hasPrefix("gun")
+                || token.hasPrefix("sabah") || token.hasPrefix("tatil") || token.hasPrefix("gorus")
+                || token.hasPrefix("hosca") || token.hasPrefix("kal") || token.hasPrefix("ismar")
+        }
+    }
+
+    private func matchesHelp(_ tokens: [String]) -> Bool {
+        let helpWord = tokens.contains { $0 == "help" || $0.hasPrefix("yardim") }
+        let who =
+            tokens.contains("kimsin") || tokens.contains("kimsiniz")
+            || (tokens.contains("who") && tokens.contains("you"))
+            || (tokens.contains("what") && tokens.contains("you")
+                && tokens.contains(where: { ["are", "name", "called"].contains($0) }))
+        let neYap =
+            tokens.contains("ne")
+            && tokens.contains(where: { $0.hasPrefix("yapabilir") })
+        let neIse =
+            tokens.contains("ne")
+            && tokens.contains("ise")
+            && tokens.contains(where: { $0.hasPrefix("yariyor") || $0.hasPrefix("yara") })
+        let whatCan =
+            tokens.contains("what")
+            && tokens.contains("can")
+            && tokens.contains(where: { ["you", "i", "do"].contains($0) })
+        let howHelp = tokens.contains("how") && tokens.contains("help")
+        guard helpWord || who || neYap || neIse || whatCan || howHelp else { return false }
+        let filler: Set<String> = [
+            "help", "me", "please", "yardim", "yardimci", "et", "eder", "misin", "misiniz",
+            "ne", "yapabilirsin", "yapabilirim", "yapabilir", "kimsin", "kimsiniz",
+            "who", "what", "are", "you", "your", "name", "called", "can", "do", "how",
+            "with", "bana", "icin", "hakkinda", "about", "capable", "ask", "sorabilir",
+            "neler", "hangi", "i", "asistan", "bellnote", "ise", "yariyorsun", "yariyor",
+        ]
+        return tokens.allSatisfy { token in
+            filler.contains(token)
+                || token.hasPrefix("yardim")
+                || token.hasPrefix("yapabilir")
+                || token.hasPrefix("sorabilir")
+                || token.hasPrefix("yariyor")
+        }
+    }
+
+    private func matchesRepeat(_ tokens: [String]) -> Bool {
+        let hit =
+            tokens.contains(where: {
+                ["tekrar", "again", "repeat", "anlamadim", "duyamadim", "duyamadik"].contains($0)
+                    || $0.hasPrefix("tekrar") || $0.hasPrefix("anlamad") || $0.hasPrefix("duyamad")
+            })
+            || (tokens.contains("say") && tokens.contains("again"))
+            || (tokens.contains("didnt") && tokens.contains(where: { ["catch", "hear", "get"].contains($0) }))
+            || (tokens.contains("couldnt") && tokens.contains(where: { ["catch", "hear", "get"].contains($0) }))
+            || (tokens.contains("bir") && tokens.contains("daha")
+                && tokens.contains(where: { $0.hasPrefix("soyle") || $0.hasPrefix("tekrar") }))
+            || (tokens.contains("ne") && tokens.contains("dedin"))
+        guard hit else { return false }
+        let filler: Set<String> = [
+            "tekrar", "eder", "misin", "misiniz", "lutfen", "please", "again", "repeat",
+            "say", "that", "anlamadim", "anlamadik", "duyamadim", "duyamadik", "bir", "daha",
+            "soyle", "soyler", "catch", "hear", "get", "what", "you", "said", "i",
+            "didnt", "couldnt", "ne", "dedin", "dediniz",
+        ]
+        return tokens.allSatisfy { token in
+            filler.contains(token)
+                || token.hasPrefix("tekrar") || token.hasPrefix("anlamad") || token.hasPrefix("duyamad")
+                || token.hasPrefix("soyle") || token.hasPrefix("dedin")
+        }
+    }
+
+    private func matchesCancel(_ tokens: [String]) -> Bool {
+        // Alexa/Google-style cancel / stop / never mind / I'm done / wait.
+        let hit =
+            tokens.contains(where: {
+                [
+                    "iptal", "vazgec", "vazgectim", "bosver", "cancel", "stop", "enough",
+                    "yeter", "bitti", "bitirdim", "finished", "bekle",
+                ].contains($0)
+                    || $0.hasPrefix("vazgec") || $0.hasPrefix("iptal") || $0.hasPrefix("bitir")
+            })
+            || (tokens.contains("never") && tokens.contains("mind"))
+            || (tokens.contains("forget") && tokens.contains("it"))
+            || (tokens.contains("that") && tokens.contains("all"))
+            || (tokens.contains("basta") && tokens.contains("birak"))
+            // ASR: “boş ver” as bos + ver (OpenSubtitles “Boşver” / spoken split).
+            || (tokens.contains("bos") && tokens.contains("ver"))
+            || (tokens.contains("im") && tokens.contains(where: { ["done", "finished"].contains($0) }))
+            || (tokens.contains("shut") && tokens.contains("up"))
+            || (tokens.contains("hold") && tokens.contains("on"))
+            || (tokens.contains("wait") && tokens.count <= 3)
+            || (tokens.contains("bir") && tokens.contains(where: { ["saniye", "dakika"].contains($0) }))
+        guard hit else { return false }
+        let filler: Set<String> = [
+            "iptal", "vazgec", "vazgectim", "bosver", "bos", "ver", "et", "cancel", "stop", "never",
+            "mind", "forget", "it", "that", "all", "enough", "tamam", "ok", "okay", "basta", "birak",
+            "simdi", "for", "now", "lutfen", "please", "yapma", "yeter", "bitti", "bitirdim",
+            "finished", "done", "im", "i", "am", "shut", "up", "hold", "on", "wait", "bir",
+            "saniye", "dakika", "bekle", "bekler", "misin", "off",
+        ]
+        return tokens.allSatisfy { token in
+            filler.contains(token)
+                || token.hasPrefix("vazgec") || token.hasPrefix("iptal") || token.hasPrefix("bitir")
+                || token.hasPrefix("bekle")
+        }
+    }
+
+    private func matchesApology(_ tokens: [String]) -> Bool {
+        let hit =
+            tokens.contains(where: {
+                [
+                    "ozur", "kusura", "affedersin", "affedersiniz", "sorry", "apologize", "apologise",
+                    "pardon", "uzgunum", "uzgunuz",
+                ].contains($0)
+                    || $0.hasPrefix("ozur") || $0.hasPrefix("kusur") || $0.hasPrefix("affeder")
+                    || $0.hasPrefix("uzgun")
+            })
+            || (tokens.contains("my") && tokens.contains("bad"))
+            // “özür dilerim” / “kusura bakma” stay thanks-safe via filler below.
+            || (tokens.contains("ozur") && tokens.contains(where: { $0.hasPrefix("diler") }))
+            || (tokens.contains("kusura")
+                && tokens.contains(where: { $0.hasPrefix("bakma") || $0.hasPrefix("bakmay") }))
+        guard hit else { return false }
+        let filler: Set<String> = [
+            "ozur", "dilerim", "dileriz", "kusura", "bakma", "bakmayin", "affedersin", "affedersiniz",
+            "sorry", "i", "am", "im", "my", "bad", "apologize", "apologise", "about", "that",
+            "icin", "cok", "pardon", "uzgunum", "uzgunuz", "cok",
+        ]
+        return tokens.allSatisfy { token in
+            filler.contains(token)
+                || token.hasPrefix("ozur") || token.hasPrefix("kusur") || token.hasPrefix("affeder")
+                || token.hasPrefix("diler") || token.hasPrefix("bakma") || token.hasPrefix("uzgun")
+        }
+    }
+
+    private func matchesPraise(_ tokens: [String]) -> Bool {
+        let hit =
+            tokens.contains(where: {
+                [
+                    "super", "harika", "guzel", "mukemmel", "awesome", "great", "cool", "perfect",
+                    "nice", "aferin", "bravo", "tebrikler",
+                ].contains($0)
+            })
+            || (tokens.contains("that")
+                && tokens.contains(where: { ["helped", "helpful", "useful"].contains($0) }))
+            || (tokens.contains("cok") && tokens.contains(where: { ["iyi", "guzel", "yararli"].contains($0) }))
+            || (tokens.contains("well") && tokens.contains("done"))
+        guard hit, tokens.count <= 6 else { return false }
+        let filler: Set<String> = [
+            "super", "harika", "guzel", "mukemmel", "awesome", "great", "cool", "perfect", "nice",
+            "that", "helped", "helpful", "useful", "cok", "iyi", "yararli", "was", "really", "very",
+            "tamam", "ok", "okay", "this", "bu", "aferin", "bravo", "tebrikler", "well", "done",
+        ]
+        return tokens.allSatisfy { filler.contains($0) }
+    }
+
+    private func matchesHearCheck(_ tokens: [String]) -> Bool {
+        let listeningTR = tokens.contains {
+            $0.hasPrefix("duyuyor") || $0.hasPrefix("dinliyor")
+        }
+        let hit =
+            (listeningTR
+                && tokens.contains(where: {
+                    ["musun", "musunuz", "mu", "beni"].contains($0) || $0.hasPrefix("mu")
+                }))
+            || (tokens.contains("can") && tokens.contains("hear") && tokens.contains("me"))
+            || (tokens.contains("are") && tokens.contains("you")
+                && tokens.contains(where: { ["there", "listening"].contains($0) }))
+            || tokens.contains("alo")
+        guard hit else { return false }
+        let filler: Set<String> = [
+            "duyuyor", "musun", "musunuz", "mu", "beni", "can", "you", "hear", "me",
+            "are", "there", "listening", "alo", "hello", "mi", "dinliyor",
+        ]
+        return tokens.allSatisfy { token in
+            filler.contains(token) || token.hasPrefix("duyuyor") || token.hasPrefix("dinliyor")
+        }
+    }
+
+    /// Lossy ASCII fold for social matching. ASR and typed Turkish both land on the same
+    /// keys (`teşekkürler` / `tesekkurler` → `tesekkurler`). Foundation
+    /// `diacriticInsensitive` alone keeps `ı` and mishandles `İ` under English lowercasing
+    /// (`İ` → `i` + combining dot), so Turkish letters are mapped before any lowercase.
     private static func asciiFold(_ text: String) -> String {
         let map: [Character: Character] = [
             "ı": "i", "İ": "i", "I": "i",
@@ -616,6 +1291,19 @@ final class TalkSession {
             "ö": "o", "Ö": "o",
             "ç": "c", "Ç": "c",
         ]
-        return String(text.lowercased().map { map[$0] ?? $0 })
+        var out = ""
+        out.reserveCapacity(text.count)
+        let posix = Locale(identifier: "en_US_POSIX")
+        for ch in text {
+            if let mapped = map[ch] {
+                out.append(mapped)
+                continue
+            }
+            for scalar in String(ch).lowercased(with: posix).unicodeScalars {
+                if scalar.properties.isDiacritic { continue }
+                out.append(Character(scalar))
+            }
+        }
+        return out
     }
 }

@@ -2,8 +2,8 @@ import Foundation
 import SwiftData
 
 /// Builds the Talk assistant’s readable facts: every ready note with where it came from, plus a catalogue
-/// of terms, courses, timetable, tasks, exams, and current Settings — so the student can ask about anything
-/// stored in the app, not only spoken lecture text.
+/// of terms, courses, timetable, tasks, exams, and inventory — so the student can ask about the library,
+/// not only spoken lecture text. Settings are not in this catalogue.
 @MainActor
 enum TalkContext {
     private static let catalogBudget = 4_500
@@ -46,12 +46,12 @@ enum TalkContext {
         return blocks
     }
 
-    /// Structured facts about the whole library and Settings. Always offered to the model (budget-capped).
+    /// Structured facts about the library. Always offered to the model (budget-capped).
     /// Wall clock is not stored here — `LocalModelRuntime.answer` attaches a fresh Device clock each call.
+    /// Settings stay out of this catalogue so they do not spend the prompt budget.
     static func catalogTags(terms: [Term], session: AppSession) -> [WindowTag] {
         var lines: [String] = []
         lines.append("App catalogue (facts on this device):")
-        lines.append(settingsSummary(session))
         let sortedTerms = terms.sorted {
             ($0.yearOfStudy, $0.termNumber, $0.createdAt) < ($1.yearOfStudy, $1.termNumber, $1.createdAt)
         }
@@ -77,43 +77,6 @@ enum TalkContext {
             used += size
         }
         return tags
-    }
-
-    private static func settingsSummary(_ session: AppSession) -> String {
-        let preferred = session.pageModel
-        let preferredName = modelName(preferred)
-        // HubWeights is sync filesystem; avoid hopping to LocalModelRuntime actor from the UI path.
-        let preferredReady = modelInstalled(preferred)
-        let taggerReady = modelInstalled(.tagger)
-        let pageReady = modelInstalled(.page)
-        let whisperReady = WhisperASR.isInstalled()
-        let fluidReady = SpeakerPass.modelsAreInstalled()
-        let supertonicReady = SupertonicSpeech.isInstalled
-        let speech = session.speechEngine == .whisper ? "Whisper" : "Apple Dictation"
-        let readAloud = session.readAloud == .supertonic ? "Supertonic" : "Apple Dictation"
-        let voice = SupertonicVoice.title(session.supertonicVoice, locale: session.locale)
-        let lock = session.lockEnabled ? "on" : "off"
-        return
-            "Settings: UI language \(session.languageCode); appearance \(session.appearance.rawValue); "
-            + "Face ID lock \(lock); selected text model \(preferredName) "
-            + "(installed \(preferredReady ? "yes" : "no")); "
-            + "Qwen 2B installed \(taggerReady ? "yes" : "no"); Qwen 4B installed \(pageReady ? "yes" : "no"); "
-            + "Whisper installed \(whisperReady ? "yes" : "no"); FluidAudio installed \(fluidReady ? "yes" : "no"); "
-            + "Supertonic installed \(supertonicReady ? "yes" : "no"); "
-            + "speech to text \(speech); read aloud \(readAloud); Supertonic voice \(voice)."
-    }
-
-    private static func modelName(_ role: ModelRole) -> String {
-        switch role {
-        case .tagger: "Qwen 3.5 2B"
-        case .page: "Qwen 3.5 4B"
-        case .whisper: "Whisper"
-        }
-    }
-
-    private static func modelInstalled(_ role: ModelRole) -> Bool {
-        if role == .whisper { return WhisperASR.isInstalled() }
-        return HubWeights.snapshot(for: ModelCatalog.repo(for: role)).isReady
     }
 
     private static func termLines(_ term: Term) -> [String] {

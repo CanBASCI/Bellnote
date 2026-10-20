@@ -1,6 +1,38 @@
 import OSLog
 import SwiftData
 import SwiftUI
+import UIKit
+
+/// Ask → Source hand-off from the Assistant tab: recording plus the Raw block.
+private struct TalkSourceJump: Identifiable, Hashable {
+    var id: UUID { blockToken }
+    var lecture: Lecture
+    var blockToken: UUID
+    var second: Int
+
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.blockToken == rhs.blockToken && lhs.second == rhs.second
+    }
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(blockToken)
+        hasher.combine(second)
+    }
+}
+
+/// Catalogue Source hand-off: open the course for a timetable slot.
+private struct TalkCourseJump: Identifiable, Hashable {
+    var id: PersistentIdentifier { course.persistentModelID }
+    var course: Course
+
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.course.persistentModelID == rhs.course.persistentModelID
+    }
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(course.persistentModelID)
+    }
+}
 
 /// Assistant tab: live voice assistant over every ready lecture, session memory only.
 /// Stays off while any recording is processed so the pipeline keeps the model and memory.
@@ -9,8 +41,12 @@ struct AssistantPage: View {
 
     @Query(sort: \Term.createdAt) private var terms: [Term]
     @Environment(AppSession.self) private var session
+    @Environment(\.modelContext) private var modelContext
     @State private var talk = TalkSession()
-
+    @State private var sourceJump: TalkSourceJump?
+    @State private var courseJump: TalkCourseJump?
+    @State private var sourceMenu: [TalkSourceItem] = []
+    @State private var showSourceMenu = false
     private var processingBusy: Bool { PipelineActivity.shared.isBusy }
 
     var body: some View {
@@ -29,6 +65,16 @@ struct AssistantPage: View {
         .background(Color(.systemGroupedBackground))
         .navigationTitle("Assistant")
         .navigationBarTitleDisplayMode(.inline)
+        .navigationDestination(item: $sourceJump) { jump in
+            LecturePage(
+                lecture: jump.lecture,
+                startSecond: jump.second,
+                focusRawBlockToken: jump.blockToken
+            )
+        }
+        .navigationDestination(item: $courseJump) { jump in
+            CoursePage(course: jump.course)
+        }
         .onAppear {
             Self.log.info("Assistant appear busy=\(self.processingBusy) terms=\(self.terms.count) phase=\(String(describing: self.talk.phase), privacy: .public)")
             syncTalk()
@@ -45,6 +91,24 @@ struct AssistantPage: View {
             Self.log.info("Assistant terms count=\(count)")
             syncTalk()
         }
+        // Source push stops Talk; lecture playback releases the session asynchronously.
+        // Restart after the pop so the mic is not opened on a dead audio graph.
+        .onChange(of: sourceJump) { previous, jump in
+            guard previous != nil, jump == nil else { return }
+            resumeTalkAfterSource()
+        }
+        .onChange(of: courseJump) { previous, jump in
+            guard previous != nil, jump == nil else { return }
+            resumeTalkAfterSource()
+        }
+    }
+
+    private func resumeTalkAfterSource() {
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(450))
+            Self.log.info("Assistant resume after Source")
+            syncTalk()
+        }
     }
 
     private var talkBody: some View {
@@ -53,34 +117,127 @@ struct AssistantPage: View {
             VStack(spacing: 8) {
                 AssistantVoiceOrb(phase: talk.phase, hearing: hearingSpeech)
                     .frame(width: 280, height: 280)
-                Text(verbatim: talk.statusLine)
+                Text(verbatim: orbStatusLine)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 24)
-                    .animation(.easeInOut(duration: 0.2), value: talk.statusLine)
+                    .animation(.easeInOut(duration: 0.2), value: orbStatusLine)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             if let card = turnCardContent {
-                VStack {
-                    Spacer(minLength: 0)
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text(card.title)
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(.secondary)
-                        Text(verbatim: card.body)
-                            .font(.body)
-                            .textSelection(.enabled)
-                            .animation(.easeOut(duration: 0.12), value: card.body)
+                GeometryReader { geo in
+                    let maxCardWidth = max(geo.size.width - 40, 1)
+                    // Status stays centered under the orb. The card may grow up to that line, then scrolls.
+                    let statusHeight = UIFont.preferredFont(forTextStyle: .subheadline).lineHeight
+                    let statusBlock = 280 + 8 + statusHeight
+                    let statusBottom = geo.size.height / 2 + statusBlock / 2
+                    let bottomInset: CGFloat = 12
+                    let gapBelowStatus: CGFloat = 12
+                    let maxCardHeight = max(
+                        geo.size.height - statusBottom - gapBelowStatus - bottomInset,
+                        statusHeight
+                    )
+                    VStack {
+                        Spacer(minLength: 0)
+                        talkTurnCard(card, maxWidth: maxCardWidth, maxHeight: maxCardHeight)
+                            .padding(.horizontal, 20)
+                            .padding(.bottom, bottomInset)
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(16)
-                    .background(Color(.secondarySystemFill), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 12)
                 }
             }
+        }
+    }
+
+    /// You / Bellnote leading, Source trailing, both outside the fill and inset like the body text.
+    /// The card grows with the text up to `maxHeight` (just under the status line), then the body scrolls.
+    @ViewBuilder
+    private func talkTurnCard(
+        _ card: (title: String, body: String, showSource: Bool, followTail: Bool),
+        maxWidth: CGFloat,
+        maxHeight: CGFloat
+    ) -> some View {
+        let bodyMax = max(maxWidth - 28, 1)
+        let textMax = max(
+            maxHeight - 8 - 20 - UIFont.preferredFont(forTextStyle: .caption1).lineHeight,
+            UIFont.preferredFont(forTextStyle: .body).lineHeight
+        )
+        TalkTurnColumn(spacing: 8, maxWidth: maxWidth, maxHeight: maxHeight) {
+            HStack(alignment: .center, spacing: 8) {
+                Text(card.title)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                Spacer(minLength: 8)
+                if card.showSource {
+                    Button("Source", systemImage: "text.quote") {
+                        openSource()
+                    }
+                    .buttonStyle(.glass)
+                    .controlSize(.small)
+                    .confirmationDialog("Source", isPresented: $showSourceMenu, titleVisibility: .visible) {
+                        ForEach(sourceMenu) { item in
+                            Button(item.title) {
+                                openSourceItem(item)
+                            }
+                        }
+                    }
+                }
+            }
+            .padding(.horizontal, 14)
+            TalkBubbleBody(maxWidth: bodyMax, maxHeight: textMax) {
+                Text(verbatim: card.body)
+                    .font(.body)
+                    .textSelection(.enabled)
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        Color.clear
+                            .frame(height: 1)
+                            .id(TalkBubbleEnd.top)
+                        Text(verbatim: card.body)
+                            .font(.body)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .textSelection(.enabled)
+                        Color.clear
+                            .frame(height: 1)
+                            .id(TalkBubbleEnd.bottom)
+                    }
+                    .id(card.followTail)
+                    .defaultScrollAnchor(card.followTail ? .bottom : .top)
+                    .defaultScrollAnchor(card.followTail ? .bottom : .top, for: .sizeChanges)
+                    .scrollBounceBehavior(.basedOnSize)
+                    .scrollIndicators(.visible)
+                    .scrollContentBackground(.hidden)
+                    .background(.clear)
+                    .onAppear {
+                        proxy.scrollTo(
+                            card.followTail ? TalkBubbleEnd.bottom : TalkBubbleEnd.top,
+                            anchor: card.followTail ? .bottom : .top
+                        )
+                    }
+                    .onChange(of: card.body) { _, _ in
+                        guard card.followTail else { return }
+                        proxy.scrollTo(TalkBubbleEnd.bottom, anchor: .bottom)
+                    }
+                }
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .background(Color(.secondarySystemFill), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        }
+        .frame(maxWidth: maxWidth, alignment: .leading)
+        .fixedSize(horizontal: false, vertical: true)
+        .animation(.easeOut(duration: 0.12), value: card.body)
+    }
+
+    /// Orb caption always follows phase so Thinking never shows Listening (or the reverse).
+    private var orbStatusLine: String {
+        switch talk.phase {
+        case .preparing: return String(localized: "Preparing…")
+        case .listening: return String(localized: "Listening…")
+        case .thinking: return String(localized: "Thinking…")
+        case .speaking: return String(localized: "Speaking…")
+        default: return talk.statusLine
         }
     }
 
@@ -91,14 +248,86 @@ struct AssistantPage: View {
     }
 
     /// Partial speech fills the same “You” card that later holds the final line.
-    private var turnCardContent: (title: String, body: String)? {
+    /// While Speaking, keep the Bellnote reply — barge ASR often echoes TTS into partialTranscript
+    /// and would shrink the card to the first echoed line until playback ends.
+    private var turnCardContent: (title: String, body: String, showSource: Bool, followTail: Bool)? {
+        if talk.phase == .speaking,
+           let latest = talk.turns.last,
+           latest.role == .assistant
+        {
+            return (
+                String(localized: "Bellnote"),
+                latest.text,
+                !latest.sources.isEmpty,
+                false
+            )
+        }
         let live = talk.partialTranscript.trimmingCharacters(in: .whitespacesAndNewlines)
         if !live.isEmpty {
-            return (String(localized: "You"), live)
+            // Live speech follows the newest line. A finished reply stays at the top so it can be read.
+            return (String(localized: "You"), live, false, true)
         }
         guard let latest = talk.turns.last else { return nil }
         let title = latest.role == .user ? String(localized: "You") : String(localized: "Bellnote")
-        return (title, latest.text)
+        let showSource = latest.role == .assistant && !latest.sources.isEmpty
+        return (title, latest.text, showSource, false)
+    }
+
+    /// One source opens directly; several open a pick menu (same idea as Ask, with a list).
+    private func openSource() {
+        guard let latest = talk.turns.last, latest.role == .assistant else { return }
+        let sources = latest.sources
+        guard !sources.isEmpty else { return }
+        Self.log.info("Talk source menu open count=\(sources.count)")
+        for (index, item) in sources.enumerated() {
+            Self.log.info(
+                "Talk sourceMenuTap[\(index)] title=\(item.title, privacy: .public) target=\(String(describing: item.target), privacy: .public)"
+            )
+        }
+        if sources.count == 1 {
+            openSourceItem(sources[0])
+            return
+        }
+        sourceMenu = sources
+        showSourceMenu = true
+    }
+
+    private func openSourceItem(_ item: TalkSourceItem) {
+        switch item.target {
+        case .note(let blockID, let second):
+            guard let host = lecture(owning: blockID) else {
+                Self.log.error("Talk source lecture missing block=\(blockID.uuidString, privacy: .public)")
+                return
+            }
+            Self.log.info("Talk source open note second=\(second) lecture=\(host.title, privacy: .public)")
+            talk.stop()
+            sourceJump = TalkSourceJump(lecture: host, blockToken: blockID, second: second)
+        case .course(let id):
+            guard let course = course(id: id) else {
+                Self.log.error("Talk source course missing")
+                return
+            }
+            Self.log.info("Talk source open course=\(course.name, privacy: .public)")
+            talk.stop()
+            courseJump = TalkCourseJump(course: course)
+        }
+    }
+
+    private func lecture(owning blockID: UUID) -> Lecture? {
+        for term in terms {
+            for course in term.courses {
+                if let lecture = course.lectures.first(where: { item in
+                    item.blocks.contains { $0.token == blockID }
+                }) {
+                    return lecture
+                }
+            }
+        }
+        return nil
+    }
+
+    private func course(id: PersistentIdentifier) -> Course? {
+        modelContext.model(for: id) as? Course
     }
 
     private func syncTalk() {
@@ -117,6 +346,93 @@ struct AssistantPage: View {
             talk.stop()
             talk.start(terms: terms, session: session)
         }
+    }
+}
+
+/// Header row is as wide as the bubble (title leading, Source trailing).
+/// Total height stops at `maxHeight` so Source can reach the status line and no further.
+private struct TalkTurnColumn: Layout {
+    var spacing: CGFloat
+    var maxWidth: CGFloat
+    var maxHeight: CGFloat
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        guard subviews.count >= 2 else { return .zero }
+        let limit = min(proposal.width ?? maxWidth, maxWidth)
+        // A short proposal must not squash the text; maxHeight is only the ceiling under the status line.
+        let limitH = maxHeight
+        let headerProbe = subviews[0].sizeThatFits(ProposedViewSize(width: limit, height: nil))
+        let bubbleCap = max(limitH - headerProbe.height - spacing, 1)
+        let bubble = subviews[1].sizeThatFits(ProposedViewSize(width: limit, height: bubbleCap))
+        let width = min(max(bubble.width, 1), limit)
+        let header = subviews[0].sizeThatFits(ProposedViewSize(width: width, height: nil))
+        let height = min(header.height + spacing + bubble.height, limitH)
+        return CGSize(width: width, height: height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        guard subviews.count >= 2 else { return }
+        let header = subviews[0].sizeThatFits(ProposedViewSize(width: bounds.width, height: nil))
+        subviews[0].place(
+            at: CGPoint(x: bounds.minX, y: bounds.minY),
+            proposal: ProposedViewSize(width: bounds.width, height: header.height)
+        )
+        let bubbleCap = max(bounds.height - header.height - spacing, 1)
+        let bubble = subviews[1].sizeThatFits(ProposedViewSize(width: bounds.width, height: bubbleCap))
+        subviews[1].place(
+            at: CGPoint(x: bounds.minX, y: bounds.minY + header.height + spacing),
+            proposal: ProposedViewSize(width: bubble.width, height: bubble.height)
+        )
+    }
+}
+
+private enum TalkBubbleEnd {
+    static let top = "talk-bubble-top"
+    static let bottom = "talk-bubble-end"
+}
+
+/// One-line text hugs its width. Wrapped text uses `maxWidth` and its real height.
+/// Past the proposed height the scroll child is shown so glyphs stay inside the bubble.
+private struct TalkBubbleBody: Layout {
+    var maxWidth: CGFloat
+    /// Text height before the body scrolls. Not a fixed line count.
+    var maxHeight: CGFloat
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        guard let text = subviews.first else { return .zero }
+        let limit = min(proposal.width ?? maxWidth, maxWidth)
+        return measured(text: text, limit: limit, cap: maxHeight).size
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        guard let text = subviews.first else { return }
+        let limit = min(bounds.width, maxWidth)
+        let fit = measured(text: text, limit: limit, cap: maxHeight)
+        let origin = CGPoint(x: bounds.minX, y: bounds.minY)
+        if fit.scroll, subviews.count > 1 {
+            text.place(at: origin, proposal: ProposedViewSize(width: 0, height: 0))
+            subviews[1].place(at: origin, proposal: ProposedViewSize(width: fit.size.width, height: fit.size.height))
+        } else {
+            text.place(at: origin, proposal: ProposedViewSize(width: fit.size.width, height: fit.size.height))
+            if subviews.count > 1 {
+                subviews[1].place(at: origin, proposal: ProposedViewSize(width: 0, height: 0))
+            }
+        }
+    }
+
+    private func measured(text: LayoutSubview, limit: CGFloat, cap: CGFloat) -> (size: CGSize, scroll: Bool) {
+        let single = text.sizeThatFits(ProposedViewSize(width: nil, height: nil))
+        if single.width <= limit {
+            if single.height <= cap {
+                return (single, false)
+            }
+            return (CGSize(width: min(single.width, limit), height: cap), true)
+        }
+        let wrapped = text.sizeThatFits(ProposedViewSize(width: limit, height: nil))
+        if wrapped.height <= cap {
+            return (CGSize(width: limit, height: wrapped.height), false)
+        }
+        return (CGSize(width: limit, height: cap), true)
     }
 }
 
@@ -189,9 +505,10 @@ private struct AssistantVoiceOrb: View {
         phase == .listening && hearing ? 1 : 0
     }
 
-    /// Resting lavender eases into violet → magenta → orange → amber while speech is live.
+    /// Resting accent eases into violet → magenta → orange → amber while speech is live.
     private func dotColor(hear: CGFloat, at time: TimeInterval) -> Color {
         guard phase == .listening, hear > 0 else { return particleColor }
+        // Hearing cycle kept as-is (restore with the phase palette below if needed).
         let stops: [(r: Double, g: Double, b: Double)] = [
             (0.68, 0.30, 1.0),
             (0.98, 0.32, 0.72),
@@ -210,7 +527,7 @@ private struct AssistantVoiceOrb: View {
             b: current.b + (next.b - current.b) * fraction
         )
         let t = Double(hear)
-        let rest = (r: 0.62, g: 0.55, b: 1.0)
+        let rest = Self.rgb(of: .primary)
         return Color(
             red: rest.r + (live.r - rest.r) * t,
             green: rest.g + (live.g - rest.g) * t,
@@ -218,21 +535,32 @@ private struct AssistantVoiceOrb: View {
         )
     }
 
+    /// Phase dots use Color.primary (label). Previous palette kept to restore:
+    /// listening (0.62, 0.55, 1.0), thinking (0.78, 0.58, 1.0), speaking (0.72, 0.48, 0.98),
+    /// preparing (0.55, 0.62, 0.92), idle (0.7, 0.62, 1.0).
     private var particleColor: Color {
         switch phase {
-        case .listening:
-            return Color(red: 0.62, green: 0.55, blue: 1.0)
-        case .thinking:
-            return Color(red: 0.78, green: 0.58, blue: 1.0)
-        case .speaking:
-            return Color(red: 0.72, green: 0.48, blue: 0.98)
-        case .preparing:
-            return Color(red: 0.55, green: 0.62, blue: 0.92)
+        case .listening, .thinking, .speaking, .preparing, .idle:
+            return .primary
         case .needsMicrophone, .needsModel, .needsVoice, .failed:
             return Color.secondary
-        case .idle:
-            return Color(red: 0.7, green: 0.62, blue: 1.0)
         }
+    }
+
+    private static func rgb(of color: Color) -> (r: Double, g: Double, b: Double) {
+        let ui = UIColor(color)
+        var r: CGFloat = 0
+        var g: CGFloat = 0
+        var b: CGFloat = 0
+        var a: CGFloat = 0
+        if ui.getRed(&r, green: &g, blue: &b, alpha: &a) {
+            return (Double(r), Double(g), Double(b))
+        }
+        var white: CGFloat = 0
+        if ui.getWhite(&white, alpha: &a) {
+            return (Double(white), Double(white), Double(white))
+        }
+        return (0.62, 0.55, 1.0)
     }
 
     private var spinRate: Double {
@@ -305,7 +633,7 @@ private struct AssistantVoiceOrb: View {
             Int((Double(baseDraw) * (1 - w) + Double(speakDotCount) * w).rounded())
         )
         // Preparing stays a 72-dot double helix; the count eases with the shape.
-        let helixDotCount = 72
+        let helixDotCount = 110
         let drawCount = max(
             1,
             Int((Double(withWave) * (1 - h) + Double(helixDotCount) * h).rounded())
