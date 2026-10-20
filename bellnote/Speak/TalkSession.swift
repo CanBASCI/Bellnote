@@ -16,11 +16,16 @@ enum TalkPhase: Equatable {
     case failed(String)
 }
 
-/// One tappable Source row under a Talk reply. Note → Raw; course → that course page.
+/// One tappable Source row under a Talk reply.
+/// Note → Raw minute. Timetable slot → that weekday. Assignment → that task’s week.
+/// Exam → the week of its date. Inventory → that row.
 struct TalkSourceItem: Identifiable, Equatable, Hashable {
     enum Target: Equatable, Hashable {
         case note(blockID: UUID, second: Int)
-        case course(id: PersistentIdentifier)
+        case timetable(termID: PersistentIdentifier, weekday: Int, startMinutes: Int)
+        case assignment(courseID: PersistentIdentifier, assignmentID: PersistentIdentifier, weekStart: Date)
+        case exam(courseID: PersistentIdentifier, weekStart: Date?)
+        case inventory(courseID: PersistentIdentifier, itemID: PersistentIdentifier)
     }
 
     let id: UUID
@@ -395,14 +400,27 @@ final class TalkSession {
             refreshCache()
         }
         // Fewer blocks + lower token cap = faster on-device replies for live talk.
+        // A filler-only turn (“evet”) has no topic. BM25 would open whichever note says that word.
         let retrieveStarted = Date()
-        let pick = StudySelection.relevant(
-            cachedNotes,
-            to: question,
-            locale: locale,
-            budget: 5_000,
-            topCount: 5
-        )
+        let topicKeys = Self.contentTokens(for: question)
+        let catalogAsk =
+            isScheduleQuestion(question) || isAssignmentCatalogQuestion(question)
+            || isExamCatalogQuestion(question) || isInventoryCatalogQuestion(question)
+        let pick: StudySelection.Pick
+        if catalogAsk || topicKeys.isEmpty {
+            pick = StudySelection.Pick(blocks: [], source: nil)
+            Self.log.info(
+                "Talk retrieve skipped \(catalogAsk ? "catalogue" : "filler-only", privacy: .public) question=\(question, privacy: .public)"
+            )
+        } else {
+            pick = StudySelection.relevant(
+                cachedNotes,
+                to: question,
+                locale: locale,
+                budget: 5_000,
+                topCount: 5
+            )
+        }
         let retrieveMs = Int(Date().timeIntervalSince(retrieveStarted) * 1000)
         let poolCharacters = cachedNotes.reduce(0) { $0 + $1.text.count }
         let catalogCharacters = cachedCatalog.reduce(0) { $0 + $1.text.count }
@@ -513,13 +531,13 @@ final class TalkSession {
             return timetableSources(for: question)
         }
         if isAssignmentCatalogQuestion(question) {
-            return courseSourcesWhere { !$0.assignments.filter { !$0.cancelled }.isEmpty }
+            return assignmentSources(for: question)
         }
         if isExamCatalogQuestion(question) {
-            return courseSourcesWhere { !$0.sittings.isEmpty }
+            return examSources(for: question)
         }
         if isInventoryCatalogQuestion(question) {
-            return courseSourcesWhere { !$0.inventory.isEmpty }
+            return inventorySources(for: question)
         }
         return noteSources(question: question, pick: pick)
     }
@@ -583,6 +601,7 @@ final class TalkSession {
             "not", "notlar", "notlarda", "notes", "lecture", "lectures", "class", "classes",
             "what", "about", "tell", "was", "were", "did", "the", "in", "on", "for", "whats",
             "pardon", "tamam", "ok", "okay", "lutfen", "please",
+            "evet", "hayir", "yok", "yes", "yeah", "nope",
             "selam", "merhaba", "hello", "hiya", "hey",
             "bana", "bizi", "beni", "sana", "size", "seni",
             "detay", "detayli", "kisa", "kisaca", "biraz",
@@ -594,12 +613,14 @@ final class TalkSession {
                 token.count >= 4
                     && !stop.contains(token)
                     && !token.hasPrefix("anlat")
+                    && !token.hasPrefix("anlad")
+                    && !token.hasPrefix("anlasil")
                     && !token.hasPrefix("soyle")
                     && !token.hasPrefix("ders")
             }
     }
 
-    private func timetableSources(for _: String) -> [TalkSourceItem] {
+    private func timetableSources(for question: String) -> [TalkSourceItem] {
         let calendar = Calendar.current
         let symbols = calendar.shortWeekdaySymbols
         var items: [TalkSourceItem] = []
@@ -608,12 +629,21 @@ final class TalkSession {
         for term in termsToScan {
             for slot in term.slots.sorted(by: { ($0.weekday, $0.startMinutes) < ($1.weekday, $1.startMinutes) }) {
                 guard let course = slot.course else { continue }
+                let asked = Self.asciiFold(question)
+                let courseName = Self.asciiFold(course.name)
+                if courseName.count >= 3, !asked.contains(courseName), namesOpenCourse(asked) {
+                    continue
+                }
                 let day = symbols.indices.contains(slot.weekday - 1) ? symbols[slot.weekday - 1] : "?"
                 let clock = ReminderScheduler.clock(slot.startMinutes)
                 items.append(
                     TalkSourceItem(
                         title: "\(day) \(clock) · \(course.name)",
-                        target: .course(id: course.persistentModelID)
+                        target: .timetable(
+                            termID: term.persistentModelID,
+                            weekday: slot.weekday,
+                            startMinutes: slot.startMinutes
+                        )
                     )
                 )
             }
@@ -621,35 +651,91 @@ final class TalkSession {
         return items
     }
 
-    /// Courses that match a catalogue filter — opens the course page, not a Raw block.
-    private func courseSourcesWhere(_ include: (Course) -> Bool) -> [TalkSourceItem] {
-        var items: [TalkSourceItem] = []
+    /// Courses named in the question, or every course of the open term when none is named.
+    private func catalogueCourses(in question: String) -> [Course] {
+        let folded = Self.asciiFold(question)
+        let named = namesOpenCourse(folded)
         let pool = terms.filter(\.isOpen)
         let termsToScan = pool.isEmpty ? terms : pool
+        var courses: [Course] = []
         for term in termsToScan {
-            let courses = term.courses.sorted {
+            let ordered = term.courses.sorted {
                 $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
             }
-            for course in courses where include(course) {
-                let openAssignments = course.assignments.filter { !$0.cancelled && !$0.done }.count
-                let assignments = course.assignments.filter { !$0.cancelled }.count
-                let exams = course.sittings.count
-                let books = course.inventory.count
-                let detail: String
-                if assignments > 0 {
-                    detail = "\(openAssignments)/\(assignments)"
-                } else if exams > 0 {
-                    detail = "\(exams)"
-                } else if books > 0 {
-                    detail = "\(books)"
-                } else {
-                    detail = ""
-                }
-                let title = detail.isEmpty ? course.name : "\(course.name) · \(detail)"
+            for course in ordered {
+                let name = Self.asciiFold(course.name)
+                if named, name.count >= 3, !folded.contains(name) { continue }
+                courses.append(course)
+            }
+        }
+        return courses
+    }
+
+    /// The week the course page uses for a recording: the calendar week that contains that day.
+    private func weekStart(of date: Date) -> Date {
+        Calendar.current.dateInterval(of: .weekOfYear, for: date)?.start
+            ?? Calendar.current.startOfDay(for: date)
+    }
+
+    /// One row per assignment. The week is the recording’s week, same as the course page.
+    private func assignmentSources(for question: String) -> [TalkSourceItem] {
+        var items: [TalkSourceItem] = []
+        let stamp = Date.FormatStyle(date: .abbreviated, time: .omitted).locale(locale)
+        for course in catalogueCourses(in: question) {
+            let tasks = course.assignments.sorted { ($0.due ?? .distantFuture) < ($1.due ?? .distantFuture) }
+            for assignment in tasks {
+                let anchor = assignment.sourceLecture?.startedAt ?? .now
+                let week = weekStart(of: anchor)
+                let task = assignment.text.trimmingCharacters(in: .whitespacesAndNewlines)
+                let when = week.formatted(stamp)
+                let title = task.isEmpty ? "\(course.name) · \(when)" : "\(course.name) · \(when) · \(task.prefix(42))"
                 items.append(
                     TalkSourceItem(
                         title: title,
-                        target: .course(id: course.persistentModelID)
+                        target: .assignment(
+                            courseID: course.persistentModelID,
+                            assignmentID: assignment.persistentModelID,
+                            weekStart: week
+                        )
+                    )
+                )
+            }
+        }
+        return items
+    }
+
+    /// One row per exam. The week is the exam date’s week. An undated exam stays on the current week.
+    private func examSources(for question: String) -> [TalkSourceItem] {
+        var items: [TalkSourceItem] = []
+        let stamp = Date.FormatStyle(date: .abbreviated, time: .omitted).locale(locale)
+        for course in catalogueCourses(in: question) {
+            for sitting in course.sittings {
+                let title = sitting.title.isEmpty ? sitting.kind : sitting.title
+                let when = sitting.date?.formatted(stamp) ?? ""
+                let label = when.isEmpty ? "\(course.name) · \(title)" : "\(course.name) · \(when) · \(title)"
+                items.append(
+                    TalkSourceItem(
+                        title: label,
+                        target: .exam(
+                            courseID: course.persistentModelID,
+                            weekStart: sitting.date.map { weekStart(of: $0) }
+                        )
+                    )
+                )
+            }
+        }
+        return items
+    }
+
+    /// One row per inventory item. The course page opens with that section expanded.
+    private func inventorySources(for question: String) -> [TalkSourceItem] {
+        var items: [TalkSourceItem] = []
+        for course in catalogueCourses(in: question) {
+            for item in course.inventory {
+                items.append(
+                    TalkSourceItem(
+                        title: "\(course.name) · \(item.title)",
+                        target: .inventory(courseID: course.persistentModelID, itemID: item.persistentModelID)
                     )
                 )
             }
@@ -703,6 +789,43 @@ final class TalkSession {
         }
         if folded.contains("ne zaman") && (folded.contains("ders") || folded.contains("slot")) {
             return true
+        }
+        // “Felsefe dersim saat kaçta” is the slot, not the phone clock.
+        if folded.contains("saat kacta")
+            && (folded.contains("ders") || folded.contains("class") || folded.contains("lecture")
+                || folded.contains("course") || namesOpenCourse(folded))
+        {
+            return true
+        }
+        if (folded.contains("what time") || folded.contains("when is") || folded.contains("when does"))
+            && (folded.contains("class") || folded.contains("lecture") || folded.contains("course")
+                || folded.contains("ders") || namesOpenCourse(folded))
+        {
+            return true
+        }
+        // “Felsefe dersinin toplam kaç saat / dakika” is the weekly slots, not a Raw minute.
+        let asksDuration =
+            folded.contains("kac saat") || folded.contains("kac dakika")
+            || folded.contains("how many hour") || folded.contains("how many minute")
+            || folded.contains("how long")
+        let aboutClass =
+            folded.contains("ders") || folded.contains("class") || folded.contains("course")
+            || folded.contains("lecture") || namesOpenCourse(folded)
+        if asksDuration && aboutClass && !asksForLectureNotes(folded) {
+            return true
+        }
+        return false
+    }
+
+    /// True when the question names a course stored on an open term.
+    private func namesOpenCourse(_ folded: String) -> Bool {
+        let pool = terms.filter(\.isOpen)
+        let termsToScan = pool.isEmpty ? terms : pool
+        for term in termsToScan {
+            for course in term.courses {
+                let name = Self.asciiFold(course.name)
+                if name.count >= 3, folded.contains(name) { return true }
+            }
         }
         return false
     }
@@ -901,18 +1024,23 @@ final class TalkSession {
     }
 
     /// “What time is it” — answer from the device clock, not the model.
+    /// “Saat kaçta” is a slot (“at what time”), so it must not match “saat kaç”.
     private func isClockQuestion(_ text: String) -> Bool {
         let folded = Self.asciiFold(text)
-        if folded.contains("what time") || folded.contains("whats the time") || folded.contains("what's the time") {
-            return true
-        }
-        if folded.contains("saat kac") || folded.contains("saat ne") || folded.contains("saat nedir") {
-            return true
-        }
         let tokens = folded
             .split { !$0.isLetter }
             .map(String.init)
             .filter { !$0.isEmpty }
+        if tokens.contains(where: { $0 == "kacta" || $0 == "kactan" }) { return false }
+        if tokens.contains(where: {
+            $0.hasPrefix("ders") || $0.hasPrefix("sinav") || $0.hasPrefix("odev")
+                || ["class", "lecture", "course", "classes", "exam", "homework", "assignment", "slot"].contains($0)
+        }) {
+            return false
+        }
+        if folded.contains("what time") || folded.contains("whats the time") || folded.contains("what's the time") {
+            return !tokens.contains("my")
+        }
         guard tokens.count <= 6 else { return false }
         let hasSaat = tokens.contains("saat") || tokens.contains("time") || tokens.contains("clock")
         let hasAsk = tokens.contains(where: {
@@ -1051,6 +1179,9 @@ final class TalkSession {
             "eyvallah", "tesekkur", "tesekkurler", "tesekkurlerim", "ederim",
             "thanks", "thank", "thx", "you", "very", "much", "a", "lot", "cok",
             "yardim", "icin", "for", "that", "bu", "sana", "da", "de",
+            // “anladım tamam sağ ol” — acknowledgment in front of thanks.
+            "anladim", "anladik", "anlasildi", "anlasildim",
+            "understood", "got", "it", "alright", "gotcha",
         ]
         return tokens.allSatisfy { token in
             filler.contains(token)

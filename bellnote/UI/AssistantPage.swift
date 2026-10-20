@@ -3,34 +3,57 @@ import SwiftData
 import SwiftUI
 import UIKit
 
-/// Ask → Source hand-off from the Assistant tab: recording plus the Raw block.
+/// Ask → Source hand-off from the Assistant tab: recording plus the Raw block, or one assignment on that recording.
 private struct TalkSourceJump: Identifiable, Hashable {
-    var id: UUID { blockToken }
+    var id: String
     var lecture: Lecture
     var blockToken: UUID
     var second: Int
+    /// Set when the source is an assignment of this recording. Then the Assignments picker opens on that row.
+    var focusAssignmentID: PersistentIdentifier?
 
     static func == (lhs: Self, rhs: Self) -> Bool {
-        lhs.blockToken == rhs.blockToken && lhs.second == rhs.second
+        lhs.id == rhs.id
     }
 
     func hash(into hasher: inout Hasher) {
-        hasher.combine(blockToken)
-        hasher.combine(second)
+        hasher.combine(id)
     }
 }
 
-/// Catalogue Source hand-off: open the course for a timetable slot.
-private struct TalkCourseJump: Identifiable, Hashable {
-    var id: PersistentIdentifier { course.persistentModelID }
-    var course: Course
+/// Timetable Source hand-off: open the program on that weekday.
+private struct TalkTimetableJump: Identifiable, Hashable {
+    var id: String { "\(weekday)-\(startMinutes)" }
+    var term: Term
+    var weekday: Int
+    var startMinutes: Int
 
     static func == (lhs: Self, rhs: Self) -> Bool {
-        lhs.course.persistentModelID == rhs.course.persistentModelID
+        lhs.term.persistentModelID == rhs.term.persistentModelID
+            && lhs.weekday == rhs.weekday
+            && lhs.startMinutes == rhs.startMinutes
     }
 
     func hash(into hasher: inout Hasher) {
-        hasher.combine(course.persistentModelID)
+        hasher.combine(term.persistentModelID)
+        hasher.combine(weekday)
+        hasher.combine(startMinutes)
+    }
+}
+
+/// Catalogue Source hand-off: open the course on the week that owns the row.
+private struct TalkCourseJump: Identifiable, Hashable {
+    var id: String
+    var course: Course
+    var weekStart: Date?
+    var focus: CoursePage.Focus?
+
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.id == rhs.id
+    }
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
     }
 }
 
@@ -44,6 +67,7 @@ struct AssistantPage: View {
     @Environment(\.modelContext) private var modelContext
     @State private var talk = TalkSession()
     @State private var sourceJump: TalkSourceJump?
+    @State private var timetableJump: TalkTimetableJump?
     @State private var courseJump: TalkCourseJump?
     @State private var sourceMenu: [TalkSourceItem] = []
     @State private var showSourceMenu = false
@@ -69,11 +93,15 @@ struct AssistantPage: View {
             LecturePage(
                 lecture: jump.lecture,
                 startSecond: jump.second,
-                focusRawBlockToken: jump.blockToken
+                focusRawBlockToken: jump.focusAssignmentID == nil ? jump.blockToken : nil,
+                focusAssignmentID: jump.focusAssignmentID
             )
         }
+        .navigationDestination(item: $timetableJump) { jump in
+            ProgramPage(term: jump.term, weekday: jump.weekday, focusMinutes: jump.startMinutes)
+        }
         .navigationDestination(item: $courseJump) { jump in
-            CoursePage(course: jump.course)
+            CoursePage(course: jump.course, weekStart: jump.weekStart, focus: jump.focus)
         }
         .onAppear {
             Self.log.info("Assistant appear busy=\(self.processingBusy) terms=\(self.terms.count) phase=\(String(describing: self.talk.phase), privacy: .public)")
@@ -94,6 +122,10 @@ struct AssistantPage: View {
         // Source push stops Talk; lecture playback releases the session asynchronously.
         // Restart after the pop so the mic is not opened on a dead audio graph.
         .onChange(of: sourceJump) { previous, jump in
+            guard previous != nil, jump == nil else { return }
+            resumeTalkAfterSource()
+        }
+        .onChange(of: timetableJump) { previous, jump in
             guard previous != nil, jump == nil else { return }
             resumeTalkAfterSource()
         }
@@ -126,21 +158,43 @@ struct AssistantPage: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-            if let card = turnCardContent {
-                GeometryReader { geo in
-                    let maxCardWidth = max(geo.size.width - 40, 1)
-                    // Status stays centered under the orb. The card may grow up to that line, then scrolls.
-                    let statusHeight = UIFont.preferredFont(forTextStyle: .subheadline).lineHeight
-                    let statusBlock = 280 + 8 + statusHeight
-                    let statusBottom = geo.size.height / 2 + statusBlock / 2
-                    let bottomInset: CGFloat = 12
-                    let gapBelowStatus: CGFloat = 12
-                    let maxCardHeight = max(
-                        geo.size.height - statusBottom - gapBelowStatus - bottomInset,
-                        statusHeight
-                    )
-                    VStack {
-                        Spacer(minLength: 0)
+            GeometryReader { geo in
+                let maxCardWidth = max(geo.size.width - 40, 1)
+                // Orb stays centered. The faded question may grow down to it, then scrolls.
+                let statusHeight = UIFont.preferredFont(forTextStyle: .subheadline).lineHeight
+                let statusBlock = 280 + 8 + statusHeight
+                let orbTop = geo.size.height / 2 - statusBlock / 2
+                let pastMax = max(orbTop - 12, 1)
+                let statusBottom = geo.size.height / 2 + statusBlock / 2
+                let bottomInset: CGFloat = 12
+                let gapBelowStatus: CGFloat = 12
+                let maxCardHeight = max(
+                    geo.size.height - statusBottom - gapBelowStatus - bottomInset,
+                    statusHeight
+                )
+                VStack(spacing: 0) {
+                    if let past = pastLine {
+                        ViewThatFits(in: .vertical) {
+                            Text(verbatim: past)
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                                .multilineTextAlignment(.center)
+                                .fixedSize(horizontal: false, vertical: true)
+                            ScrollView {
+                                Text(verbatim: past)
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                                    .multilineTextAlignment(.center)
+                            }
+                            .frame(maxHeight: pastMax)
+                            .scrollBounceBehavior(.basedOnSize)
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: pastMax, alignment: .top)
+                        .padding(.horizontal, 28)
+                        .padding(.top, 4)
+                    }
+                    Spacer(minLength: 0)
+                    if let card = turnCardContent {
                         talkTurnCard(card, maxWidth: maxCardWidth, maxHeight: maxCardHeight)
                             .padding(.horizontal, 20)
                             .padding(.bottom, bottomInset)
@@ -150,7 +204,8 @@ struct AssistantPage: View {
         }
     }
 
-    /// You / Bellnote leading, Source trailing, both outside the fill and inset like the body text.
+    /// You / Bellnote leading, Source at the card’s trailing edge, both outside the fill.
+    /// The fill hugs short text; Source does not follow that width.
     /// The card grows with the text up to `maxHeight` (just under the status line), then the body scrolls.
     @ViewBuilder
     private func talkTurnCard(
@@ -247,6 +302,24 @@ struct AssistantPage: View {
         return !talk.partialTranscript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
+    /// The question that left the bottom bubble when Bellnote’s reply took its place.
+    /// It stays only while that reply is still the bottom card. A new question clears it;
+    /// the new question appears here only after Bellnote answers. Bellnote’s own text never moves up.
+    private var pastLine: String? {
+        if talk.phase == .speaking,
+           talk.turns.last?.role == .assistant
+        {
+            // Reply still owns the bottom. Keep the question that produced it.
+        } else {
+            let live = talk.partialTranscript.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !live.isEmpty { return nil }
+            if talk.turns.last?.role == .user { return nil }
+        }
+        let turns = talk.turns
+        guard let answerIndex = turns.lastIndex(where: { $0.role == .assistant }) else { return nil }
+        return turns[..<answerIndex].last { $0.role == .user }?.text
+    }
+
     /// Partial speech fills the same “You” card that later holds the final line.
     /// While Speaking, keep the Bellnote reply — barge ASR often echoes TTS into partialTranscript
     /// and would shrink the card to the first echoed line until playback ends.
@@ -264,7 +337,7 @@ struct AssistantPage: View {
         }
         let live = talk.partialTranscript.trimmingCharacters(in: .whitespacesAndNewlines)
         if !live.isEmpty {
-            // Live speech follows the newest line. A finished reply stays at the top so it can be read.
+            // Live speech follows the newest line. The question stays on this card until the reply replaces it.
             return (String(localized: "You"), live, false, true)
         }
         guard let latest = talk.turns.last else { return nil }
@@ -301,15 +374,74 @@ struct AssistantPage: View {
             }
             Self.log.info("Talk source open note second=\(second) lecture=\(host.title, privacy: .public)")
             talk.stop()
-            sourceJump = TalkSourceJump(lecture: host, blockToken: blockID, second: second)
-        case .course(let id):
-            guard let course = course(id: id) else {
+            sourceJump = TalkSourceJump(
+                id: blockID.uuidString,
+                lecture: host,
+                blockToken: blockID,
+                second: second,
+                focusAssignmentID: nil
+            )
+        case .timetable(let termID, let weekday, let startMinutes):
+            guard let term = terms.first(where: { $0.persistentModelID == termID }) else {
+                Self.log.error("Talk source term missing")
+                return
+            }
+            Self.log.info("Talk source open timetable weekday=\(weekday) startMinutes=\(startMinutes)")
+            talk.stop()
+            timetableJump = TalkTimetableJump(term: term, weekday: weekday, startMinutes: startMinutes)
+        case .assignment(let courseID, let assignmentID, let weekStart):
+            guard let course = course(id: courseID),
+                  let assignment = course.assignments.first(where: { $0.persistentModelID == assignmentID })
+            else {
+                Self.log.error("Talk source assignment missing")
+                return
+            }
+            if let lecture = assignment.sourceLecture {
+                Self.log.info("Talk source open assignment on recording second=\(assignment.sourceSecond)")
+                talk.stop()
+                sourceJump = TalkSourceJump(
+                    id: "assignment-\(String(describing: assignmentID))",
+                    lecture: lecture,
+                    blockToken: assignment.sourceBlockID,
+                    second: assignment.sourceSecond,
+                    focusAssignmentID: assignmentID
+                )
+            } else {
+                Self.log.info("Talk source open assignment week=\(weekStart.formatted(date: .abbreviated, time: .omitted), privacy: .public)")
+                talk.stop()
+                courseJump = TalkCourseJump(
+                    id: "assignment-\(String(describing: assignmentID))",
+                    course: course,
+                    weekStart: weekStart,
+                    focus: .assignment(assignmentID)
+                )
+            }
+        case .exam(let courseID, let weekStart):
+            guard let course = course(id: courseID) else {
                 Self.log.error("Talk source course missing")
                 return
             }
-            Self.log.info("Talk source open course=\(course.name, privacy: .public)")
+            Self.log.info("Talk source open exam")
             talk.stop()
-            courseJump = TalkCourseJump(course: course)
+            courseJump = TalkCourseJump(
+                id: "exam-\(String(describing: courseID))-\(weekStart?.timeIntervalSince1970 ?? 0)",
+                course: course,
+                weekStart: weekStart,
+                focus: nil
+            )
+        case .inventory(let courseID, let itemID):
+            guard let course = course(id: courseID) else {
+                Self.log.error("Talk source course missing")
+                return
+            }
+            Self.log.info("Talk source open inventory")
+            talk.stop()
+            courseJump = TalkCourseJump(
+                id: "inventory-\(String(describing: itemID))",
+                course: course,
+                weekStart: nil,
+                focus: .inventory(itemID)
+            )
         }
     }
 
@@ -349,8 +481,8 @@ struct AssistantPage: View {
     }
 }
 
-/// Header row is as wide as the bubble (title leading, Source trailing).
-/// Total height stops at `maxHeight` so Source can reach the status line and no further.
+/// Header spans the card width (title leading, Source at the trailing edge).
+/// The bubble stays as wide as its text. Total height stops at `maxHeight`.
 private struct TalkTurnColumn: Layout {
     var spacing: CGFloat
     var maxWidth: CGFloat
@@ -364,9 +496,10 @@ private struct TalkTurnColumn: Layout {
         let headerProbe = subviews[0].sizeThatFits(ProposedViewSize(width: limit, height: nil))
         let bubbleCap = max(limitH - headerProbe.height - spacing, 1)
         let bubble = subviews[1].sizeThatFits(ProposedViewSize(width: limit, height: bubbleCap))
-        let width = min(max(bubble.width, 1), limit)
+        // Full card width so Source stays at the trailing edge when the fill hugs a short line.
+        let width = max(limit, 1)
         let header = subviews[0].sizeThatFits(ProposedViewSize(width: width, height: nil))
-        let height = min(header.height + spacing + bubble.height, limitH)
+        let height = min(header.height + spacing + max(bubble.height, 1), limitH)
         return CGSize(width: width, height: height)
     }
 

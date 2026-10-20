@@ -1104,15 +1104,25 @@ struct CalendarPage: View {
 
 struct ProgramPage: View {
     @Bindable var term: Term
+    /// Set when Assistant Source opens a slot. Nil on the Timetable tab, which starts on today.
+    var focusMinutes: Int?
     @Environment(\.modelContext) private var modelContext
     @State private var showEditor = false
     @State private var showCalendar = false
-    @State private var day = Calendar.current.component(.weekday, from: .now)
+    @State private var day: Int
     @State private var pendingSlot: WeeklySlot?
 
     private let hourHeight: CGFloat = 56
 
+    init(term: Term, weekday: Int? = nil, focusMinutes: Int? = nil) {
+        self.term = term
+        self.focusMinutes = focusMinutes
+        let today = Calendar.current.component(.weekday, from: .now)
+        _day = State(initialValue: weekday ?? today)
+    }
+
     var body: some View {
+        ScrollViewReader { proxy in
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 weekStrip
@@ -1148,6 +1158,8 @@ struct ProgramPage: View {
         }
         .onAppear {
             if !visibleDays.contains(day) { day = visibleDays[0] }
+            guard let focusMinutes else { return }
+            proxy.scrollTo(focusMinutes / 60, anchor: .center)
         }
         .sheet(isPresented: $showEditor) {
             SlotEditor(term: term, weekday: day)
@@ -1166,6 +1178,7 @@ struct ProgramPage: View {
             Button("Cancel", role: .cancel) { pendingSlot = nil }
         } message: {
             Text("The recordings of this course stay.")
+        }
         }
     }
 
@@ -1202,6 +1215,7 @@ struct ProgramPage: View {
                         .font(.caption.monospacedDigit())
                         .foregroundStyle(.tertiary)
                         .frame(width: 24, alignment: .leading)
+                        .id(hour)
                     Rectangle()
                         .fill(.quaternary)
                         .frame(height: 0.5)

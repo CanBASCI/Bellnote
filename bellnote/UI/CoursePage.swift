@@ -44,7 +44,14 @@ private struct AskSourceJump: Identifiable, Hashable {
 }
 
 struct CoursePage: View {
+    /// Where a Talk source should land inside this course.
+    enum Focus: Hashable {
+        case assignment(PersistentIdentifier)
+        case inventory(PersistentIdentifier)
+    }
+
     @Bindable var course: Course
+    var focus: Focus?
     @Environment(\.modelContext) private var modelContext
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.locale) private var locale
@@ -52,12 +59,23 @@ struct CoursePage: View {
     @State private var activeLecture: Lecture?
     @State private var showLecturer = false
     @State private var showAsk = false
-    @State private var showInventory = false
+    @State private var showInventory: Bool
     @State private var pendingDelete: Lecture?
     @State private var pendingItem: InventoryItem?
     @State private var pendingAssignment: Assignment?
     @State private var deleteNotice: String?
-    @State private var selectedWeek = CoursePage.currentWeekStart
+    @State private var selectedWeek: Date
+
+    init(course: Course, weekStart: Date? = nil, focus: Focus? = nil) {
+        self.course = course
+        self.focus = focus
+        _selectedWeek = State(initialValue: weekStart ?? Self.currentWeekStart)
+        if case .inventory = focus {
+            _showInventory = State(initialValue: true)
+        } else {
+            _showInventory = State(initialValue: false)
+        }
+    }
     /// Ask → Source: one value so the push cannot lose the block token.
     @State private var askSourceJump: AskSourceJump?
 
@@ -155,6 +173,7 @@ struct CoursePage: View {
                 Section("Inventory", isExpanded: $showInventory) {
                     ForEach(course.inventory) { item in
                         Text(item.title)
+                            .id(item.persistentModelID)
                             .askToDeleteSwipe { pendingItem = item }
                     }
                 }
@@ -194,6 +213,16 @@ struct CoursePage: View {
     var body: some View {
         ScrollViewReader { proxy in
             statList(proxy)
+                .task(id: focus) {
+                    guard let focus else { return }
+                    try? await Task.sleep(for: .milliseconds(350))
+                    switch focus {
+                    case .assignment(let id):
+                        proxy.scrollTo(id, anchor: .center)
+                    case .inventory(let id):
+                        proxy.scrollTo(id, anchor: .center)
+                    }
+                }
         }
         .confirmAssignmentDelete($pendingAssignment)
         .navigationTitle(course.name)

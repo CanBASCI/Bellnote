@@ -27,6 +27,8 @@ struct LecturePage: View {
     var startSecond: Int?
     /// Opens the Raw tab and scrolls to this block (Ask → Source).
     var focusRawBlockToken: UUID?
+    /// Opens the Assignments picker and scrolls to this task.
+    var focusAssignmentID: PersistentIdentifier?
 
     @State private var editingTitle = false
     @State private var titleDraft = ""
@@ -40,7 +42,8 @@ struct LecturePage: View {
                 titleDraft = lecture.title
                 editingTitle = true
             },
-            focusRawBlockToken: focusRawBlockToken
+            focusRawBlockToken: focusRawBlockToken,
+            focusAssignmentID: focusAssignmentID
         )
             .navigationTitle(barTitle)
             .navigationSubtitle(subtitle)
@@ -95,6 +98,8 @@ struct LectureNote: View {
     var onEditTitle: (() -> Void)?
     /// Opens Raw and scrolls to this block once (from Ask → Source on this page or via navigation).
     var focusRawBlockToken: UUID? = nil
+    /// Opens the Assignments picker and scrolls to this task.
+    var focusAssignmentID: PersistentIdentifier? = nil
 
     @Environment(AppSession.self) private var session
     @State private var audio = LectureAudio()
@@ -118,6 +123,9 @@ struct LectureNote: View {
     @State private var highlightBlockToken: UUID?
     /// Bumped so a Raw scroll runs after the list has drawn the source row.
     @State private var rawScrollTick: Int = 0
+    /// Assignment row to scroll to after the Assignments picker is shown.
+    @State private var highlightAssignmentID: PersistentIdentifier?
+    @State private var assignmentScrollTick: Int = 0
 
     /// Starts on Raw when Ask → Source already knows which block to show.
     init(
@@ -125,19 +133,33 @@ struct LectureNote: View {
         showsDate: Bool,
         startSecond: Int? = nil,
         onEditTitle: (() -> Void)? = nil,
-        focusRawBlockToken: UUID? = nil
+        focusRawBlockToken: UUID? = nil,
+        focusAssignmentID: PersistentIdentifier? = nil
     ) {
         self.lecture = lecture
         self.showsDate = showsDate
         self.startSecond = startSecond
         self.onEditTitle = onEditTitle
         self.focusRawBlockToken = focusRawBlockToken
-        if let focusRawBlockToken {
+        self.focusAssignmentID = focusAssignmentID
+        if let focusAssignmentID {
+            _tab = State(initialValue: .assignments)
+            _highlightAssignmentID = State(initialValue: focusAssignmentID)
+            _assignmentScrollTick = State(initialValue: 1)
+            _highlightBlockToken = State(initialValue: nil)
+            _rawScrollTick = State(initialValue: 0)
+        } else if let focusRawBlockToken {
             _tab = State(initialValue: .raw)
             _highlightBlockToken = State(initialValue: focusRawBlockToken)
             _rawScrollTick = State(initialValue: 1)
+            _highlightAssignmentID = State(initialValue: nil)
+            _assignmentScrollTick = State(initialValue: 0)
         } else {
             _tab = State(initialValue: .correction)
+            _highlightBlockToken = State(initialValue: nil)
+            _rawScrollTick = State(initialValue: 0)
+            _highlightAssignmentID = State(initialValue: nil)
+            _assignmentScrollTick = State(initialValue: 0)
         }
     }
 
@@ -174,6 +196,13 @@ struct LectureNote: View {
                 try? await Task.sleep(for: .milliseconds(200))
                 withAnimation {
                     proxy.scrollTo(token, anchor: .center)
+                }
+            }
+            .task(id: assignmentScrollTick) {
+                guard assignmentScrollTick > 0, tab == .assignments, let id = highlightAssignmentID else { return }
+                try? await Task.sleep(for: .milliseconds(200))
+                withAnimation {
+                    proxy.scrollTo(id, anchor: .center)
                 }
             }
         }
@@ -413,6 +442,7 @@ struct LectureNote: View {
                     // Plays the sentence where the task was given and pauses there. The play button goes on.
                     audio.seek(to: second, play: true, until: endSecond(of: assignment))
                 }
+                .id(assignment.persistentModelID)
                 .askToDeleteSwipe { pendingAssignment = assignment }
             }
         }
