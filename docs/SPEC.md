@@ -336,7 +336,7 @@ Deleting a lecture asks first. Yes removes that recording, its note, its attesta
 - Recorder: pause, resume, stop, elapsed recorded time, didn’t-get-this.
 - Processing stages.
 - Lecture: Summary, Notes, Raw. Emphasis strip. Assignments. Linked lectures. Tap timestamp to play.
-- Ask: “summarize this course”, “what were the assignments”, “explain {topic}”. Answers cite date and second. Listen button reads the composed script.
+- Ask: “summarize this course”, “what were the assignments”, “explain {topic}”. Answers come from stored blocks. A Source button under the answer opens that recording’s Raw tab at the block that best matched the question (this recording when Ask is opened from a lecture; whichever recording supplied the block when Ask is opened from the course). Listen stays on the lecture bar menu and reads the note aloud.
 - Drill: up to 10 questions from emphasis, missing, and previously missed blocks. Score is correct / partial / wrong. Never “you passed.”
 - Models: download 2B, 4B and Whisper, resume partial files, delete models without deleting notes. Whisper is in its own speech to text group.
 
@@ -358,7 +358,7 @@ No “this will be on the exam” unless the lecturer said it. No cross-course s
 
 The note is the source. Voice is only how the student asks and how the app reads the answer.
 
-Ask. A system microphone button on the course page. The student speaks in the course language: “what did the lecturer assign”, “explain the last lecture”, “read the emphasis from notes between 1 October and 20 October.” `SpeechAnalyzer` writes the question on device. Swift selects blocks in that course, optionally filtered by topic and date range. The picked text model writes the answer only from those blocks. `AVSpeechSynthesizer` reads it. Each sentence can open the source minute. If the range has no notes, the voice says so. It does not switch courses.
+Ask. A system microphone button on the course page. The student speaks in the course language: “what did the lecturer assign”, “explain the last lecture”, “read the emphasis from notes between 1 October and 20 October.” `SpeechAnalyzer` writes the question on device. Swift selects blocks in that course, optionally filtered by topic and date range. The picked text model writes the answer only from those blocks. Source under the answer opens the matching block in that recording’s Raw tab. Listen on the lecture bar still reads the note aloud. If the range has no notes, the sheet says so. It does not switch courses.
 
 Quiz. The student says “quiz me on these topics” or “quiz me on notes between these dates.” Swift builds the set: emphasis first, then missing and previously missed, inside the filter. The picked text model writes questions from those blocks only. The student answers by voice. The answer is transcribed, then scored against the block text.
 

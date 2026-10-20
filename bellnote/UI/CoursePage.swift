@@ -26,6 +26,23 @@ private struct StatDetail: Identifiable, Hashable {
     let text: String
 }
 
+/// Ask → Source hand-off: recording plus the Raw block to open, kept in one value for the push.
+private struct AskSourceJump: Identifiable, Hashable {
+    var id: UUID { blockToken }
+    var lecture: Lecture
+    var blockToken: UUID
+    var second: Int
+
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.blockToken == rhs.blockToken && lhs.second == rhs.second
+    }
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(blockToken)
+        hasher.combine(second)
+    }
+}
+
 struct CoursePage: View {
     @Bindable var course: Course
     @Environment(\.modelContext) private var modelContext
@@ -41,6 +58,8 @@ struct CoursePage: View {
     @State private var pendingAssignment: Assignment?
     @State private var deleteNotice: String?
     @State private var selectedWeek = CoursePage.currentWeekStart
+    /// Ask → Source: one value so the push cannot lose the block token.
+    @State private var askSourceJump: AskSourceJump?
 
     private func statList(_ proxy: ScrollViewProxy) -> some View {
         List {
@@ -206,7 +225,20 @@ struct CoursePage: View {
             RecorderSheet(lecture: lecture)
         }
         .sheet(isPresented: $showAsk) {
-            StudySheet(course: course)
+            StudySheet(course: course) { host, blockToken, second in
+                // After the Ask sheet closes, so the push is not eaten by the dismiss animation.
+                Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(350))
+                    askSourceJump = AskSourceJump(lecture: host, blockToken: blockToken, second: second)
+                }
+            }
+        }
+        .navigationDestination(item: $askSourceJump) { jump in
+            LecturePage(
+                lecture: jump.lecture,
+                startSecond: jump.second,
+                focusRawBlockToken: jump.blockToken
+            )
         }
         .sheet(isPresented: $showLecturer) {
             if let contact = course.lecturer {

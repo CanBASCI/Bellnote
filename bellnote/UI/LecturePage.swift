@@ -25,15 +25,23 @@ struct LecturePage: View {
     @Bindable var lecture: Lecture
     /// Plays from this second once the recording is loaded.
     var startSecond: Int?
+    /// Opens the Raw tab and scrolls to this block (Ask → Source).
+    var focusRawBlockToken: UUID?
 
     @State private var editingTitle = false
     @State private var titleDraft = ""
 
     var body: some View {
-        LectureNote(lecture: lecture, showsDate: false, startSecond: startSecond) {
-            titleDraft = lecture.title
-            editingTitle = true
-        }
+        LectureNote(
+            lecture: lecture,
+            showsDate: false,
+            startSecond: startSecond,
+            onEditTitle: {
+                titleDraft = lecture.title
+                editingTitle = true
+            },
+            focusRawBlockToken: focusRawBlockToken
+        )
             .navigationTitle(barTitle)
             .navigationSubtitle(subtitle)
             .navigationBarTitleDisplayMode(.inline)
@@ -85,6 +93,8 @@ struct LectureNote: View {
     var startSecond: Int?
     /// When set, the bar has a pencil to the left of the Process button that calls this.
     var onEditTitle: (() -> Void)?
+    /// Opens Raw and scrolls to this block once (from Ask → Source on this page or via navigation).
+    var focusRawBlockToken: UUID? = nil
 
     @Environment(AppSession.self) private var session
     @State private var audio = LectureAudio()
@@ -100,37 +110,73 @@ struct LectureNote: View {
     @State private var typingSpeaker = false
     @State private var typedSpeakerName = ""
     @State private var showCancel = false
-    @State private var tab: LectureTab = .correction
+    @State private var tab: LectureTab
     /// Speakers chosen in the Raw tab. Empty means everyone.
     @State private var chosenSpeakers: Set<Int> = []
     @State private var pendingAssignment: Assignment?
+    /// Block to emphasize and scroll to in Raw after Ask → Source.
+    @State private var highlightBlockToken: UUID?
+    /// Bumped so a Raw scroll runs after the list has drawn the source row.
+    @State private var rawScrollTick: Int = 0
+
+    /// Starts on Raw when Ask → Source already knows which block to show.
+    init(
+        lecture: Lecture,
+        showsDate: Bool,
+        startSecond: Int? = nil,
+        onEditTitle: (() -> Void)? = nil,
+        focusRawBlockToken: UUID? = nil
+    ) {
+        self.lecture = lecture
+        self.showsDate = showsDate
+        self.startSecond = startSecond
+        self.onEditTitle = onEditTitle
+        self.focusRawBlockToken = focusRawBlockToken
+        if let focusRawBlockToken {
+            _tab = State(initialValue: .raw)
+            _highlightBlockToken = State(initialValue: focusRawBlockToken)
+            _rawScrollTick = State(initialValue: 1)
+        } else {
+            _tab = State(initialValue: .correction)
+        }
+    }
 
     var body: some View {
-        List {
-            if showsDate {
-                Section {
-                    Text(lecture.startedAt.formatted(date: .abbreviated, time: .omitted))
-                        .font(.title2.weight(.semibold))
+        ScrollViewReader { proxy in
+            List {
+                if showsDate {
+                    Section {
+                        Text(lecture.startedAt.formatted(date: .abbreviated, time: .omitted))
+                            .font(.title2.weight(.semibold))
+                    }
+                }
+                if lecture.isRecordedOnly && workingStage == nil {
+                    // Nothing to show in any tab until the recording is processed. The overlay below
+                    // centres the message on the page.
+                    EmptyView()
+                } else {
+                    switch tab {
+                    case .correction:
+                        correctionSections
+                    case .raw:
+                        rawSections
+                    case .assignments:
+                        assignmentSections
+                    }
                 }
             }
-            if lecture.isRecordedOnly && workingStage == nil {
-                // Nothing to show in any tab until the recording is processed. The overlay below
-                // centres the message on the page.
-                EmptyView()
-            } else {
-                switch tab {
-                case .correction:
-                    correctionSections
-                case .raw:
-                    rawSections
-                case .assignments:
-                    assignmentSections
+            .listStyle(.insetGrouped)
+            // The list starts closer to the bar. Only the list moves; the bar and the tabs stay as they are.
+            .contentMargins(.top, 0, for: .scrollContent)
+            .task(id: rawScrollTick) {
+                guard rawScrollTick > 0, tab == .raw, let token = highlightBlockToken else { return }
+                // Let the Raw rows land before scrolling; one frame is not always enough after a push.
+                try? await Task.sleep(for: .milliseconds(200))
+                withAnimation {
+                    proxy.scrollTo(token, anchor: .center)
                 }
             }
         }
-        .listStyle(.insetGrouped)
-        // The list starts closer to the bar. Only the list moves; the bar and the tabs stay as they are.
-        .contentMargins(.top, 0, for: .scrollContent)
         // The tabs sit under the navigation bar, in the middle, and the list scrolls under them.
         .safeAreaBar(edge: .top) {
             if !(lecture.isRecordedOnly && workingStage == nil) {
@@ -252,7 +298,13 @@ struct LectureNote: View {
         .sheet(isPresented: $showStudy) {
             if let course = lecture.course {
                 // Only this recording is asked about, not the other recordings of the course.
-                StudySheet(course: course, lecture: lecture)
+                StudySheet(course: course, lecture: lecture) { _, blockToken, _ in
+                    // After the sheet finishes dismissing, so the Raw picker change is on screen.
+                    Task { @MainActor in
+                        try? await Task.sleep(for: .milliseconds(350))
+                        openRawSource(blockToken)
+                    }
+                }
             }
         }
         .fluidAudioGate(fluidGate)
@@ -323,7 +375,12 @@ struct LectureNote: View {
             let playingToken = playingBlockToken(in: chapters)
             Section {
                 ForEach(blocks) { block in
-                    chapterLabel(block, isCurrent: block.token == playingToken)
+                    chapterLabel(
+                        block,
+                        isCurrent: block.token == playingToken,
+                        isSource: block.token == highlightBlockToken
+                    )
+                    .id(block.token)
                 }
                 ForEach(Array((filter.isEmpty ? orphanFlags : []).enumerated()), id: \.offset) { _, second in
                     Button {
@@ -440,8 +497,9 @@ struct LectureNote: View {
         }
     }
 
-    private func chapterLabel(_ block: Block, isCurrent current: Bool) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
+    private func chapterLabel(_ block: Block, isCurrent current: Bool, isSource: Bool = false) -> some View {
+        let emphasize = current || isSource
+        return VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 if block.speaker > 0 {
                     Button {
@@ -458,7 +516,7 @@ struct LectureNote: View {
                 } label: {
                     Text(MediaClock.short(block.second))
                         .font(.subheadline.monospacedDigit())
-                        .foregroundStyle(current ? Color.accentColor : Color.secondary)
+                        .foregroundStyle(emphasize ? Color.accentColor : Color.secondary)
                 }
                 .buttonStyle(.plain)
             }
@@ -467,7 +525,7 @@ struct LectureNote: View {
             } label: {
                 Text(verbatim: block.text)
                     .foregroundStyle(.primary)
-                    .fontWeight(current ? .semibold : .regular)
+                    .fontWeight(emphasize ? .semibold : .regular)
                     .multilineTextAlignment(.leading)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -479,6 +537,13 @@ struct LectureNote: View {
             }
         }
         .padding(.vertical, 2)
+    }
+
+    /// Switches to Raw, marks the block, and scrolls it into view after the list redraws.
+    private func openRawSource(_ blockToken: UUID) {
+        tab = .raw
+        highlightBlockToken = blockToken
+        rawScrollTick += 1
     }
 
     /// What the share button of the bar shares: the text of the open tab, as a file. Nil when the tab has nothing.

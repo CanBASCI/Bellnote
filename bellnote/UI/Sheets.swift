@@ -1524,12 +1524,15 @@ struct StudySheet: View {
     /// Set when the sheet is opened from a recording. Then only that recording is used. Without it, the
     /// whole course is used.
     var lecture: Lecture?
+    /// Opens the Raw tab of the recording that supplied the answer, scrolled to that block.
+    var onOpenSource: ((Lecture, UUID, Int) -> Void)?
     @Environment(\.dismiss) private var dismiss
     @State private var prompt = ""
     @State private var asked = ""
     @State private var answer = ""
     @State private var busy = false
-    @State private var reader = SpeechReader()
+    /// Best matching stored block for the last answer; drives the Source control.
+    @State private var sourceBlock: StudyBlock?
     private static let log = Logger(subsystem: "app.bellnote", category: "study")
 
     private var suggestions: [String] {
@@ -1560,15 +1563,13 @@ struct StudySheet: View {
                         VStack(alignment: .leading, spacing: 8) {
                             Text(answer)
                                 .textSelection(.enabled)
-                            Button(reader.isSpeaking ? "Stop" : "Listen", systemImage: reader.isSpeaking ? "stop.fill" : "speaker.wave.2.fill") {
-                                if reader.isSpeaking {
-                                    reader.stop()
-                                } else {
-                                    reader.read(answer, locale: Locale(identifier: course.localeIdentifier))
+                            if sourceBlock != nil {
+                                Button("Source", systemImage: "text.quote") {
+                                    openSource()
                                 }
+                                .buttonStyle(.glass)
+                                .controlSize(.small)
                             }
-                            .buttonStyle(.glass)
-                            .controlSize(.small)
                         }
                         .padding(.horizontal, 14)
                         .padding(.vertical, 10)
@@ -1632,6 +1633,7 @@ struct StudySheet: View {
         guard !question.isEmpty, !busy else { return }
         asked = question
         answer = ""
+        sourceBlock = nil
         busy = true
         prompt = ""
         defer { busy = false }
@@ -1660,17 +1662,17 @@ struct StudySheet: View {
             }
         }
         let everything = StudySelection.select(blocks, filter: .wholeCourse)
-        let selected = StudySelection.relevant(everything, to: question, locale: Locale(identifier: course.localeIdentifier))
-        Self.log.info("Study blocks total=\(blocks.count) selected=\(selected.count) characters=\(selected.reduce(0) { $0 + $1.text.count }) of=\(everything.reduce(0) { $0 + $1.text.count })")
-        for block in selected {
+        let pick = StudySelection.relevant(everything, to: question, locale: Locale(identifier: course.localeIdentifier))
+        Self.log.info("Study blocks total=\(blocks.count) selected=\(pick.blocks.count) characters=\(pick.blocks.reduce(0) { $0 + $1.text.count }) of=\(everything.reduce(0) { $0 + $1.text.count })")
+        for block in pick.blocks {
             Self.log.info("Study picked second=\(block.second) characters=\(block.text.count) head=\(String(block.text.prefix(80)), privacy: .public)")
         }
-        guard !selected.isEmpty else {
+        guard !pick.blocks.isEmpty else {
             Self.log.info("Study no blocks selected")
             answer = String(localized: "The lectures do not contain that.")
             return
         }
-        let tags = selected.map {
+        let tags = pick.blocks.map {
             WindowTag(
                 language: course.localeIdentifier,
                 speakerRole: "narrator",
@@ -1684,11 +1686,29 @@ struct StudySheet: View {
         do {
             let reply = try await LocalModelRuntime.shared.answer(question: question, tags: tags)
             let missing = reply.contains("NOT_IN_NOTES") || reply.isEmpty
-            Self.log.info("Study answer shown notInNotes=\(missing) characters=\(reply.count)")
+            Self.log.info("Study answer shown notInNotes=\(missing) characters=\(reply.count) sourceSecond=\(pick.source?.second ?? -1)")
             answer = missing ? String(localized: "The lectures do not contain that.") : reply
+            sourceBlock = missing ? nil : pick.source
         } catch {
             Self.log.error("Study answer failed: \(error.localizedDescription, privacy: .public)")
             answer = String(localized: "A model is not available.")
+            sourceBlock = nil
         }
+    }
+
+    /// Finds the recording that owns the source block and hands it to the host to open Raw.
+    private func openSource() {
+        guard let sourceBlock else { return }
+        let pool = lecture.map { [$0] } ?? course.lectures
+        guard let host = pool.first(where: { lecture in
+            lecture.blocks.contains { $0.token == sourceBlock.id }
+        }) else {
+            Self.log.error("Study source lecture missing block=\(sourceBlock.id.uuidString, privacy: .public)")
+            return
+        }
+        Self.log.info("Study source open second=\(sourceBlock.second)")
+        // Hand off first so the host can push the recording, then close the sheet.
+        onOpenSource?(host, sourceBlock.id, sourceBlock.second)
+        dismiss()
     }
 }

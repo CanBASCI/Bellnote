@@ -3323,6 +3323,22 @@
         }
       }
     },
+    "Source" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Source"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kaynak"
+          }
+        }
+      }
+    },
     "Speak" : {
       "extractionState" : "stale",
       "localizations" : {

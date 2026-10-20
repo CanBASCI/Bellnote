@@ -41,11 +41,19 @@ enum StudySelection {
         .sorted { $0.at < $1.at }
     }
 
+    /// Blocks chosen for one Ask, plus the single best source row to open in Raw.
+    struct Pick: Sendable, Equatable {
+        var blocks: [StudyBlock]
+        /// Highest BM25 match for the question. Nil only when `blocks` is empty.
+        var source: StudyBlock?
+    }
+
     /// Picks the blocks that matter for one question, so a small on-device model reads a few thousand characters
     /// instead of the whole course. Words are matched by their first letters (Turkish endings differ), and a word
     /// that appears in many blocks counts for little (BM25), so no word list is needed. The model still writes
     /// the answer; this only chooses which stored blocks it sees.
     /// Returns every block when the notes are already short or when no word of the question is found.
+    /// `source` is the top-ranked block (or the first chronological one when ranking does not apply).
     static func relevant(
         _ blocks: [StudyBlock],
         to question: String,
@@ -53,11 +61,22 @@ enum StudySelection {
         wholeLimit: Int = 6_000,
         budget: Int = 7_000,
         topCount: Int = 8
-    ) -> [StudyBlock] {
+    ) -> Pick {
         let ordered = blocks.sorted { ($0.at, $0.second) < ($1.at, $1.second) }
-        guard ordered.reduce(0, { $0 + $1.text.count }) > wholeLimit else { return ordered }
+        guard !ordered.isEmpty else { return Pick(blocks: [], source: nil) }
+
+        func allAsPick(primaryIndex: Int?) -> Pick {
+            let source = primaryIndex.flatMap { ordered.indices.contains($0) ? ordered[$0] : nil } ?? ordered.first
+            return Pick(blocks: ordered, source: source)
+        }
+
+        guard ordered.reduce(0, { $0 + $1.text.count }) > wholeLimit else {
+            return allAsPick(primaryIndex: bestIndex(in: ordered, question: question, locale: locale))
+        }
         let queryStems = Set(stems(of: question, locale: locale))
-        guard !queryStems.isEmpty else { return ordered }
+        guard !queryStems.isEmpty else {
+            return allAsPick(primaryIndex: 0)
+        }
 
         var counts: [[String: Int]] = []
         var lengths: [Double] = []
@@ -75,7 +94,9 @@ enum StudySelection {
             let documents = Double(counts.filter { $0[stem] != nil }.count)
             if documents > 0 { weight[stem] = log(1 + (total - documents + 0.5) / (documents + 0.5)) }
         }
-        guard !weight.isEmpty else { return ordered }
+        guard !weight.isEmpty else {
+            return allAsPick(primaryIndex: 0)
+        }
 
         // BM25: a short block that holds a rare word of the question beats a long block that only holds many
         // common ones, so a short remark is not crowded out by a long chapter.
@@ -90,6 +111,9 @@ enum StudySelection {
             }
         }
         let ranked = scores.indices.filter { scores[$0] > 0 }.sorted { scores[$0] > scores[$1] }
+        guard let top = ranked.first else {
+            return allAsPick(primaryIndex: 0)
+        }
         var chosen = Set<Int>()
         var used = 0
         func take(_ candidate: Int) {
@@ -105,7 +129,44 @@ enum StudySelection {
             take(index - 1)
             take(index + 1)
         }
-        return chosen.sorted().map { ordered[$0] }
+        return Pick(
+            blocks: chosen.sorted().map { ordered[$0] },
+            source: ordered[top]
+        )
+    }
+
+    /// Index of the strongest BM25 match, or nil when no query stem hits a block.
+    private static func bestIndex(in ordered: [StudyBlock], question: String, locale: Locale) -> Int? {
+        let queryStems = Set(stems(of: question, locale: locale))
+        guard !queryStems.isEmpty else { return 0 }
+        var counts: [[String: Int]] = []
+        var lengths: [Double] = []
+        for block in ordered {
+            var tally: [String: Int] = [:]
+            let words = stems(of: ([block.text] + block.topics).joined(separator: " "), locale: locale)
+            for stem in words { tally[stem, default: 0] += 1 }
+            counts.append(tally)
+            lengths.append(Double(max(words.count, 1)))
+        }
+        let total = Double(ordered.count)
+        let averageLength = lengths.reduce(0, +) / max(total, 1)
+        var weight: [String: Double] = [:]
+        for stem in queryStems {
+            let documents = Double(counts.filter { $0[stem] != nil }.count)
+            if documents > 0 { weight[stem] = log(1 + (total - documents + 0.5) / (documents + 0.5)) }
+        }
+        guard !weight.isEmpty else { return 0 }
+        let k1 = 1.2
+        let b = 0.75
+        let scores: [Double] = counts.indices.map { index in
+            weight.reduce(0.0) { sum, entry in
+                guard let count = counts[index][entry.key] else { return sum }
+                let tf = Double(count)
+                let norm = tf + k1 * (1 - b + b * lengths[index] / averageLength)
+                return sum + entry.value * tf * (k1 + 1) / norm
+            }
+        }
+        return scores.indices.filter { scores[$0] > 0 }.max { scores[$0] < scores[$1] }
     }
 
     /// Lowercased words of three or more letters, cut to their first four letters.
