@@ -1578,6 +1578,150 @@
         }
       }
     },
+    "You have no class on %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You have no class on %@."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ günü dersin yok."
+          }
+        }
+      }
+    },
+    "On %@ you have %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "On %@ you have %@."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ günü dersin var: %@."
+          }
+        }
+      }
+    },
+    "You have no recordings then." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You have no recordings then."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O zaman kaydın yok."
+          }
+        }
+      }
+    },
+    "Processed recordings: %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Processed recordings: %@."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "İşlenmiş kayıtlar: %@."
+          }
+        }
+      }
+    },
+    "You have no processed recordings." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You have no processed recordings."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "İşlenmiş kaydın yok."
+          }
+        }
+      }
+    },
+    "Recordings: %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recordings: %@."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kayıtlar: %@."
+          }
+        }
+      }
+    },
+    "You have no unprocessed recordings." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You have no unprocessed recordings."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "İşlenmemiş kaydın yok."
+          }
+        }
+      }
+    },
+    "Unprocessed recordings: %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unprocessed recordings: %@."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "İşlenmemiş kayıtlar: %@."
+          }
+        }
+      }
+    },
+    "Your classes add up to %lld hours and %lld minutes." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your classes add up to %lld hours and %lld minutes."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Derslerin toplamı %lld saat %lld dakika."
+          }
+        }
+      }
+    },
     "I'm well. Ask about your lectures when you want." : {
       "localizations" : {
         "en" : {

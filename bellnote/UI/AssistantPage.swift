@@ -7,7 +7,7 @@ import UIKit
 private struct TalkSourceJump: Identifiable, Hashable {
     var id: String
     var lecture: Lecture
-    var blockToken: UUID
+    var blockToken: UUID?
     var second: Int
     /// Set when the source is an assignment of this recording. Then the Assignments picker opens on that row.
     var focusAssignmentID: PersistentIdentifier?
@@ -92,7 +92,7 @@ struct AssistantPage: View {
         .navigationDestination(item: $sourceJump) { jump in
             LecturePage(
                 lecture: jump.lecture,
-                startSecond: jump.second,
+                startSecond: jump.blockToken == nil ? nil : jump.second,
                 focusRawBlockToken: jump.focusAssignmentID == nil ? jump.blockToken : nil,
                 focusAssignmentID: jump.focusAssignmentID
             )
@@ -442,7 +442,32 @@ struct AssistantPage: View {
                 weekStart: nil,
                 focus: .inventory(itemID)
             )
+        case .recording(let lectureID):
+            guard let lecture = lecture(id: lectureID) else {
+                Self.log.error("Talk source recording missing")
+                return
+            }
+            Self.log.info("Talk source open recording title=\(lecture.title, privacy: .public)")
+            talk.stop()
+            sourceJump = TalkSourceJump(
+                id: "recording-\(String(describing: lectureID))",
+                lecture: lecture,
+                blockToken: nil,
+                second: 0,
+                focusAssignmentID: nil
+            )
         }
+    }
+
+    private func lecture(id: PersistentIdentifier) -> Lecture? {
+        for term in terms {
+            for course in term.courses {
+                if let lecture = course.lectures.first(where: { $0.persistentModelID == id }) {
+                    return lecture
+                }
+            }
+        }
+        return nil
     }
 
     private func lecture(owning blockID: UUID) -> Lecture? {

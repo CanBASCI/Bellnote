@@ -26,6 +26,8 @@ struct TalkSourceItem: Identifiable, Equatable, Hashable {
         case assignment(courseID: PersistentIdentifier, assignmentID: PersistentIdentifier, weekStart: Date)
         case exam(courseID: PersistentIdentifier, weekStart: Date?)
         case inventory(courseID: PersistentIdentifier, itemID: PersistentIdentifier)
+        /// A recording that is not ready. Opens that lecture, not a Raw minute.
+        case recording(lectureID: PersistentIdentifier)
     }
 
     let id: UUID
@@ -396,6 +398,14 @@ final class TalkSession {
             Self.log.info("Talk clock short-circuit local=\(stamp, privacy: .public)")
             return TalkReply(text: stamp)
         }
+        if let timetable = timetableReply(for: question) {
+            Self.log.info("Talk timetable short-circuit text=\(timetable.text, privacy: .public)")
+            return timetable
+        }
+        if let recordings = unprocessedRecordingReply(for: question) {
+            Self.log.info("Talk recording short-circuit text=\(recordings.text, privacy: .public)")
+            return recordings
+        }
         if cachedNotes.isEmpty && cachedCatalog.isEmpty {
             refreshCache()
         }
@@ -460,13 +470,10 @@ final class TalkSession {
             return TalkReply(text: String(localized: "The lectures do not contain that."))
         }
 
-        // The current user question is already appended; prior turns only go into history.
-        let history = turns.dropLast().suffix(Self.historyLimit).map { turn in
-            (
-                role: turn.role == .user ? "user" : "assistant",
-                text: turn.text
-            )
-        }
+        // Earlier turns were making the model repeat the last course or the last canned sentence.
+        // The current question and the catalogue are the whole prompt.
+        let history: [(role: String, text: String)] = []
+        Self.log.info("Talk history off")
         Self.log.info("Talk history turns=\(history.count) (prior only; current question separate)")
         for (index, turn) in history.enumerated() {
             Self.log.info(
@@ -498,7 +505,7 @@ final class TalkSession {
             if missing {
                 return TalkReply(text: String(localized: "The lectures do not contain that."))
             }
-            let sources = sourcesForAnswer(question: question, pick: pick)
+            let sources = sourcesForAnswer(question: question, reply: reply, pick: pick)
             let sourceKind =
                 isScheduleQuestion(question) ? "schedule"
                 : isAssignmentCatalogQuestion(question) ? "assignment"
@@ -526,12 +533,12 @@ final class TalkSession {
     }
 
     /// Catalogue inventory (slots / assignments / exams / books) → course rows. Lecture content → BM25 notes.
-    private func sourcesForAnswer(question: String, pick: StudySelection.Pick) -> [TalkSourceItem] {
+    private func sourcesForAnswer(question: String, reply: String, pick: StudySelection.Pick) -> [TalkSourceItem] {
         if isScheduleQuestion(question) {
             return timetableSources(for: question)
         }
         if isAssignmentCatalogQuestion(question) {
-            return assignmentSources(for: question)
+            return assignmentSources(for: question, reply: reply)
         }
         if isExamCatalogQuestion(question) {
             return examSources(for: question)
@@ -620,35 +627,260 @@ final class TalkSession {
             }
     }
 
-    private func timetableSources(for question: String) -> [TalkSourceItem] {
+    /// Day yes/no and weekly duration are read from the slots. The model was inventing a class on an empty day and refusing to add the clocks.
+    private func timetableReply(for question: String) -> TalkReply? {
+        guard isScheduleQuestion(question) else { return nil }
+        let folded = Self.asciiFold(question)
+        let duration =
+            folded.contains("kac saat") || folded.contains("kac dakika")
+            || folded.contains("how many hour") || folded.contains("how many minute")
+            || folded.contains("how long")
+        let aboutRecording =
+            folded.contains("kayit") || folded.contains("kayd") || folded.contains("recording")
+        let dayAsk =
+            askedWeekday(in: question) != nil
+            && (folded.contains("ders") || folded.contains("class") || folded.contains("lecture")
+                || folded.contains("course"))
+            && !aboutRecording
+            && !folded.contains("odev") && !folded.contains("assignment") && !folded.contains("homework")
+        guard duration || dayAsk else { return nil }
+        let slots = matchingSlots(in: question)
+        let sources = timetableSources(for: question)
+        if duration {
+            let minutes = slots.reduce(0) { sum, fact in
+                sum + max(fact.slot.endMinutes - fact.slot.startMinutes, 0)
+            }
+            let hours = minutes / 60
+            let mins = minutes % 60
+            let text = String(localized: "Your classes add up to \(hours) hours and \(mins) minutes.")
+            return TalkReply(text: text, sources: sources)
+        }
         let calendar = Calendar.current
-        let symbols = calendar.shortWeekdaySymbols
-        var items: [TalkSourceItem] = []
+        let symbols = calendar.standaloneWeekdaySymbols
+        let weekday = slots.first?.slot.weekday ?? askedWeekday(in: question) ?? calendar.component(.weekday, from: .now)
+        let day = symbols.indices.contains(weekday - 1) ? symbols[weekday - 1] : ""
+        if slots.isEmpty {
+            return TalkReply(text: String(localized: "You have no class on \(day)."), sources: [])
+        }
+        let list = sources.map(\.title).joined(separator: ", ")
+        return TalkReply(text: String(localized: "On \(day) you have \(list)."), sources: sources)
+    }
+
+    private struct SlotFact {
+        let term: Term
+        let slot: WeeklySlot
+        let courseName: String
+    }
+
+    private func matchingSlots(in question: String) -> [SlotFact] {
+        let onlyWeekday = askedWeekday(in: question)
+        let asked = Self.asciiFold(question)
+        let named = namesOpenCourse(asked)
+        var facts: [SlotFact] = []
         let pool = terms.filter(\.isOpen)
         let termsToScan = pool.isEmpty ? terms : pool
         for term in termsToScan {
             for slot in term.slots.sorted(by: { ($0.weekday, $0.startMinutes) < ($1.weekday, $1.startMinutes) }) {
                 guard let course = slot.course else { continue }
-                let asked = Self.asciiFold(question)
+                if let onlyWeekday, slot.weekday != onlyWeekday { continue }
                 let courseName = Self.asciiFold(course.name)
-                if courseName.count >= 3, !asked.contains(courseName), namesOpenCourse(asked) {
-                    continue
-                }
-                let day = symbols.indices.contains(slot.weekday - 1) ? symbols[slot.weekday - 1] : "?"
-                let clock = ReminderScheduler.clock(slot.startMinutes)
-                items.append(
-                    TalkSourceItem(
-                        title: "\(day) \(clock) · \(course.name)",
-                        target: .timetable(
-                            termID: term.persistentModelID,
-                            weekday: slot.weekday,
-                            startMinutes: slot.startMinutes
-                        )
-                    )
-                )
+                if named, courseName.count >= 3, !asked.contains(courseName) { continue }
+                facts.append(SlotFact(term: term, slot: slot, courseName: course.name))
             }
         }
-        return items
+        return facts
+    }
+
+    /// “Bekleyen kayıt”, “kaydettiğim”, “bugün kaydettiklerim” open the lecture, not a Raw minute.
+    private func unprocessedRecordingReply(for question: String) -> TalkReply? {
+        guard let slice = recordingSlice(in: question) else { return nil }
+        let lectures = unprocessedLectures(in: question, slice: slice)
+        let sources = lectures.map { lecture in
+            let course = lecture.course?.name ?? ""
+            let day = lecture.startedAt.formatted(date: .abbreviated, time: .omitted)
+            let status = lecture.statusTitle
+            let title = course.isEmpty ? "\(day) · \(status)" : "\(course) · \(day) · \(status)"
+            return TalkSourceItem(
+                title: title,
+                target: .recording(lectureID: lecture.persistentModelID)
+            )
+        }
+        if lectures.isEmpty {
+            let empty: String
+            if slice == .ready {
+                empty = String(localized: "You have no processed recordings.")
+            } else if recordingDay(in: question) == nil && slice != .any {
+                empty = String(localized: "You have no unprocessed recordings.")
+            } else {
+                empty = String(localized: "You have no recordings then.")
+            }
+            return TalkReply(text: empty, sources: [])
+        }
+        let summary = unprocessedSummary(lectures)
+        let text: String
+        switch slice {
+        case .any:
+            text = String(localized: "Recordings: \(summary).")
+        case .ready:
+            text = String(localized: "Processed recordings: \(summary).")
+        case .unprocessed, .recordedOnly, .pausedOnly:
+            text = String(localized: "Unprocessed recordings: \(summary).")
+        }
+        return TalkReply(text: text, sources: sources)
+    }
+
+    private enum RecordingSlice {
+        /// Not ready yet: Kaydedildi, Duraklatıldı, and anything still processing.
+        case unprocessed
+        /// Saved and not processed. “Kaydedilmiş ama işlenmemiş.”
+        case recordedOnly
+        case pausedOnly
+        /// Ready. “İşlenmiş kaç kayıt.”
+        case ready
+        /// “Kaydettiğim”, “bugün kaydettiklerim”: every state, then the day filter.
+        case any
+    }
+
+    /// Saved-and-waiting, paused, or every recording the student captured.
+    /// A named day keeps that day’s `startedAt`. “Kayıtta ne anlatıldı” stays on the notes.
+    private func unprocessedLectures(in question: String, slice: RecordingSlice) -> [Lecture] {
+        let asked = Self.asciiFold(question)
+        let named = namesOpenCourse(asked)
+        let day = recordingDay(in: question)
+        var lectures: [Lecture] = []
+        let pool = terms.filter(\.isOpen)
+        let termsToScan = pool.isEmpty ? terms : pool
+        for term in termsToScan {
+            for course in term.courses {
+                let courseName = Self.asciiFold(course.name)
+                if named, courseName.count >= 3, !asked.contains(courseName) { continue }
+                for lecture in course.lectures {
+                    if let day, !day(lecture) { continue }
+                    switch slice {
+                    case .recordedOnly:
+                        if lecture.isRecordedOnly { lectures.append(lecture) }
+                    case .pausedOnly:
+                        if lecture.state == LectureState.paused.rawValue && !lecture.isRecordedOnly {
+                            lectures.append(lecture)
+                        }
+                    case .unprocessed:
+                        if lecture.state != LectureState.ready.rawValue { lectures.append(lecture) }
+                    case .ready:
+                        if lecture.state == LectureState.ready.rawValue { lectures.append(lecture) }
+                    case .any:
+                        lectures.append(lecture)
+                    }
+                }
+            }
+        }
+        return lectures.sorted { lhs, rhs in
+            let left = lhs.course?.name ?? ""
+            let right = rhs.course?.name ?? ""
+            if left != right { return left.localizedCaseInsensitiveCompare(right) == .orderedAscending }
+            return lhs.startedAt > rhs.startedAt
+        }
+    }
+
+    /// Today, yesterday, tomorrow, this week, or a named weekday. Nil means every day.
+    private func recordingDay(in question: String) -> ((Lecture) -> Bool)? {
+        let tokens = Self.asciiFold(question).split { !$0.isLetter }.map(String.init)
+        let calendar = Calendar.current
+        if tokens.contains("bugun") || tokens.contains("today") {
+            return { calendar.isDateInToday($0.startedAt) }
+        }
+        if tokens.contains("dun") || tokens.contains(where: { $0.hasPrefix("dunden") }) || tokens.contains("yesterday") {
+            return { calendar.isDateInYesterday($0.startedAt) }
+        }
+        if tokens.contains("yarin") || tokens.contains("tomorrow") {
+            return { calendar.isDateInTomorrow($0.startedAt) }
+        }
+        if tokens.contains("hafta") || tokens.contains("week") {
+            return { calendar.isDate($0.startedAt, equalTo: .now, toGranularity: .weekOfYear) }
+        }
+        let symbols = calendar.standaloneWeekdaySymbols
+        for (index, name) in symbols.enumerated() {
+            let foldedName = Self.asciiFold(name)
+            guard foldedName.count >= 3, tokens.contains(where: { $0.hasPrefix(foldedName) }) else { continue }
+            let weekday = index + 1
+            return { calendar.component(.weekday, from: $0.startedAt) == weekday }
+        }
+        return nil
+    }
+
+    private func unprocessedSummary(_ lectures: [Lecture]) -> String {
+        var counts: [(course: String, status: String, count: Int)] = []
+        for lecture in lectures {
+            let course = lecture.course?.name ?? ""
+            let status = lecture.statusTitle
+            if let index = counts.firstIndex(where: { $0.course == course && $0.status == status }) {
+                counts[index].count += 1
+            } else {
+                counts.append((course, status, 1))
+            }
+        }
+        let body = counts.map { "\($0.count) \($0.course) \($0.status)" }.joined(separator: ", ")
+        return "\(lectures.count), \(body)"
+    }
+
+    /// Recordings the student captured or that are still waiting.
+    /// “Kaydettiğim”, “kaydedilen”, “ses kaydı aldığım”, “kayıt ettiğim”, “beklemede”, “bugün / dün”.
+    /// “Kayıtta ne anlatıldı” stays on the notes.
+    private func recordingSlice(in text: String) -> RecordingSlice? {
+        let folded = Self.asciiFold(text)
+        let tokens = folded.split { !$0.isLetter }.map(String.init)
+        let aboutRecording = tokens.contains {
+            $0.hasPrefix("kayit") || $0.hasPrefix("kayd") || $0.hasPrefix("kaydet")
+                || $0 == "record" || $0 == "recorded" || $0.hasPrefix("recording")
+        }
+        guard aboutRecording else { return nil }
+        let capture = tokens.contains { $0.hasPrefix("kaydet") || $0.hasPrefix("kaydedil") || $0.hasPrefix("kayda") }
+            || (tokens.contains { $0.hasPrefix("kayit") || $0.hasPrefix("kayd") }
+                && tokens.contains { $0.hasPrefix("ett") || $0.hasPrefix("ald") })
+            || tokens.contains { $0 == "recorded" || $0 == "saved" || $0 == "record" }
+            || (tokens.contains { $0.hasPrefix("recording") || $0 == "record" }
+                && tokens.contains { ["made", "took", "captured", "voice", "audio"].contains($0) })
+        let pending = tokens.contains { token in
+            token.hasPrefix("islenmem") || token.hasPrefix("islenmedi")
+                || token.hasPrefix("bekle")
+                || token.hasPrefix("duraklat")
+                || token == "unprocessed" || token == "pending" || token == "paused" || token == "waiting"
+                || token == "hold" || token == "queued"
+        } || (tokens.contains { ["not", "haven", "didn"].contains($0) }
+            && tokens.contains { $0.hasPrefix("process") || $0 == "ready" })
+        let processed = tokens.contains { token in
+            if token.hasPrefix("islenmem") || token.hasPrefix("islenmedi") { return false }
+            return token.hasPrefix("islenmis") || token.hasPrefix("islenen") || token.hasPrefix("islendi")
+                || token.hasPrefix("isledig") || token.hasPrefix("isledim") || token.hasPrefix("hazir")
+                || token == "processed" || token == "ready" || token == "finished"
+        }
+        let dated = tokens.contains { ["bugun", "dun", "yarin", "today", "yesterday", "tomorrow", "hafta", "week"].contains($0) }
+            || tokens.contains { $0.hasPrefix("dunden") }
+        let content = asksForLectureNotes(folded)
+        if content && !pending && !capture && !dated && !processed { return nil }
+        guard pending || capture || dated || processed else { return nil }
+        let saved = tokens.contains { $0.hasPrefix("kaydedil") || $0 == "recorded" || $0 == "saved" }
+        let paused = tokens.contains { $0.hasPrefix("duraklat") || $0 == "paused" }
+        if processed && !pending { return .ready }
+        if pending && saved && !paused { return .recordedOnly }
+        if pending && paused && !saved { return .pausedOnly }
+        if pending { return .unprocessed }
+        return .any
+    }
+
+    private func timetableSources(for question: String) -> [TalkSourceItem] {
+        let symbols = Calendar.current.standaloneWeekdaySymbols
+        return matchingSlots(in: question).map { fact in
+            let day = symbols.indices.contains(fact.slot.weekday - 1) ? symbols[fact.slot.weekday - 1] : "?"
+            let clock = ReminderScheduler.clock(fact.slot.startMinutes)
+            return TalkSourceItem(
+                title: "\(day) \(clock) · \(fact.courseName)",
+                target: .timetable(
+                    termID: fact.term.persistentModelID,
+                    weekday: fact.slot.weekday,
+                    startMinutes: fact.slot.startMinutes
+                )
+            )
+        }
     }
 
     /// Courses named in the question, or every course of the open term when none is named.
@@ -671,22 +903,93 @@ final class TalkSession {
         return courses
     }
 
+    /// Today, tomorrow, or a named weekday in the question. Nil means every slot.
+    private func askedWeekday(in question: String) -> Int? {
+        let folded = Self.asciiFold(question)
+        let calendar = Calendar.current
+        if folded.contains("yarin") || folded.contains("tomorrow") {
+            let tomorrow = calendar.date(byAdding: .day, value: 1, to: .now) ?? .now
+            return calendar.component(.weekday, from: tomorrow)
+        }
+        if folded.contains("bugun") || folded.contains("today") {
+            return calendar.component(.weekday, from: .now)
+        }
+        if folded.contains("dun") || folded.contains("yesterday") {
+            let yesterday = calendar.date(byAdding: .day, value: -1, to: .now) ?? .now
+            return calendar.component(.weekday, from: yesterday)
+        }
+        let symbols = calendar.standaloneWeekdaySymbols
+        for (index, name) in symbols.enumerated() {
+            let foldedName = Self.asciiFold(name)
+            if foldedName.count >= 3, folded.contains(foldedName) { return index + 1 }
+        }
+        return nil
+    }
+
     /// The week the course page uses for a recording: the calendar week that contains that day.
     private func weekStart(of date: Date) -> Date {
         Calendar.current.dateInterval(of: .weekOfYear, for: date)?.start
             ?? Calendar.current.startOfDay(for: date)
     }
 
-    /// One row per assignment. The week is the recording’s week, same as the course page.
-    private func assignmentSources(for question: String) -> [TalkSourceItem] {
-        var items: [TalkSourceItem] = []
+    /// One row per assignment the answer used.
+    /// An open question skips done and cancelled tasks. A finished question keeps only done tasks.
+    /// A cancelled question keeps only cancelled tasks.
+    /// No status word keeps the whole set. The reply does not drop other courses.
+    private func assignmentSources(for question: String, reply: String) -> [TalkSourceItem] {
+        let open = asksForOpenTasks(question)
+        let finished = asksForFinishedTasks(question)
+        let cancelled = asksForCancelledTasks(question)
+        let openOnly = open && !finished && !cancelled
+        let finishedOnly = finished && !open && !cancelled
+        let cancelledOnly = cancelled && !open && !finished
+        var rows: [(item: TalkSourceItem, needle: String)] = []
         let stamp = Date.FormatStyle(date: .abbreviated, time: .omitted).locale(locale)
         for course in catalogueCourses(in: question) {
             let tasks = course.assignments.sorted { ($0.due ?? .distantFuture) < ($1.due ?? .distantFuture) }
             for assignment in tasks {
+                if openOnly && (assignment.done || assignment.cancelled) { continue }
+                if finishedOnly && (!assignment.done || assignment.cancelled) { continue }
+                if cancelledOnly && !assignment.cancelled { continue }
                 let anchor = assignment.sourceLecture?.startedAt ?? .now
                 let week = weekStart(of: anchor)
                 let task = assignment.text.trimmingCharacters(in: .whitespacesAndNewlines)
+                let when = week.formatted(stamp)
+                let title = task.isEmpty ? "\(course.name) · \(when)" : "\(course.name) · \(when) · \(task.prefix(42))"
+                let item = TalkSourceItem(
+                    title: title,
+                    target: .assignment(
+                        courseID: course.persistentModelID,
+                        assignmentID: assignment.persistentModelID,
+                        weekStart: week
+                    )
+                )
+                rows.append((item, task))
+            }
+        }
+        if rows.isEmpty {
+            let quoted = quotedAssignmentSources(in: question, reply: reply)
+            if !quoted.isEmpty {
+                Self.log.info("Talk assignment sources reply-fallback count=\(quoted.count)")
+                return quoted
+            }
+        }
+        return rows.map(\.item)
+    }
+
+    /// The status filter found nothing, but the reply quotes a stored task. Keep that row.
+    private func quotedAssignmentSources(in question: String, reply: String) -> [TalkSourceItem] {
+        let folded = Self.asciiFold(reply)
+        var items: [TalkSourceItem] = []
+        let stamp = Date.FormatStyle(date: .abbreviated, time: .omitted).locale(locale)
+        for course in catalogueCourses(in: question) {
+            for assignment in course.assignments {
+                let task = assignment.text.trimmingCharacters(in: .whitespacesAndNewlines)
+                let needle = Self.asciiFold(task)
+                let probe = needle.split { !$0.isLetter }.prefix(4).joined(separator: " ")
+                guard probe.count >= 8, folded.contains(probe) else { continue }
+                let anchor = assignment.sourceLecture?.startedAt ?? .now
+                let week = weekStart(of: anchor)
                 let when = week.formatted(stamp)
                 let title = task.isEmpty ? "\(course.name) · \(when)" : "\(course.name) · \(when) · \(task.prefix(42))"
                 items.append(
@@ -702,6 +1005,131 @@ final class TalkSession {
             }
         }
         return items
+    }
+
+    /// Whole-set wording: done, open, and cancelled together.
+    /// “Tüm bekleyen” is not this; the status root still wins.
+    /// “Var mı” does not count as open when one of these roots is present.
+    private func asksForEveryTasks(_ text: String) -> Bool {
+        let tokens = Self.asciiFold(text).split { !$0.isLetter }.map(String.init)
+        if tokens.contains("so") && tokens.contains("far") { return true }
+        if tokens.contains("thus") && tokens.contains("far") { return true }
+        if tokens.contains("in") && tokens.contains("total") { return true }
+        if tokens.contains("to") && tokens.contains("date") { return true }
+        if tokens.contains("until") && tokens.contains(where: { ["now", "today"].contains($0) }) { return true }
+        if tokens.contains("as") && tokens.contains("of") && tokens.contains(where: { ["now", "today"].contains($0) }) {
+            return true
+        }
+        let upToNow = tokens.contains("up") && tokens.contains("to")
+            && tokens.contains { ["now", "today", "date"].contains($0) }
+        if upToNow { return true }
+        let fromStart = (tokens.contains("from") || tokens.contains("since"))
+            && tokens.contains { ["start", "beginning"].contains($0) }
+        if fromStart { return true }
+        if tokens.contains("all") && tokens.contains("along") { return true }
+        if tokens.contains("handed") && tokens.contains("out") { return true }
+        if tokens.contains(where: { ["come", "came"].contains($0) }) && tokens.contains("up") { return true }
+        let span = tokens.contains("kadar") || tokens.contains("dek") || tokens.contains("beri")
+        let fromHere = tokens.contains { token in
+            token == "gune" || token == "ana"
+                || token.hasPrefix("bugun") || token.hasPrefix("simdi") || token.hasPrefix("bastan")
+        }
+        if span && fromHere { return true }
+        return tokens.contains { token in
+            token == "tum" || token.hasPrefix("tumu") || token.hasPrefix("tumun")
+                || token == "butun" || token.hasPrefix("butunu")
+                || token == "hepsi" || token.hasPrefix("hepsin")
+                || token == "toplam" || token.hasPrefix("genel")
+                || token == "cikan" || token.hasPrefix("cikti") || token.hasPrefix("cikmis")
+                || token.hasPrefix("cikard") || token == "vardi"
+                || (token.hasPrefix("veril") && !token.contains("me") && !token.contains("ma"))
+                || token.hasPrefix("verdig") || token == "verdi"
+                || token == "all" || token == "every" || token == "entire" || token == "whole"
+                || token == "everything" || token == "altogether" || token == "overall"
+                || token == "total" || token == "general"
+                || token == "given" || token == "assigned"
+        }
+    }
+
+    /// Cancelled-task wording, by root, in Turkish and English.
+    /// “İptal” already covers “iptal edilen” and “hocanın iptal ettiği”.
+    /// “İptal edilmeyen” and “kaldırılmayan” stay off this list.
+    private func asksForCancelledTasks(_ text: String) -> Bool {
+        let tokens = Self.asciiFold(text).split { !$0.isLetter }.map(String.init)
+        let negated = tokens.contains("not") || tokens.contains("degil")
+            || tokens.contains { $0.hasPrefix("etmey") || $0.hasPrefix("edilmey") || $0.hasPrefix("olmayan") }
+        if tokens.contains("called") && tokens.contains("off") && !negated { return true }
+        return tokens.contains { token in
+            if negated && (token.hasPrefix("iptal") || token == "cancelled" || token == "canceled"
+                || token == "dropped" || token == "removed" || token.hasPrefix("remove"))
+            {
+                return false
+            }
+            // Passive and teacher forms: iptal edilen, kaldırılan, kalktı, silindi, geçersiz.
+            // “kaldırılmayan” / “silinmedi” contain the negative syllable and do not match.
+            let lifted = token.hasPrefix("kaldiril") && !token.contains("ma")
+            let erased = token.hasPrefix("silin") && !token.contains("me") && !token.contains("ma")
+            return token.hasPrefix("iptal") || token.hasPrefix("vazgec")
+                || lifted || token.hasPrefix("kaldird")
+                || token == "kalkan" || token.hasPrefix("kalkt") || token.hasPrefix("kalkmis")
+                || erased || token.hasPrefix("sild")
+                || token.hasPrefix("gecersiz") || token.hasPrefix("yapilmayacak")
+                || token == "cancelled" || token == "canceled" || token == "dropped"
+                || token == "withdrawn" || token.hasPrefix("scrapped")
+                || token == "removed" || token.hasPrefix("waived")
+        }
+    }
+
+    /// Finished-task wording, by root, in Turkish and English.
+    /// “Tamamlamadığım” does not match “tamamlad”; “not done” stays on the open list.
+    private func asksForFinishedTasks(_ text: String) -> Bool {
+        let tokens = Self.asciiFold(text).split { !$0.isLetter }.map(String.init)
+        if tokens.contains("not") && tokens.contains(where: { ["done", "finished", "complete", "completed"].contains($0) }) {
+            return false
+        }
+        if tokens.contains("teslim") && tokens.contains(where: { $0.hasPrefix("ett") }) { return true }
+        return tokens.contains { token in
+            token.hasPrefix("tamamlad")
+                || token.hasPrefix("bitird") || token == "biten"
+                || token.hasPrefix("hallett")
+                || token.hasPrefix("yaptig") || token == "yaptim" || token.hasPrefix("yaptik")
+                || token.hasPrefix("cozd")
+                || token == "finished" || token == "completed" || token == "done" || token == "submitted"
+                || token.hasPrefix("handed")
+        }
+    }
+
+    /// Unfinished-task wording, by root, in Turkish and English.
+    /// “Ödev” / “assignment” still has to be in the question; these roots only mark it as not done.
+    private func asksForOpenTasks(_ text: String) -> Bool {
+        let tokens = Self.asciiFold(text).split { !$0.isLetter }.map(String.init)
+        // “Tüm ödevler var mı” is the whole set. “Ödev var mı” stays open.
+        if !asksForEveryTasks(text) && tokens.contains("var") && tokens.contains("mi") { return true }
+        if !asksForEveryTasks(text) && tokens.contains("any") { return true }
+        if tokens.contains("not") && tokens.contains(where: { ["done", "finished", "complete"].contains($0) }) {
+            return true
+        }
+        if tokens.contains("teslim") && tokens.contains(where: { $0.hasPrefix("etmed") }) { return true }
+        return tokens.contains { token in
+            // Turkish: waiting, not done, not finished, forgotten, overdue, postponed, not started.
+            token.hasPrefix("bekle")
+                || token == "acik" || token == "hala" || token == "henuz"
+                || token.hasPrefix("yapmad") || token.hasPrefix("yapmam")
+                || token.hasPrefix("yapilmam") || token.hasPrefix("yapilacak")
+                || token.hasPrefix("tamamlamad") || token.hasPrefix("tamamlanmam") || token.hasPrefix("tamamlanmayan")
+                || token.hasPrefix("bitirmed") || token.hasPrefix("bitmem") || token.hasPrefix("bitmey")
+                || token.hasPrefix("unut") || token.hasPrefix("ihmal") || token.hasPrefix("atlad") || token.hasPrefix("kacir")
+                || token == "eksik" || token == "kalan" || token.hasPrefix("kaldi") || token.hasPrefix("kalmis")
+                || token.hasPrefix("gecik") || token.hasPrefix("ertel") || token.hasPrefix("aksat") || token.hasPrefix("aksad")
+                || token.hasPrefix("baslamad") || token.hasPrefix("ellemed") || token == "yarim"
+                || token.hasPrefix("birik") || token == "duran" || token.hasPrefix("duruyor")
+                // English: didn't, haven't, forgot, overdue, missed, outstanding.
+                || token == "pending" || token == "open" || token == "unfinished" || token == "incomplete"
+                || token == "undone" || token == "overdue" || token == "outstanding" || token == "remaining"
+                || token.hasPrefix("forgot") || token.hasPrefix("didn") || token.hasPrefix("haven")
+                || token == "missed" || token == "behind" || token == "owed" || token.hasPrefix("owing")
+                || token == "leftover" || token == "backlog"
+        }
     }
 
     /// One row per exam. The week is the exam date’s week. An undated exam stays on the current week.
@@ -779,6 +1207,22 @@ final class TalkSession {
         if folded.contains("kac ders") || folded.contains("dersim var") || folded.contains("derslerim") {
             return true
         }
+        // “Dün hangi derslerim vardı”, “dersim yok muydu dün” — the timetable day, not a recording.
+        if askedWeekday(in: text) != nil
+            && (folded.contains("ders") || folded.contains("class") || folded.contains("lecture"))
+            && !folded.contains("kayit") && !folded.contains("kayd") && !folded.contains("recording")
+            && !folded.contains("odev") && !folded.contains("assignment") && !folded.contains("homework")
+        {
+            return true
+        }
+        // “Bu hafta kaç tane dersim kaldı” has words between kaç and ders.
+        let aboutClass =
+            folded.contains("ders") || folded.contains("class") || folded.contains("lecture")
+        let aboutTask =
+            folded.contains("odev") || folded.contains("assignment") || folded.contains("homework")
+        if aboutClass && !aboutTask && (folded.contains("kac") || folded.contains("how many")) {
+            return true
+        }
         if folded.contains("how many class") || folded.contains("how many course")
             || folded.contains("how many lecture") || folded.contains("how many slot")
         {
@@ -808,10 +1252,10 @@ final class TalkSession {
             folded.contains("kac saat") || folded.contains("kac dakika")
             || folded.contains("how many hour") || folded.contains("how many minute")
             || folded.contains("how long")
-        let aboutClass =
+        let aboutAClass =
             folded.contains("ders") || folded.contains("class") || folded.contains("course")
             || folded.contains("lecture") || namesOpenCourse(folded)
-        if asksDuration && aboutClass && !asksForLectureNotes(folded) {
+        if asksDuration && aboutAClass && !asksForLectureNotes(folded) {
             return true
         }
         return false
@@ -854,6 +1298,12 @@ final class TalkSession {
         }
         if folded.contains("open") || folded.contains("due") || folded.contains("teslim")
             || folded.contains("bitmemis") || folded.contains("yapilacak")
+        {
+            return true
+        }
+        // “tüm ödevler”, “bugüne kadar kaç ödev”, “yapmadığım / tamamladığım ödev”
+        if asksForEveryTasks(text)
+            || asksForOpenTasks(text) || asksForFinishedTasks(text) || asksForCancelledTasks(text)
         {
             return true
         }
@@ -904,9 +1354,14 @@ final class TalkSession {
         if folded.contains("notlar") || folded.contains("notlarda") || folded.contains("notes") {
             return true
         }
-        if folded.contains("anlat") || folded.contains("soyled") || folded.contains("dedi")
+        if folded.contains("anlat") || folded.contains("soyled")
             || folded.contains("explain") || folded.contains("what did") || folded.contains("said about")
         {
+            return true
+        }
+        // “Dedi” is its own word. “Kaydedilmiş” contains those letters and is a recording status.
+        let tokens = folded.split { !$0.isLetter }.map(String.init)
+        if tokens.contains(where: { $0 == "dedi" || $0.hasPrefix("dediler") || $0.hasPrefix("dedim") || $0.hasPrefix("dedin") || $0 == "dedik" }) {
             return true
         }
         // “Liberalizm hakkında … ne vardı” without a pure inventory cue.
@@ -1221,8 +1676,10 @@ final class TalkSession {
             hasBye || hasHoscaKal || hasTakeCare || hasSeeYou || hasCare || hasGoodDay || hasGoodNight
         else { return false }
         let filler: Set<String> = [
-            "tamam", "ok", "okay", "pekala", "peki", "cok", "sana", "da", "de",
+            "tamam", "ok", "okay", "pekala", "peki", "cok", "sana", "da", "de", "sag",
             "iyi", "bak", "dikkat", "et", "ol", "kal", "kalin", "kendine",
+            "anladim", "anladik", "tesekkur", "tesekkurler", "ederim",
+            "thanks", "thank", "thx", "you",
             "hosca", "hoscakal", "hoscakalin", "gule", "gulegule",
             "aksamlar", "geceler", "gunler", "sabahlar", "haftalar", "tatiller",
             "eyvallah", "bye", "goodbye", "bb", "bay", "see", "you", "later", "soon",

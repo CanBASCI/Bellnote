@@ -92,15 +92,25 @@ enum TalkContext {
         for course in term.courses.sorted(by: { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }) {
             lines.append(contentsOf: courseLines(course, termLabel: label))
         }
-        let symbols = Calendar.current.shortWeekdaySymbols
-        for slot in term.slots.sorted(by: { ($0.weekday, $0.startMinutes) < ($1.weekday, $1.startMinutes) }) {
-            let day = symbols.indices.contains(slot.weekday - 1) ? symbols[slot.weekday - 1] : "?"
-            let courseName = slot.course?.name ?? "no course"
-            let place = slot.placeName.isEmpty ? "no place" : slot.placeName
-            lines.append(
-                "Timetable \(label): \(day) \(ReminderScheduler.clock(slot.startMinutes))–"
-                    + "\(ReminderScheduler.clock(slot.endMinutes)); course \(courseName); place \(place)."
-            )
+        // Full weekday names, same words as the device clock (“Çarşamba”, not “Çar”).
+        // A day with no row is written out so the model does not fill it from another day.
+        let symbols = Calendar.current.standaloneWeekdaySymbols
+        let byDay = Dictionary(grouping: term.slots, by: \.weekday)
+        for weekday in 1...7 {
+            let day = symbols.indices.contains(weekday - 1) ? symbols[weekday - 1] : "?"
+            let daySlots = (byDay[weekday] ?? []).sorted { $0.startMinutes < $1.startMinutes }
+            if daySlots.isEmpty {
+                lines.append("Timetable \(label): \(day); no slots.")
+                continue
+            }
+            for slot in daySlots {
+                let courseName = slot.course?.name ?? "no course"
+                let place = slot.placeName.isEmpty ? "no place" : slot.placeName
+                lines.append(
+                    "Timetable \(label): \(day) \(ReminderScheduler.clock(slot.startMinutes))–"
+                        + "\(ReminderScheduler.clock(slot.endMinutes)); course \(courseName); place \(place)."
+                )
+            }
         }
         return lines
     }
@@ -122,7 +132,7 @@ enum TalkContext {
             let title = lectureTitle(lecture)
             let day = lecture.startedAt.formatted(dateFormat)
             let minutes = max(lecture.recordedSeconds / 60, 0)
-            let state = LectureState(rawValue: lecture.state)?.title ?? lecture.state
+            let state = Self.recordingStateWord(lecture)
             lines.append(
                 "Recording in \(course.name) (\(termLabel)): \(title); \(day); \(minutes) min; state \(state)."
             )
@@ -170,5 +180,18 @@ enum TalkContext {
         let trimmed = lecture.title.trimmingCharacters(in: .whitespacesAndNewlines)
         if !trimmed.isEmpty { return trimmed }
         return lecture.startedAt.formatted(dateFormat)
+    }
+
+    /// The word the student sees. A stopped recording that was never processed is “recorded”, not “paused”.
+    private static func recordingStateWord(_ lecture: Lecture) -> String {
+        if lecture.isRecordedOnly { return "recorded, not processed" }
+        switch LectureState(rawValue: lecture.state) {
+        case .paused: return "paused, not processed"
+        case .ready: return "ready"
+        case .processing: return "processing"
+        case .recording: return "recording"
+        case .failed: return "failed"
+        case nil: return lecture.state
+        }
     }
 }
