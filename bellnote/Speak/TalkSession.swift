@@ -28,6 +28,8 @@ struct TalkSourceItem: Identifiable, Equatable, Hashable {
         case inventory(courseID: PersistentIdentifier, itemID: PersistentIdentifier)
         /// A recording that is not ready. Opens that lecture, not a Raw minute.
         case recording(lectureID: PersistentIdentifier)
+        /// The lecturer stored on the course. Opens that course’s lecturer sheet.
+        case lecturer(courseID: PersistentIdentifier)
     }
 
     let id: UUID
@@ -405,6 +407,14 @@ final class TalkSession {
         if let recordings = unprocessedRecordingReply(for: question) {
             Self.log.info("Talk recording short-circuit text=\(recordings.text, privacy: .public)")
             return recordings
+        }
+        if let lecturer = lecturerReply(for: question) {
+            Self.log.info("Talk lecturer short-circuit text=\(lecturer.text, privacy: .public)")
+            return lecturer
+        }
+        if let covered = coveredThenReply(for: question) {
+            Self.log.info("Talk covered short-circuit text=\(covered.text, privacy: .public)")
+            return covered
         }
         if cachedNotes.isEmpty && cachedCatalog.isEmpty {
             refreshCache()
@@ -865,6 +875,258 @@ final class TalkSession {
         if pending && paused && !saved { return .pausedOnly }
         if pending { return .unprocessed }
         return .any
+    }
+
+    /// One row on the lecturer sheet, or every filled row when the question asks for the details.
+    /// Raw notes are not the source. An empty field stays empty.
+    private enum LecturerField {
+        case name
+        case title
+        case givenName
+        case familyName
+        case phone
+        case email
+        case extra
+        case all
+    }
+
+    /// The value stored on the course’s lecturer. Source opens that lecturer sheet.
+    private func lecturerReply(for question: String) -> TalkReply? {
+        guard let field = lecturerField(in: question) else { return nil }
+        let courses = catalogueCourses(in: question)
+        guard !courses.isEmpty else { return nil }
+        var lines: [String] = []
+        var sources: [TalkSourceItem] = []
+        for course in courses {
+            lines.append(lecturerSentence(field, course: course))
+            sources.append(
+                TalkSourceItem(title: course.name, target: .lecturer(courseID: course.persistentModelID))
+            )
+        }
+        return TalkReply(text: lines.joined(separator: " "), sources: sources)
+    }
+
+    private func lecturerSentence(_ field: LecturerField, course: Course) -> String {
+        if field == .all {
+            let filled = lecturerDetailLines(on: course)
+            if filled.isEmpty {
+                return String(format: String(localized: "No lecturer details are stored for %@."), course.name)
+            }
+            return String(format: String(localized: "Lecturer details for %@ are %@."), course.name, filled)
+        }
+        let stored = lecturerValue(field, on: course)
+        if stored.isEmpty {
+            return String(format: String(localized: lecturerMissingKey(field)), course.name)
+        }
+        return String(format: String(localized: lecturerAnswerKey(field)), course.name, stored)
+    }
+
+    /// Sheet order: title, given name, family name, phone, email, other contact. Empty rows are left out.
+    private func lecturerDetailLines(on course: Course) -> String {
+        let rows: [(label: String, field: LecturerField)] = [
+            (String(localized: "Title"), .title),
+            (String(localized: "Given name"), .givenName),
+            (String(localized: "Family name"), .familyName),
+            (String(localized: "Phone"), .phone),
+            (String(localized: "Email"), .email),
+            (String(localized: "Other contact"), .extra),
+        ]
+        return rows.compactMap { row in
+            let value = lecturerValue(row.field, on: course)
+            guard !value.isEmpty else { return nil }
+            return "\(row.label) \(value)"
+        }.joined(separator: ", ")
+    }
+
+    private func lecturerValue(_ field: LecturerField, on course: Course) -> String {
+        let contact = course.lecturer
+        let raw: String
+        switch field {
+        case .name:
+            raw = contact?.displayName ?? ""
+        case .title:
+            raw = contact?.title ?? ""
+        case .givenName:
+            raw = contact?.givenName ?? ""
+        case .familyName:
+            raw = contact?.familyName ?? ""
+        case .phone:
+            raw = contact?.phone ?? ""
+        case .email:
+            raw = contact?.email ?? ""
+        case .extra:
+            raw = contact?.extra ?? ""
+        case .all:
+            raw = ""
+        }
+        return raw.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// Catalog keys. The spoken course and the stored value fill the blanks.
+    private func lecturerAnswerKey(_ field: LecturerField) -> String.LocalizationValue {
+        switch field {
+        case .name: "The lecturer for %@ is %@."
+        case .title: "The title for %@ is %@."
+        case .givenName: "The given name for %@ is %@."
+        case .familyName: "The family name for %@ is %@."
+        case .phone: "The phone for %@ is %@."
+        case .email: "The email for %@ is %@."
+        case .extra: "The other contact for %@ is %@."
+        case .all: "Lecturer details for %@ are %@."
+        }
+    }
+
+    private func lecturerMissingKey(_ field: LecturerField) -> String.LocalizationValue {
+        switch field {
+        case .name: "No lecturer name is stored for %@."
+        case .title: "No title is stored for %@."
+        case .givenName: "No given name is stored for %@."
+        case .familyName: "No family name is stored for %@."
+        case .phone: "No phone is stored for %@."
+        case .email: "No email is stored for %@."
+        case .extra: "No other contact is stored for %@."
+        case .all: "No lecturer details are stored for %@."
+        }
+    }
+
+    /// Any row on the lecturer sheet. “Hoca ne anlattı” stays on the notes.
+    private func lecturerField(in text: String) -> LecturerField? {
+        let tokens = Self.asciiFold(text).split { !$0.isLetter }.map(String.init)
+        let aboutLecturer = tokens.contains { token in
+            token.hasPrefix("hoca") || token.hasPrefix("ogretmen") || token.hasPrefix("ogretim")
+                || token.hasPrefix("lecturer") || token.hasPrefix("teacher")
+                || token == "prof" || token.hasPrefix("professor") || token.hasPrefix("instructor")
+        }
+        guard aboutLecturer else { return nil }
+        if tokens.contains(where: {
+            $0.hasPrefix("telefon") || $0 == "phone" || $0 == "gsm" || $0 == "cep"
+                || $0.hasPrefix("numara") || $0 == "number"
+        }) {
+            return .phone
+        }
+        if tokens.contains(where: {
+            $0 == "email" || $0.hasPrefix("eposta") || $0.hasPrefix("mail") || $0 == "posta"
+        }) {
+            return .email
+        }
+        let otherContact = tokens.contains("diger") && tokens.contains { $0.hasPrefix("iletisim") }
+            || tokens.contains("other") && tokens.contains("contact")
+        if otherContact {
+            return .extra
+        }
+        if tokens.contains(where: { $0.hasPrefix("soyad") || $0 == "surname" || $0.hasPrefix("lastname") })
+            || (tokens.contains("family") && tokens.contains("name"))
+            || (tokens.contains("last") && tokens.contains("name"))
+        {
+            return .familyName
+        }
+        if tokens.contains(where: { $0.hasPrefix("unvan") }) || tokens.contains("title") {
+            return .title
+        }
+        if tokens.contains("given") || (tokens.contains("first") && tokens.contains("name")) {
+            return .givenName
+        }
+        // “Ad” is the whole stored name: title, given name, and family name together.
+        let asksName = tokens.contains { token in
+            token.hasPrefix("isim") || token.hasPrefix("ismi")
+                || token == "ad" || token == "adi" || token.hasPrefix("adin")
+                || token == "kim" || token.hasPrefix("kimdir") || token.hasPrefix("kimin")
+                || token == "who" || token == "name" || token.hasPrefix("named")
+        }
+        if asksName { return .name }
+        let asksAll = tokens.contains { token in
+            token == "bilgi" || token.hasPrefix("bilgisi") || token.hasPrefix("bilgiler")
+                || token == "info" || token == "details" || token == "detail"
+        }
+        return asksAll ? .all : nil
+    }
+
+    /// What was covered in a past span, from lectures dated in that span.
+    /// Another day’s notes are not used when the span is empty.
+    private func coveredThenReply(for question: String) -> TalkReply? {
+        guard asksWhatWasCovered(question), let span = coveredSpan(in: question) else { return nil }
+        let courses = catalogueCourses(in: question)
+        let lectures = courses
+            .flatMap(\.lectures)
+            .filter { span.contains($0.startedAt) }
+            .sorted { $0.startedAt < $1.startedAt }
+        guard !lectures.isEmpty else {
+            return TalkReply(text: String(localized: "You have no lecture from then."))
+        }
+        let stamp = Date.FormatStyle(date: .abbreviated, time: .omitted).locale(locale)
+        let body = lectures.map { lecture in
+            let course = lecture.course?.name ?? ""
+            let day = lecture.startedAt.formatted(stamp)
+            let title = lecture.title.trimmingCharacters(in: .whitespacesAndNewlines)
+            return title.isEmpty ? "\(course) \(day)" : "\(course) \(day) \(title)"
+        }.joined(separator: ", ")
+        let sources = lectures.map { lecture in
+            let course = lecture.course?.name ?? ""
+            let day = lecture.startedAt.formatted(stamp)
+            return TalkSourceItem(
+                title: "\(course) · \(day)",
+                target: .recording(lectureID: lecture.persistentModelID)
+            )
+        }
+        return TalkReply(
+            text: String(format: String(localized: "Lectures from then: %@."), body),
+            sources: sources
+        )
+    }
+
+    /// Covered, taught, or explained. “İşlenmiş kayıt” is a recording status and is not this.
+    private func asksWhatWasCovered(_ text: String) -> Bool {
+        let tokens = Self.asciiFold(text).split { !$0.isLetter }.map(String.init)
+        return tokens.contains { token in
+            (token.hasPrefix("isle") && !token.hasPrefix("islen"))
+                || token.hasPrefix("konu")
+                || token.hasPrefix("anlat")
+                || token.hasPrefix("gord")
+                || token == "cover" || token.hasPrefix("covered")
+                || token == "taught" || token.hasPrefix("teach")
+        }
+    }
+
+    /// The calendar span the question names: a counted week or day before today, last week, this week, yesterday, today.
+    private func coveredSpan(in question: String) -> DateInterval? {
+        let calendar = Calendar.current
+        if let ago = DueDateMath.agoSpan(in: question) {
+            switch ago {
+            case .weeks(let count):
+                return weekInterval(weeksBack: count, calendar: calendar)
+            case .days(let count):
+                return dayInterval(daysBack: count, calendar: calendar)
+            }
+        }
+        let tokens = Self.asciiFold(question).split { !$0.isLetter }.map(String.init)
+        let week = tokens.contains("hafta") || tokens.contains { $0.hasPrefix("week") }
+        if week && (tokens.contains("gecen") || tokens.contains("last")) {
+            return weekInterval(weeksBack: 1, calendar: calendar)
+        }
+        if week && (tokens.contains("bu") || tokens.contains("this")) {
+            return weekInterval(weeksBack: 0, calendar: calendar)
+        }
+        if tokens.contains("dun") || tokens.contains(where: { $0.hasPrefix("dunden") }) || tokens.contains("yesterday") {
+            return dayInterval(daysBack: 1, calendar: calendar)
+        }
+        if tokens.contains("bugun") || tokens.contains("today") {
+            return dayInterval(daysBack: 0, calendar: calendar)
+        }
+        return nil
+    }
+
+    private func weekInterval(weeksBack: Int, calendar: Calendar) -> DateInterval? {
+        guard let thisWeek = calendar.dateInterval(of: .weekOfYear, for: .now),
+              let start = calendar.date(byAdding: .weekOfYear, value: -weeksBack, to: thisWeek.start)
+        else { return nil }
+        return calendar.dateInterval(of: .weekOfYear, for: start)
+    }
+
+    private func dayInterval(daysBack: Int, calendar: Calendar) -> DateInterval? {
+        let start = calendar.date(byAdding: .day, value: -daysBack, to: calendar.startOfDay(for: .now))
+            ?? calendar.startOfDay(for: .now)
+        guard let end = calendar.date(byAdding: .day, value: 1, to: start) else { return nil }
+        return DateInterval(start: start, end: end)
     }
 
     private func timetableSources(for question: String) -> [TalkSourceItem] {

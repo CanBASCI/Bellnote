@@ -79,26 +79,55 @@ enum CorrectionText {
         // ("odaklanmaya çalışın"), so alone they do not mean homework.
         "araştırın", "araştırmanız", "okumanız", "yapmanız", "yazmanız",
         "çözün", "çalışmanız", "inceleyin", "ezberleyin", "bitirin", "gönderin", "gelirken",
-        "okuyup gelin", "araştırıp gelin", "çalışıp gelin", "hazırlanıp gelin", "hazırlayıp gelin",
-        "çözüp gelin", "yazıp gelin", "getirip", "okumalısınız", "araştırmalısınız",
+        "getirip", "okumalısınız", "araştırmalısınız",
         "homework", "assignment", "due ", "hand in", "submit", "responsible for", "read chapter",
         // The space keeps "return in" from matching.
         " turn in", "problem set", "worksheet", "come prepared",
         "hand it in", " turn it in", "read page", "come to class prepared",
-        "araştırma yap", "yapıp getir",
+        "araştırma yap",
     ]
 
-    /// A Turkish verb with the ending -ıp/-ip/-up/-üp and then "gelin" or "geliniz": "okuyup gelin",
-    /// "araştırma yapıp gelin", "hazırlanıp geliniz". It means "come having done it", which is how a task is given.
-    /// A letter must stand before the ending, so a lone "ip" ("ip atlama") never matches.
+    /// A verb in -ıp/-ip/-up/-üp, then gelmek or getirmek spoken to the class.
+    /// A few words, or a number, may sit between them. The ending is any second-person form:
+    /// imperative, future, aorist, optative, necessity, or the gelmeniz / getirmeniz request,
+    /// including a following question word such as "misiniz".
+    /// A story ("okuyup geldi", "yapıp getirdi") is not a task. A letter before the ending keeps a lone "ip" from matching.
     /// A computed property, because `Regex` is not `Sendable` and a stored static one is not allowed.
-    private static var comeHavingDone: Regex<Substring> { #/\p{L}[ıiuü]p gelin(?:iz)?\b/# }
+    private static var comeHavingDone: Regex<(Substring, Substring)> {
+        #/\p{L}[ıiuü]p(?:\s+[\p{L}\d]+){0,4}\s+((?:getir|gel)\p{L}*\b(?:\s+m[iıuü]\p{L}*)?)/#
+    }
+
+    /// The part after "gel" or "getir" when the verb addresses "you".
+    private static var classRequestEnding: Regex<Substring> {
+        #/^(?:in(?:iz\p{L}*)?|men\p{L}*|(?:ebilir|ecek|meli|ir)(?:mi)?sin(?:iz)?|se(?:n(?:iz)?|sin(?:iz)?))$/#
+    }
 
     /// Whether the spoken text contains a word a teacher uses when giving homework.
     /// The model alone is not trusted: it once turned "you will learn" into a task.
     static func hasHomeworkCue(_ text: String) -> Bool {
         let lower = text.lowercased(with: Locale(identifier: "tr"))
-        return homeworkCues.contains { lower.contains($0) } || lower.contains(comeHavingDone)
+        return homeworkCues.contains { lower.contains($0) } || hasComeHavingDone(lower)
+    }
+
+    /// Come or bring having done it, addressed to the class, in any second-person form.
+    private static func hasComeHavingDone(_ text: String) -> Bool {
+        let spaced = String(text.map { $0.isLetter || $0.isNumber || $0.isWhitespace ? $0 : " " })
+        for match in spaced.matches(of: comeHavingDone) {
+            if isClassRequest(String(match.output.1)) { return true }
+        }
+        return false
+    }
+
+    /// `phrase` is "gel…" or "getir…", optionally with a question word stuck on ("gelir misiniz").
+    private static func isClassRequest(_ phrase: String) -> Bool {
+        let word = phrase.replacingOccurrences(of: " ", with: "")
+        for stem in ["getir", "gel"] {
+            guard word.hasPrefix(stem) else { continue }
+            let rest = String(word.dropFirst(stem.count))
+            if rest.isEmpty { return true }
+            return rest.wholeMatch(of: classRequestEnding) != nil
+        }
+        return false
     }
 
     /// Whether the words around a task hold a homework cue. Only the sentence of the task and the one before and

@@ -442,6 +442,19 @@ struct AssistantPage: View {
                 weekStart: nil,
                 focus: .inventory(itemID)
             )
+        case .lecturer(let courseID):
+            guard let course = course(id: courseID) else {
+                Self.log.error("Talk source lecturer missing")
+                return
+            }
+            Self.log.info("Talk source open lecturer")
+            talk.stop()
+            courseJump = TalkCourseJump(
+                id: "lecturer-\(String(describing: courseID))",
+                course: course,
+                weekStart: nil,
+                focus: .lecturer
+            )
         case .recording(let lectureID):
             guard let lecture = lecture(id: lectureID) else {
                 Self.log.error("Talk source recording missing")

@@ -1,5 +1,11 @@
 import Foundation
 
+/// A span counted backward from today: "3 hafta önce", "6 gün önce", "three weeks ago".
+enum AgoSpan: Sendable, Equatable {
+    case weeks(Int)
+    case days(Int)
+}
+
 enum DueHint: Sendable, Equatable {
     case nextWeek
     case thisWeek
@@ -90,6 +96,26 @@ enum DueDateMath {
         if let monthDay = monthDay(in: folded) { return monthDay }
         // Last, because a weekday name is the loosest hint.
         if let weekday = weekday(in: folded) { return .weekday(weekday) }
+        return nil
+    }
+
+    /// A spoken count of weeks or days before today. Digits and number words are the same reading.
+    /// "Sonra" is a due date, not this span.
+    static func agoSpan(in text: String) -> AgoSpan? {
+        let folded = fold(text)
+        let number = numberPattern
+        if let weeks = spokenCount(#"(?<![a-z])(\#(number))\s+hafta(?:lar)?\s+once\b"#, in: folded) {
+            return .weeks(weeks)
+        }
+        if let weeks = spokenCount(#"(?<![a-z])(\#(number))\s+weeks?\s+ago\b"#, in: folded) {
+            return .weeks(weeks)
+        }
+        if let days = spokenCount(#"(?<![a-z])(\#(number))\s+gun\s+once\b"#, in: folded) {
+            return .days(days)
+        }
+        if let days = spokenCount(#"(?<![a-z])(\#(number))\s+days?\s+ago\b"#, in: folded) {
+            return .days(days)
+        }
         return nil
     }
 

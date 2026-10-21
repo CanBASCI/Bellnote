@@ -48,6 +48,7 @@ struct CoursePage: View {
     enum Focus: Hashable {
         case assignment(PersistentIdentifier)
         case inventory(PersistentIdentifier)
+        case lecturer
     }
 
     @Bindable var course: Course
@@ -221,6 +222,8 @@ struct CoursePage: View {
                         proxy.scrollTo(id, anchor: .center)
                     case .inventory(let id):
                         proxy.scrollTo(id, anchor: .center)
+                    case .lecturer:
+                        showLecturer = true
                     }
                 }
         }
