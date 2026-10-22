@@ -27,6 +27,22 @@
     "%lld" : {
 
     },
+    "%lld days" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld days"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld gün"
+          }
+        }
+      }
+    },
     "%lld days later" : {
       "localizations" : {
         "en" : {

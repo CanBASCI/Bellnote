@@ -27,11 +27,13 @@ struct TermHomeView: View {
                             showTerm: $showTerm,
                             showPending: $showPending
                         )
+                        .tint(Color.accentColor)
                     }
                     .tabItem { Label("Home", systemImage: "text.rectangle.page") }
 
                     NavigationStack {
                         ProgramPage(term: term)
+                            .tint(Color.accentColor)
                     }
                     .tabItem { Label("Timetable", systemImage: "calendar.day.timeline.left") }
                     // Off while a recording is processed — keep focus on the run.
@@ -39,6 +41,7 @@ struct TermHomeView: View {
 
                     NavigationStack {
                         AssistantPage()
+                            .tint(Color.accentColor)
                     }
                     .tabItem { Label("Assistant", systemImage: "waveform.and.mic") }
                     // Off while a recording is processed — Talk and the pipeline share the text model and memory.
@@ -46,11 +49,14 @@ struct TermHomeView: View {
 
                     NavigationStack {
                         SettingsPage()
+                            .tint(Color.accentColor)
                     }
                     .tabItem { Label("Settings", systemImage: "gearshape") }
                     // Off while a recording is processed — model changes must not race the pipeline.
                     .disabled(PipelineActivity.shared.isBusy)
                 }
+                // Selected tab is primary: dark on a light page, light on a dark page. Unselected tabs stay the system gray.
+                .tint(.primary)
                 .tabBarMinimizeBehavior(.onScrollDown)
                 .tabViewBottomAccessory(isEnabled: session.player != nil) {
                     if let player = session.player {
@@ -491,8 +497,18 @@ struct TodayPage: View {
             amount = String(format: String(localized: "%lld min"), until)
             word = "later"
         } else {
-            amount = daysUntilText(for: slot)
-            word = nil
+            let days = daysUntil(slot)
+            switch days {
+            case 0:
+                amount = String(localized: "Today")
+                word = nil
+            case 1:
+                amount = String(localized: "Tomorrow")
+                word = nil
+            default:
+                amount = String(format: String(localized: "%lld days"), days)
+                word = "later"
+            }
         }
         return HStack(alignment: .firstTextBaseline, spacing: 8) {
             Text(verbatim: amount)
@@ -772,15 +788,10 @@ struct TodayPage: View {
         return slot.startMinutes - minutes
     }
 
-    /// How many days are left to the class: "Today", "Tomorrow" or "3 days later".
-    private func daysUntilText(for slot: WeeklySlot) -> String {
+    /// Days until the slot’s weekday. 0 is today, 1 is tomorrow.
+    private func daysUntil(_ slot: WeeklySlot) -> Int {
         let weekday = Calendar.current.component(.weekday, from: .now)
-        let days = (slot.weekday - weekday + 7) % 7
-        switch days {
-        case 0: return String(localized: "Today")
-        case 1: return String(localized: "Tomorrow")
-        default: return String(format: String(localized: "%lld days later"), days)
-        }
+        return (slot.weekday - weekday + 7) % 7
     }
 
     private func slotDetail(_ slot: WeeklySlot) -> String {
