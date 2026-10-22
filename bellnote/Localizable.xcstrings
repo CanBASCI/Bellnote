@@ -101,6 +101,7 @@
       }
     },
     "%lld min later" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -117,6 +118,7 @@
       }
     },
     "%lld min left" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1348,6 +1350,7 @@
       }
     },
     "Exam not added" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1481,6 +1484,22 @@
         }
       }
     },
+    "Glad it helped." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Glad it helped."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yararlı olduysa ne güzel."
+          }
+        }
+      }
+    },
     "Hello, I am %@." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1546,582 +1565,6 @@
         }
       }
     },
-    "You're welcome." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "You're welcome."
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Rica ederim."
-          }
-        }
-      }
-    },
-    "Take care." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Take care."
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Kendine iyi bak."
-          }
-        }
-      }
-    },
-    "You have no class on %@." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "You have no class on %@."
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ günü dersin yok."
-          }
-        }
-      }
-    },
-    "On %@ you have %@." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "On %@ you have %@."
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ günü dersin var: %@."
-          }
-        }
-      }
-    },
-    "The lecturer for %@ is %@." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The lecturer for %@ is %@."
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$@ hocası %2$@."
-          }
-        }
-      }
-    },
-    "The title for %@ is %@." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The title for %@ is %@."
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$@ unvanı %2$@."
-          }
-        }
-      }
-    },
-    "No title is stored for %@." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No title is stored for %@."
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ için unvan yazılmamış."
-          }
-        }
-      }
-    },
-    "The given name for %@ is %@." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The given name for %@ is %@."
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$@ adı %2$@."
-          }
-        }
-      }
-    },
-    "No given name is stored for %@." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No given name is stored for %@."
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ için adı yazılmamış."
-          }
-        }
-      }
-    },
-    "The family name for %@ is %@." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The family name for %@ is %@."
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$@ soyadı %2$@."
-          }
-        }
-      }
-    },
-    "No family name is stored for %@." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No family name is stored for %@."
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ için soyadı yazılmamış."
-          }
-        }
-      }
-    },
-    "Lecturer details for %@ are %@." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Lecturer details for %@ are %@."
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$@ hoca bilgisi: %2$@."
-          }
-        }
-      }
-    },
-    "No lecturer details are stored for %@." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No lecturer details are stored for %@."
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ için hoca bilgisi yazılmamış."
-          }
-        }
-      }
-    },
-    "The phone for %@ is %@." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The phone for %@ is %@."
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$@ telefonu %2$@."
-          }
-        }
-      }
-    },
-    "No phone is stored for %@." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No phone is stored for %@."
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ için telefon yazılmamış."
-          }
-        }
-      }
-    },
-    "The email for %@ is %@." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The email for %@ is %@."
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$@ e-postası %2$@."
-          }
-        }
-      }
-    },
-    "No email is stored for %@." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No email is stored for %@."
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ için e-posta yazılmamış."
-          }
-        }
-      }
-    },
-    "The other contact for %@ is %@." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The other contact for %@ is %@."
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$@ diğer iletişim %2$@."
-          }
-        }
-      }
-    },
-    "No other contact is stored for %@." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No other contact is stored for %@."
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ için diğer iletişim yazılmamış."
-          }
-        }
-      }
-    },
-    "No lecturer name is stored for %@." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No lecturer name is stored for %@."
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ için hoca adı yazılmamış."
-          }
-        }
-      }
-    },
-    "You have no lecture from then." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "You have no lecture from then."
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "O zaman ders kaydın yok."
-          }
-        }
-      }
-    },
-    "Lectures from then: %@." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Lectures from then: %@."
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "O zamanki dersler: %@."
-          }
-        }
-      }
-    },
-    "You have no recordings then." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "You have no recordings then."
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "O zaman kaydın yok."
-          }
-        }
-      }
-    },
-    "Processed recordings: %@." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Processed recordings: %@."
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "İşlenmiş kayıtlar: %@."
-          }
-        }
-      }
-    },
-    "You have no processed recordings." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "You have no processed recordings."
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "İşlenmiş kaydın yok."
-          }
-        }
-      }
-    },
-    "Recordings: %@." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Recordings: %@."
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Kayıtlar: %@."
-          }
-        }
-      }
-    },
-    "You have no unprocessed recordings." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "You have no unprocessed recordings."
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "İşlenmemiş kaydın yok."
-          }
-        }
-      }
-    },
-    "Unprocessed recordings: %@." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Unprocessed recordings: %@."
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "İşlenmemiş kayıtlar: %@."
-          }
-        }
-      }
-    },
-    "Your classes add up to %lld hours and %lld minutes." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Your classes add up to %lld hours and %lld minutes."
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Derslerin toplamı %lld saat %lld dakika."
-          }
-        }
-      }
-    },
-    "I'm well. Ask about your lectures when you want." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "I'm well. Ask about your lectures when you want."
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "İyiyim. İstediğinde derslerin hakkında sor."
-          }
-        }
-      }
-    },
-    "I answer from your lectures, timetable, and what's stored in the app. Ask a question." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "I answer from your lectures, timetable, and what's stored in the app. Ask a question."
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Derslerin, programın ve uygulamadaki kayıtlarından cevap veririm. Bir soru sor."
-          }
-        }
-      }
-    },
-    "Say that again, or ask another question." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Say that again, or ask another question."
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Bir daha söyle, ya da başka bir soru sor."
-          }
-        }
-      }
-    },
-    "Okay." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Okay."
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tamam."
-          }
-        }
-      }
-    },
-    "No problem." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No problem."
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sorun değil."
-          }
-        }
-      }
-    },
-    "Glad it helped." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Glad it helped."
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Yararlı olduysa ne güzel."
-          }
-        }
-      }
-    },
-    "Yes, I'm listening." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Yes, I'm listening."
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Evet, dinliyorum."
-          }
-        }
-      }
-    },
     "Home" : {
       "localizations" : {
         "en" : {
@@ -2171,6 +1614,22 @@
         }
       }
     },
+    "I answer from your lectures, timetable, and what's stored in the app. Ask a question." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "I answer from your lectures, timetable, and what's stored in the app. Ask a question."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Derslerin, programın ve uygulamadaki kayıtlarından cevap veririm. Bir soru sor."
+          }
+        }
+      }
+    },
     "I didn't get this" : {
       "localizations" : {
         "en" : {
@@ -2183,6 +1642,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Bunu anlamadım"
+          }
+        }
+      }
+    },
+    "I'm well. Ask about your lectures when you want." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "I'm well. Ask about your lectures when you want."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "İyiyim. İstediğinde derslerin hakkında sor."
           }
         }
       }
@@ -2382,6 +1857,24 @@
         }
       }
     },
+    "later" : {
+      "comment" : "The small word beside the large minutes on the home hero, before the class starts.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "later"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "sonra"
+          }
+        }
+      }
+    },
     "Latest notes" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2415,6 +1908,22 @@
         }
       }
     },
+    "Lecturer details for %@ are %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lecturer details for %@ are %@."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ hoca bilgisi: %2$@."
+          }
+        }
+      }
+    },
     "Lectures" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2428,6 +1937,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ders kayıtları"
+          }
+        }
+      }
+    },
+    "Lectures from then: %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lectures from then: %@."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O zamanki dersler: %@."
+          }
+        }
+      }
+    },
+    "left" : {
+      "comment" : "The small word beside the large minutes on the home hero, while the class is going on.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "left"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "kaldı"
           }
         }
       }
@@ -2904,6 +2447,22 @@
         }
       }
     },
+    "No email is stored for %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No email is stored for %@."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ için e-posta yazılmamış."
+          }
+        }
+      }
+    },
     "No exam dates yet." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2917,6 +2476,70 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Henüz sınav tarihi yok."
+          }
+        }
+      }
+    },
+    "No family name is stored for %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No family name is stored for %@."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ için soyadı yazılmamış."
+          }
+        }
+      }
+    },
+    "No given name is stored for %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No given name is stored for %@."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ için adı yazılmamış."
+          }
+        }
+      }
+    },
+    "No lecturer details are stored for %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No lecturer details are stored for %@."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ için hoca bilgisi yazılmamış."
+          }
+        }
+      }
+    },
+    "No lecturer name is stored for %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No lecturer name is stored for %@."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ için hoca adı yazılmamış."
           }
         }
       }
@@ -2954,6 +2577,54 @@
         }
       }
     },
+    "No other contact is stored for %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No other contact is stored for %@."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ için diğer iletişim yazılmamış."
+          }
+        }
+      }
+    },
+    "No phone is stored for %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No phone is stored for %@."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ için telefon yazılmamış."
+          }
+        }
+      }
+    },
+    "No problem." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No problem."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sorun değil."
+          }
+        }
+      }
+    },
     "No recording yet" : {
       "localizations" : {
         "en" : {
@@ -2966,6 +2637,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Henüz kayıt yok"
+          }
+        }
+      }
+    },
+    "No title is stored for %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No title is stored for %@."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ için unvan yazılmamış."
           }
         }
       }
@@ -3021,6 +2708,7 @@
       }
     },
     "Not started" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -3166,6 +2854,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Tamam"
+          }
+        }
+      }
+    },
+    "Okay." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Okay."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tamam."
+          }
+        }
+      }
+    },
+    "On %@ you have %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "On %@ you have %@."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ günü dersin var: %@."
           }
         }
       }
@@ -3350,6 +3070,7 @@
       }
     },
     "Place not added" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -3556,6 +3277,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ham metin, yapay zekâ düzeltme ve ödevler için kaydı işle."
+          }
+        }
+      }
+    },
+    "Processed recordings: %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Processed recordings: %@."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "İşlenmiş kayıtlar: %@."
           }
         }
       }
@@ -3768,6 +3505,22 @@
         }
       }
     },
+    "Recordings: %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recordings: %@."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kayıtlar: %@."
+          }
+        }
+      }
+    },
     "Remove from favorites" : {
       "localizations" : {
         "en" : {
@@ -3895,6 +3648,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Sakla"
+          }
+        }
+      }
+    },
+    "Say that again, or ask another question." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Say that again, or ask another question."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bir daha söyle, ya da başka bir soru sor."
           }
         }
       }
@@ -4323,6 +4092,22 @@
         }
       }
     },
+    "Take care." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Take care."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kendine iyi bak."
+          }
+        }
+      }
+    },
     "Term" : {
       "localizations" : {
         "en" : {
@@ -4451,6 +4236,22 @@
         }
       }
     },
+    "The email for %@ is %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The email for %@ is %@."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ e-postası %2$@."
+          }
+        }
+      }
+    },
     "The end cannot be before the start." : {
       "localizations" : {
         "en" : {
@@ -4467,6 +4268,38 @@
         }
       }
     },
+    "The family name for %@ is %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The family name for %@ is %@."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ soyadı %2$@."
+          }
+        }
+      }
+    },
+    "The given name for %@ is %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The given name for %@ is %@."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ adı %2$@."
+          }
+        }
+      }
+    },
     "The language is fixed once a course has recordings." : {
       "localizations" : {
         "en" : {
@@ -4479,6 +4312,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Kaydı olan bir dersin dili değiştirilemez."
+          }
+        }
+      }
+    },
+    "The lecturer for %@ is %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The lecturer for %@ is %@."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ hocası %2$@."
           }
         }
       }
@@ -4559,6 +4408,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Notlar bu dersin önceki kayıtlarına bağlanıyor."
+          }
+        }
+      }
+    },
+    "The other contact for %@ is %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The other contact for %@ is %@."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ diğer iletişim %2$@."
+          }
+        }
+      }
+    },
+    "The phone for %@ is %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The phone for %@ is %@."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ telefonu %2$@."
           }
         }
       }
@@ -4706,6 +4587,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Metin yazılır, sonra işlem model bekler. Yapay zekâ düzeltme, etiket ve ödevler için model gerekir. Ayarlar'da Modeller'den indirebilirsin."
+          }
+        }
+      }
+    },
+    "The title for %@ is %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The title for %@ is %@."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ unvanı %2$@."
           }
         }
       }
@@ -5014,6 +4911,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Kilit açılmadı."
+          }
+        }
+      }
+    },
+    "Unprocessed recordings: %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unprocessed recordings: %@."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "İşlenmemiş kayıtlar: %@."
           }
         }
       }
@@ -5340,6 +5253,22 @@
         }
       }
     },
+    "Yes, I'm listening." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yes, I'm listening."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Evet, dinliyorum."
+          }
+        }
+      }
+    },
     "Yesterday" : {
       "localizations" : {
         "en" : {
@@ -5368,6 +5297,118 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Sen"
+          }
+        }
+      }
+    },
+    "You have no class on %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You have no class on %@."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ günü dersin yok."
+          }
+        }
+      }
+    },
+    "You have no lecture from then." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You have no lecture from then."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O zaman ders kaydın yok."
+          }
+        }
+      }
+    },
+    "You have no processed recordings." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You have no processed recordings."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "İşlenmiş kaydın yok."
+          }
+        }
+      }
+    },
+    "You have no recordings then." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You have no recordings then."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O zaman kaydın yok."
+          }
+        }
+      }
+    },
+    "You have no unprocessed recordings." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You have no unprocessed recordings."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "İşlenmemiş kaydın yok."
+          }
+        }
+      }
+    },
+    "You're welcome." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You're welcome."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rica ederim."
+          }
+        }
+      }
+    },
+    "Your classes add up to %lld hours and %lld minutes." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your classes add up to %lld hours and %lld minutes."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Derslerin toplamı %lld saat %lld dakika."
           }
         }
       }

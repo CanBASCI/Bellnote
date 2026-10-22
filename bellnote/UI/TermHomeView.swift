@@ -131,6 +131,7 @@ struct TodayPage: View {
     @Binding var showPending: Bool
 
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.colorScheme) private var colorScheme
     @Environment(AppSession.self) private var session
     @State private var recordCourse: Course?
     @State private var showConsent = false
@@ -138,16 +139,29 @@ struct TodayPage: View {
     @State private var pendingCourse: Course?
     @State private var pendingTermDelete = false
     @State private var showEditTerm = false
-    /// The side of the badge on the hero card: as high as one line of the name (title 2) and the line of the lecturer
-    /// (subheadline) together with the room between them. It grows with the text size, and it is not measured from the
-    /// laid out texts, so the badge and the texts cannot push each other around in a loop.
+    /// The side of the badge on the hero card. The name is a step above title 2 and the lecturer a step under
+    /// subheadline, and together with the room between them they still match this side. It grows with the text
+    /// size, and it is not measured from the laid out texts, so the badge and the texts cannot push each other
+    /// around in a loop.
     @ScaledMetric(relativeTo: .title2) private var heroBadgeSize: CGFloat = 50
+    /// A step above title 2. Scales with that text style.
+    @ScaledMetric(relativeTo: .title2) private var heroNameSize: CGFloat = 25
+    /// A step under subheadline, the same ratio the name grew by. Scales with that text style.
+    @ScaledMetric(relativeTo: .subheadline) private var heroLecturerSize: CGFloat = 13
     @State private var openedCourse: Course?
     @State private var editingCourse: Course?
     @State private var deleteNotice: String?
 
     var body: some View {
-        List {
+        ZStack(alignment: .top) {
+            Color(.systemGroupedBackground)
+                .ignoresSafeArea()
+            if let slot = nextSlot {
+                let name = slot.course?.name ?? String(localized: "Course")
+                heroBloom(slot.course?.color ?? CourseStyle.color(for: name))
+                    .ignoresSafeArea()
+            }
+            List {
             if let slot = nextSlot {
                 // The card is in the section header, like the course cards below it: a list row would clip the glass
                 // edge and its shadow.
@@ -225,6 +239,7 @@ struct TodayPage: View {
         }
         .listStyle(.insetGrouped)
         .listRowSpacing(4)
+        .scrollContentBackground(.hidden)
         .overlay {
             // A term with no course shows only this, in the middle of the screen.
             if orderedCourses.isEmpty {
@@ -286,6 +301,7 @@ struct TodayPage: View {
             )
         ) {
             Button("OK", role: .cancel) {}
+        }
         }
     }
 
@@ -387,23 +403,6 @@ struct TodayPage: View {
         }
     }
 
-    /// Hero fact line: muted palette icon when the value is real, secondary when it is an empty placeholder.
-    private func heroFact(
-        _ text: String,
-        systemImage: String,
-        active: Bool,
-        iconTint: Color
-    ) -> some View {
-        HStack(spacing: 4) {
-            Image(systemName: systemImage)
-                .foregroundStyle(active ? iconTint : Color.secondary)
-                .accessibilityHidden(true)
-            Text(verbatim: text)
-                .foregroundStyle(active ? Color.primary : Color.secondary)
-        }
-        .font(.subheadline)
-    }
-
     /// Same symbol as the course page bar (`record.circle`), drawn at the course badge size on the trailing side.
     /// Later recordings use the same confirm as the course page Record control (title + red Start recording button).
     /// A `Menu` can only show text rows; the glass Start recording control needs that confirm.
@@ -428,23 +427,25 @@ struct TodayPage: View {
 
     @ViewBuilder
     private func hero(_ slot: WeeklySlot) -> some View {
-        let soon = slot.weekday == Calendar.current.component(.weekday, from: .now)
         let name = slot.course?.name ?? String(localized: "Course")
+        let tint = slot.course?.color ?? CourseStyle.color(for: name)
         VStack(alignment: .leading, spacing: 10) {
             let lecturer = slot.course?.lecturer?.displayName ?? ""
             // The top row: badge and name on the left, record control on the right at the same size as the badge.
             HStack(alignment: .center, spacing: 10) {
                 // A square as high as the name and the lecturer together (one line of the name). The width is the
                 // same as the height, so the shape does not change.
-                CourseBadge(name: name, color: slot.course?.color ?? CourseStyle.color(for: name), size: heroBadgeSize)
+                CourseBadge(name: name, color: tint, size: heroBadgeSize)
                 VStack(alignment: .leading, spacing: 2) {
+                    // A step above title2. The lecturer below drops by the same ratio, so the pair still
+                    // fits the badge.
                     Text(name)
-                        .font(.title2.bold())
+                        .font(.system(size: heroNameSize, weight: .semibold))
                         .minimumScaleFactor(0.7)
                         .lineLimit(2)
                     iconLine(lecturer.isEmpty ? String(localized: "Lecturer") : lecturer, systemImage: "person.crop.circle")
-                        .font(.subheadline)
-                        .foregroundStyle(lecturer.isEmpty ? Color.secondary : Color.primary)
+                        .font(.system(size: heroLecturerSize))
+                        .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -454,121 +455,112 @@ struct TodayPage: View {
                         .padding(.trailing, Self.cardPadding)
                 }
             }
-            // Eight facts in two columns of four, lines level across the row:
-            //   day            | days left
-            //   time           | minutes left
-            //   place          | next exam
-            //   last recording | open assignments
-            // Real values use primary text + palette icons; empty placeholders stay secondary.
-            HStack(alignment: .top, spacing: 12) {
-                VStack(alignment: .leading, spacing: Self.heroInfoSpacing) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "calendar")
-                            .foregroundStyle(soon ? Color.accentColor : CourseStyle.scheduleDayTint)
-                            .accessibilityHidden(true)
-                        Text(verbatim: status(for: slot))
-                            .foregroundStyle(soon ? Color.accentColor : Color.primary)
-                    }
-                    .font(.subheadline.weight(.semibold))
-                    heroFact(
-                        slotDetail(slot),
-                        systemImage: "clock",
-                        active: true,
-                        iconTint: soon ? Color.accentColor : CourseStyle.scheduleDayTint
-                    )
-                    heroFact(
-                        slot.placeName.isEmpty ? String(localized: "Place not added") : slot.placeName,
-                        systemImage: "mappin.and.ellipse",
-                        active: !slot.placeName.isEmpty,
-                        iconTint: CourseStyle.placeTint
-                    )
-                    if let course = slot.course {
-                        heroFact(
-                            lastRecordingText(for: course),
-                            systemImage: "waveform",
-                            active: !course.lectures.isEmpty,
-                            iconTint: CourseStyle.recordingsTint
-                        )
-                    } else {
-                        heroFact(
-                            String(localized: "No recording yet"),
-                            systemImage: "waveform",
-                            active: false,
-                            iconTint: CourseStyle.recordingsTint
-                        )
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                VStack(alignment: .leading, spacing: Self.heroInfoSpacing) {
-                    heroFact(
-                        daysUntilText(for: slot),
-                        systemImage: "hourglass.tophalf.filled",
-                        active: true,
-                        iconTint: CourseStyle.daysUntilTint
-                    )
-                    let liveMinutes = minutesLeft(for: slot) != nil
-                    HStack(spacing: 4) {
-                        Image(systemName: "hourglass")
-                            .foregroundStyle(liveMinutes ? Color.accentColor : Color.secondary)
-                            .accessibilityHidden(true)
-                        Text(verbatim: minutesLeftText(for: slot))
-                            .foregroundStyle(liveMinutes ? Color.accentColor : Color.secondary)
-                    }
-                    .font(.subheadline)
-                    if let course = slot.course {
-                        let openCount = course.assignments.filter { !$0.done && !$0.cancelled }.count
-                        let hasUpcomingExam = course.sittings.contains { sitting in
-                            guard let date = sitting.date else { return false }
-                            return Calendar.current.startOfDay(for: date) >= Calendar.current.startOfDay(for: .now)
-                        }
-                        heroFact(
-                            nextExamText(for: course),
-                            systemImage: "calendar.badge.clock",
-                            active: hasUpcomingExam,
-                            iconTint: CourseStyle.examsTint
-                        )
-                        heroFact(
-                            openAssignmentsText(for: course),
-                            systemImage: "checklist",
-                            active: openCount > 0,
-                            iconTint: CourseStyle.assignmentsTint
-                        )
-                    } else {
-                        heroFact(
-                            String(localized: "Exam not added"),
-                            systemImage: "calendar.badge.clock",
-                            active: false,
-                            iconTint: CourseStyle.examsTint
-                        )
-                        heroFact(
-                            String(format: String(localized: "Pending assignments: %lld"), 0),
-                            systemImage: "checklist",
-                            active: false,
-                            iconTint: CourseStyle.assignmentsTint
-                        )
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .lineLimit(1)
+            // Under the name: the time that matters, large, then one quiet line of the rest.
+            // The line stays one row. When it is wider than the card it slides left and can be dragged.
+            heroMoment(slot)
+            HeroDetailLine(items: heroDetail(slot))
         }
         // At the sides the same room between the edge and the content as in the course cards. Above and under, a bit
         // more: the corners of this card are close to the texts, and it is wider than a course card.
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, Self.cardPadding)
         .padding(.vertical, Self.heroVerticalPadding)
-        // The same glass, corner and edge as the course cards. The glass is a background, not a modifier of the
-        // texts, so it does not change their colours.
+        // The same glass and corner as the course cards, tinted with the course color. The glass is a background,
+        // not a modifier of the texts, so it does not change their colours.
         .background {
             RoundedRectangle(cornerRadius: 22, style: .continuous)
                 .fill(.clear)
-                .glassEffect(.regular, in: .rect(cornerRadius: 22))
+                .glassEffect(tintedGlass(tint), in: .rect(cornerRadius: 22))
         }
         // The card sits in a section header (see `body`), which has its own font. The texts and the button keep the
         // fonts set above, so this is only the base.
         .font(.body)
         // Out to the sides by the inset of the header, like the course cards, so the edges line up.
         .padding(.horizontal, -16)
+    }
+
+    /// The large time on the hero. While the class is on, the minutes left. Before it starts today, the minutes
+    /// until it starts. On another day, today, tomorrow, or the day count.
+    private func heroMoment(_ slot: WeeklySlot) -> some View {
+        let amount: String
+        let word: LocalizedStringKey?
+        if let left = minutesLeft(for: slot) {
+            amount = String(format: String(localized: "%lld min"), left)
+            word = "left"
+        } else if let until = minutesUntilStart(for: slot) {
+            amount = String(format: String(localized: "%lld min"), until)
+            word = "later"
+        } else {
+            amount = daysUntilText(for: slot)
+            word = nil
+        }
+        return HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text(verbatim: amount)
+                .font(.largeTitle.weight(.semibold))
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
+            if let word {
+                Text(word)
+                    .font(.title3)
+            }
+        }
+        .foregroundStyle(.primary)
+        .accessibilityElement(children: .combine)
+    }
+
+    /// One quiet line under the large time. Each fact keeps a small symbol: the clock span, the place when it
+    /// is set, the last recording, open assignments when there are some, and the next exam when one is coming.
+    private func heroDetail(_ slot: WeeklySlot) -> [HeroDetailItem] {
+        var items = [HeroDetailItem(symbol: "clock", text: slotDetail(slot))]
+        if !slot.placeName.isEmpty {
+            items.append(HeroDetailItem(symbol: "mappin.and.ellipse", text: slot.placeName))
+        }
+        if let course = slot.course {
+            items.append(HeroDetailItem(symbol: "waveform", text: lastRecordingText(for: course)))
+            if course.assignments.contains(where: { !$0.done && !$0.cancelled }) {
+                items.append(HeroDetailItem(symbol: "checklist", text: openAssignmentsText(for: course)))
+            }
+            if let exam = nextExamText(for: course) {
+                items.append(HeroDetailItem(symbol: "calendar.badge.clock", text: exam))
+            }
+        } else {
+            items.append(HeroDetailItem(symbol: "waveform", text: String(localized: "No recording yet")))
+        }
+        return items
+    }
+
+    /// Course color in the glass, shared by the hero and the course cards. Same strength as the small tinted circles.
+    private func tintedGlass(_ tint: Color) -> Glass {
+        .regular.tint(tint.opacity(colorScheme == .dark ? 0.5 : 0.28))
+    }
+
+    /// A wash of the course color behind the hero, under the status bar and out past the sides.
+    /// The noticeable color ends at the Courses title. A long, faint tail continues past it so the
+    /// edge fades out, especially on black, instead of stopping on a line.
+    private func heroBloom(_ tint: Color) -> some View {
+        let dark = colorScheme == .dark
+        return EllipticalGradient(
+            gradient: Gradient(stops: [
+                .init(color: tint.opacity(dark ? 0.42 : 0.5), location: 0),
+                .init(color: tint.opacity(dark ? 0.24 : 0.28), location: 0.28),
+                .init(color: tint.opacity(dark ? 0.10 : 0.12), location: 0.48),
+                .init(color: tint.opacity(dark ? 0.035 : 0.04), location: 0.64),
+                .init(color: tint.opacity(dark ? 0.012 : 0.014), location: 0.8),
+                .init(color: tint.opacity(0.004), location: 0.92),
+                .init(color: .clear, location: 1)
+            ]),
+            center: UnitPoint(x: 0.5, y: 0.21),
+            startRadiusFraction: 0,
+            endRadiusFraction: 1
+        )
+        .frame(maxWidth: .infinity)
+        .frame(height: 720)
+        // Pulled up and out so the wash runs under the status bar and past the side edges.
+        // The frame runs past the Courses title; the color there is already gone.
+        .padding(.top, -180)
+        .padding(.horizontal, -200)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 
     private static let noteColumns = [
@@ -579,8 +571,6 @@ struct TodayPage: View {
     private static let cardPadding: CGFloat = 12
     /// Vertical room under "Courses", matched to "This week" on the course page (header + first-row top inset).
     private static let coursesTitleToCards: CGFloat = 16
-    /// Room between the lines of the block on the right of the hero card.
-    private static let heroInfoSpacing: CGFloat = 4
     /// Room above and under the content of the hero card, between the content and the edge of the card.
     private static let heroVerticalPadding: CGFloat = 20
     /// Extra room above the hero card, under the navigation bar. Change this one number to move the card.
@@ -685,12 +675,12 @@ struct TodayPage: View {
         // A square: the height is the width of the column, so every card has the same size, whatever the course
         // has in it. The free room goes to the space under the name.
         .aspectRatio(1, contentMode: .fit)
-        // The glass is a background, not a modifier of the texts. Otherwise the glass changes the text colours
-        // and they no longer match the grey of the Start recording card.
+        // The glass is a background, not a modifier of the texts, so it does not change their colours.
+        // The wash is the course color, the same strength as the hero card.
         .background {
             RoundedRectangle(cornerRadius: 22, style: .continuous)
                 .fill(.clear)
-                .glassEffect(.regular, in: .rect(cornerRadius: 22))
+                .glassEffect(tintedGlass(course.color), in: .rect(cornerRadius: 22))
         }
         .contentShape(.rect(cornerRadius: 22))
     }
@@ -709,23 +699,8 @@ struct TodayPage: View {
         .accessibilityValue(Text(count, format: .number))
     }
 
-    private func status(for slot: WeeklySlot) -> String {
-        let calendar = Calendar.current
-        let weekday = calendar.component(.weekday, from: .now)
-        let minutes = calendar.component(.hour, from: .now) * 60 + calendar.component(.minute, from: .now)
-        if slot.weekday == weekday, minutes >= slot.startMinutes, minutes < slot.endMinutes {
-            return String(localized: "Now")
-        }
-        if slot.weekday == weekday, slot.startMinutes > minutes {
-            let delta = slot.startMinutes - minutes
-            if delta == 0 { return String(localized: "Now") }
-            return String(format: String(localized: "%lld min later"), delta)
-        }
-        return weekdayName(slot.weekday)
-    }
-
-    /// The next exam of the course that is today or later: "Midterm · 12 days later". A dash when there is none.
-    private func nextExamText(for course: Course) -> String {
+    /// The next exam of the course that is today or later: "Midterm · 12 days later". Nil when there is none.
+    private func nextExamText(for course: Course) -> String? {
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: .now)
         let upcoming = course.sittings
@@ -734,7 +709,7 @@ struct TodayPage: View {
                 return (sitting, date)
             }
             .min { $0.date < $1.date }
-        guard let upcoming else { return String(localized: "Exam not added") }
+        guard let upcoming else { return nil }
         let days = calendar.dateComponents([.day], from: today, to: calendar.startOfDay(for: upcoming.date)).day ?? 0
         let when: String
         switch days {
@@ -788,6 +763,15 @@ struct TodayPage: View {
         return slot.endMinutes - minutes
     }
 
+    /// The minutes until the class starts, only when that start is later today. Otherwise nil.
+    private func minutesUntilStart(for slot: WeeklySlot) -> Int? {
+        let calendar = Calendar.current
+        let weekday = calendar.component(.weekday, from: .now)
+        let minutes = calendar.component(.hour, from: .now) * 60 + calendar.component(.minute, from: .now)
+        guard slot.weekday == weekday, minutes < slot.startMinutes else { return nil }
+        return slot.startMinutes - minutes
+    }
+
     /// How many days are left to the class: "Today", "Tomorrow" or "3 days later".
     private func daysUntilText(for slot: WeeklySlot) -> String {
         let weekday = Calendar.current.component(.weekday, from: .now)
@@ -797,12 +781,6 @@ struct TodayPage: View {
         case 1: return String(localized: "Tomorrow")
         default: return String(format: String(localized: "%lld days later"), days)
         }
-    }
-
-    /// The minutes until the class ends while it goes on. Before that it says the class has not started.
-    private func minutesLeftText(for slot: WeeklySlot) -> String {
-        guard let left = minutesLeft(for: slot) else { return String(localized: "Not started") }
-        return String(format: String(localized: "%lld min left"), left)
     }
 
     private func slotDetail(_ slot: WeeklySlot) -> String {
@@ -841,12 +819,6 @@ struct TodayPage: View {
         let date = row.date?.formatted(date: .abbreviated, time: .omitted) ?? String(localized: "Date not set")
         let time = row.startMinutes.map { ReminderScheduler.clock($0) } ?? String(localized: "Time not set")
         return "\(row.kind) · \(date) · \(time)"
-    }
-
-    private func weekdayName(_ day: Int) -> String {
-        let symbols = Calendar.current.weekdaySymbols
-        guard symbols.indices.contains(day - 1) else { return "" }
-        return symbols[day - 1]
     }
 
     private func askDelete(_ course: Course) {
@@ -897,6 +869,204 @@ struct TodayPage: View {
                 "Course delete failed: \(error.localizedDescription, privacy: .public)"
             )
             deleteNotice = String(localized: "The course could not be deleted.")
+        }
+    }
+}
+
+/// One fact on the quiet line under the large time: a system symbol and its words.
+private struct HeroDetailItem: Equatable {
+    var symbol: String
+    var text: String
+}
+
+/// The quiet fact line under the large time on the home hero.
+/// One row of symbol and words. When that row is wider than the card, it slides left in a loop.
+/// A gap sits between one copy and the next, so the end does not meet the start.
+/// A horizontal drag moves it. After the finger lifts and the slide settles, the loop waits, then continues
+/// from the place where it was left.
+private struct HeroDetailLine: View {
+    var items: [HeroDetailItem]
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @ScaledMetric(relativeTo: .subheadline) private var lineHeight: CGFloat = 22
+
+    @State private var textWidth: CGFloat = 0
+    @State private var containerWidth: CGFloat = 0
+    @State private var position = ScrollPosition(x: 0)
+    @State private var running = false
+    @State private var baseX: CGFloat = 0
+    @State private var baseDate = Date()
+    @State private var resume: Task<Void, Never>?
+    /// True from the moment a finger takes the line until it has settled again.
+    @State private var heldByFinger = false
+
+    /// How far the line travels left each second.
+    private static let speed: CGFloat = 32
+    /// Room between one copy of the line and the next.
+    private static let gap: CGFloat = 48
+    /// Copies laid end to end, so a drag in either direction stays on the same words.
+    private static let copies = 5
+    /// Stillness after a drag before the loop starts again.
+    private static let resumeDelay: Duration = .milliseconds(1500)
+
+    /// The distance from the start of one copy to the start of the next.
+    private var period: CGFloat { textWidth + Self.gap }
+
+    private var overflows: Bool { containerWidth > 0 && textWidth > containerWidth + 1 }
+
+    var body: some View {
+        GeometryReader { geo in
+            Group {
+                if overflows {
+                    scroller
+                } else {
+                    row
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+            .onAppear { containerWidth = geo.size.width }
+            .onChange(of: geo.size.width) { _, width in
+                containerWidth = width
+            }
+        }
+        .frame(height: lineHeight)
+        .clipped()
+        // The measuring copy sits behind the row and does not change its height.
+        .background(alignment: .leading) {
+            row
+                .fixedSize(horizontal: true, vertical: false)
+                .hidden()
+                .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width in
+                    guard abs(width - textWidth) > 0.5 else { return }
+                    textWidth = width
+                }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(verbatim: items.map(\.text).joined(separator: ", ")))
+            .onChange(of: items) { _, _ in start() }
+        .onChange(of: overflows) { _, now in
+            if now {
+                start()
+            } else {
+                running = false
+                resume?.cancel()
+                resume = nil
+            }
+        }
+        .onDisappear {
+            resume?.cancel()
+            running = false
+        }
+    }
+
+    /// Symbol and words for each fact, in one row.
+    private var row: some View {
+        HStack(spacing: 16) {
+            ForEach(Array(items.enumerated()), id: \.offset) { _, item in
+                HStack(spacing: 4) {
+                    Image(systemName: item.symbol)
+                        .accessibilityHidden(true)
+                    Text(verbatim: item.text)
+                        .lineLimit(1)
+                }
+            }
+        }
+        .font(.subheadline)
+        .foregroundStyle(.secondary)
+    }
+
+    private var scroller: some View {
+        ScrollView(.horizontal) {
+            HStack(spacing: Self.gap) {
+                ForEach(0..<Self.copies, id: \.self) { index in
+                    row.accessibilityHidden(index != 0)
+                }
+            }
+        }
+        .scrollPosition($position)
+        .scrollIndicators(.hidden)
+        .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
+        .onAppear { start() }
+        .onScrollPhaseChange { _, phase, context in
+            switch phase {
+            case .tracking, .interacting, .decelerating:
+                running = false
+                resume?.cancel()
+                resume = nil
+                heldByFinger = true
+            case .idle:
+                guard heldByFinger else { return }
+                heldByFinger = false
+                let x = recenter(context.geometry.contentOffset.x)
+                baseX = x
+                jump(to: x)
+                scheduleResume()
+            case .animating:
+                break
+            }
+        }
+        .background {
+            TimelineView(.animation(minimumInterval: 1.0 / 30, paused: !running)) { context in
+                Color.clear
+                    .onChange(of: context.date) { _, date in
+                        advance(to: date)
+                    }
+            }
+        }
+    }
+
+    /// Park the line at the middle copy and, when it does not fit, arm the loop.
+    private func start() {
+        running = false
+        resume?.cancel()
+        resume = nil
+        heldByFinger = false
+        guard overflows else { return }
+        let parked = 2 * period
+        baseX = parked
+        jump(to: parked)
+        scheduleResume()
+    }
+
+    private func scheduleResume() {
+        resume?.cancel()
+        guard overflows, !reduceMotion else { return }
+        resume = Task {
+            try? await Task.sleep(for: Self.resumeDelay)
+            guard !Task.isCancelled else { return }
+            baseDate = .now
+            running = true
+        }
+    }
+
+    /// Move the line left. Past the middle copy, jump back one period so the loop has no seam.
+    private func advance(to date: Date) {
+        guard running, period > 0 else { return }
+        var x = baseX + Self.speed * date.timeIntervalSince(baseDate)
+        if x >= 3 * period {
+            x = 2 * period + positiveMod(x, period)
+            baseX = x
+            baseDate = date
+        }
+        jump(to: x)
+    }
+
+    /// The same words, shifted into the middle copy, so a jump does not change what is on screen.
+    private func recenter(_ x: CGFloat) -> CGFloat {
+        guard period > 0 else { return 0 }
+        return 2 * period + positiveMod(x, period)
+    }
+
+    private func positiveMod(_ value: CGFloat, _ period: CGFloat) -> CGFloat {
+        let remainder = value.truncatingRemainder(dividingBy: period)
+        return remainder < 0 ? remainder + period : remainder
+    }
+
+    private func jump(to x: CGFloat) {
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            position.scrollTo(x: x)
         }
     }
 }
