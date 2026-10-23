@@ -34,6 +34,8 @@ struct bellnoteApp: App {
                 }
             }
             .preferredColorScheme(colorScheme)
+            // SF Pro widths. Named faces are applied per text style, because a root font would resize the bars.
+            .fontWidth(session.typeface.width)
         }
     }
 

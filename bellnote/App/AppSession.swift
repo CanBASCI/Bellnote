@@ -10,6 +10,7 @@ final class AppSession {
     var lockEnabled: Bool
     var languageCode: String
     var appearance: AppAppearance
+    var typeface: AppTypeface
     var focusCourseToken: UUID?
     var focusLectureID: PersistentIdentifier?
     var showModelDownload = false
@@ -34,6 +35,8 @@ final class AppSession {
         languageCode = AppLanguage.resolved(preference: stored, system: Locale.current.identifier)
         let storedAppearance = defaults.string(forKey: AppPreferences.appearanceKey) ?? AppAppearance.system.rawValue
         appearance = AppAppearance(rawValue: storedAppearance) ?? .system
+        let storedTypeface = defaults.string(forKey: AppPreferences.typefaceKey) ?? AppTypeface.sfPro.rawValue
+        typeface = AppTypeface(rawValue: storedTypeface) ?? .sfPro
         pageModel = AppPreferences.pageModel(defaults)
         speechEngine = SpeechEngine(rawValue: defaults.string(forKey: AppPreferences.speechEngineKey) ?? "") ?? .apple
         readAloud = ReadAloud(rawValue: defaults.string(forKey: AppPreferences.readAloudKey) ?? "") ?? .apple
@@ -43,6 +46,11 @@ final class AppSession {
     func setAppearance(_ appearance: AppAppearance) {
         UserDefaults.standard.set(appearance.rawValue, forKey: AppPreferences.appearanceKey)
         self.appearance = appearance
+    }
+
+    func setTypeface(_ typeface: AppTypeface) {
+        UserDefaults.standard.set(typeface.rawValue, forKey: AppPreferences.typefaceKey)
+        self.typeface = typeface
     }
 
     func setLanguage(_ language: AppLanguage) {

@@ -12,7 +12,7 @@ struct LockGate: View {
     var body: some View {
         VStack(spacing: 16) {
             Text("Bellnote")
-                .font(.largeTitle)
+                .appFont(.largeTitle)
             Text("Notes stay on this device.")
             if let message {
                 Text(message)

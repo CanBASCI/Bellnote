@@ -556,12 +556,12 @@ struct CoursePage: View {
             // The total sits at the right end of the title line.
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text(title)
-                    .font(.headline)
+                    .appFont(.headline)
                     // No shrinking. Every title has the same size on every tile.
                     .lineLimit(1)
                 Spacer(minLength: 0)
                 Text(value, format: .number)
-                    .font(.title3.weight(.bold).monospacedDigit())
+                    .appFont(.title3, weight: .bold, digits: true)
             }
             // White on the color, like the date covers of the recordings. White reads on the color in light and dark
             // mode. Only this line has a color. The tile itself is plain glass.
@@ -574,7 +574,7 @@ struct CoursePage: View {
             .padding(.bottom, 6)
             ForEach(details) { line in
                 Text(verbatim: line.text)
-                    .font(.footnote)
+                    .appFont(.footnote)
                     // A zero count on that line is quiet; a real count stays primary.
                     .foregroundStyle(line.count == 0 ? .secondary : .primary)
                     .lineLimit(1)
@@ -605,7 +605,7 @@ struct CoursePage: View {
             VStack(alignment: .leading, spacing: 2) {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Text(lecture.startedAt.formatted(.dateTime.hour().minute().locale(locale)))
-                        .font(.subheadline.weight(.medium))
+                        .appFont(.subheadline, weight: .medium)
                         .foregroundStyle(.secondary)
                     Image(systemName: lecture.statusSymbol)
                         // The same weight as the time. The symbol is scaled so that it is at most as tall as the digits
@@ -613,7 +613,7 @@ struct CoursePage: View {
                         .resizable()
                         .scaledToFit()
                         .frame(maxHeight: timeDigitHeight)
-                        .font(.subheadline.weight(.medium))
+                        .appFont(.subheadline, weight: .medium)
                         // The system colours are bright. On the light background a small symbol in them is hard to
                         // see, so there they are mixed with black. On the dark background they stay as they are.
                         .foregroundStyle(
@@ -623,14 +623,14 @@ struct CoursePage: View {
                         .accessibilityHidden(true)
                     if lecture.recordedSeconds >= 60 {
                         Text(String(format: String(localized: "%lld min"), lecture.recordedSeconds / 60))
-                            .font(.subheadline)
+                            .appFont(.subheadline)
                             .foregroundStyle(.secondary)
                     }
                 }
                 let excerpt = preview(lecture)
                 if !excerpt.isEmpty {
                     Text(excerpt)
-                        .font(.subheadline)
+                        .appFont(.subheadline)
                         .foregroundStyle(.primary)
                         .lineLimit(2)
                 }
@@ -654,10 +654,10 @@ struct CoursePage: View {
             VStack(alignment: .leading, spacing: 6) {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Text(lecture.startedAt.formatted(.dateTime.hour().minute().locale(locale)))
-                        .font(.headline)
+                        .appFont(.headline)
                     if lecture.recordedSeconds >= 60 {
                         Text(String(format: String(localized: "%lld min"), lecture.recordedSeconds / 60))
-                            .font(.subheadline)
+                            .appFont(.subheadline)
                             .foregroundStyle(.secondary)
                     }
                     Spacer(minLength: 8)
@@ -666,7 +666,7 @@ struct CoursePage: View {
                 let excerpt = preview(lecture)
                 if !excerpt.isEmpty {
                     Text(excerpt)
-                        .font(.subheadline)
+                        .appFont(.subheadline)
                         .foregroundStyle(.secondary)
                         .lineLimit(2)
                 }

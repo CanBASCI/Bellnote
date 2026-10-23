@@ -41,7 +41,7 @@ struct ProcessingCircle: View {
                         .scaleEffect(3)
                         .frame(width: 180, height: 180)
                     Text(isStopping ? String(localized: "Cancelling…") : step.title)
-                        .font(.subheadline.weight(.semibold))
+                        .appFont(.subheadline, weight: .semibold)
                         .multilineTextAlignment(.center)
                         .minimumScaleFactor(0.8)
                         .padding(.horizontal, 44)
@@ -56,7 +56,7 @@ struct ProcessingCircle: View {
                         : step.info
                     if !info.isEmpty {
                         Text(info)
-                            .font(.footnote)
+                            .appFont(.footnote)
                             .foregroundStyle(.primary)
                             .multilineTextAlignment(.center)
                             .padding(16)

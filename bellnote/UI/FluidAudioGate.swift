@@ -87,7 +87,7 @@ struct FluidAudioGateModifier: ViewModifier {
                         ProgressView(value: gate.downloadProgress)
                             .padding(.horizontal)
                         Text(gate.downloadProgress, format: .percent.precision(.fractionLength(0)))
-                            .font(.caption)
+                            .appFont(.caption)
                             .foregroundStyle(.secondary)
                         if gate.downloadFailed {
                             Text(
@@ -95,7 +95,7 @@ struct FluidAudioGateModifier: ViewModifier {
                                     localized: "Download failed. Check your connection and try again."
                                 )
                             )
-                            .font(.footnote)
+                            .appFont(.footnote)
                             .foregroundStyle(.secondary)
                             .multilineTextAlignment(.center)
                             Button(String(localized: "Retry")) { gate.confirmInstall() }

@@ -1524,6 +1524,22 @@
     "FluidAudio" : {
 
     },
+    "Font" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Font"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yazı Tipi"
+          }
+        }
+      }
+    },
     "Given name" : {
       "localizations" : {
         "en" : {
@@ -1864,18 +1880,18 @@
         }
       }
     },
-    "Language and appearance stay on this device." : {
+    "Language, appearance and font stay on this device." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Language and appearance stay on this device."
+            "value" : "Language, appearance and font stay on this device."
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Dil ve görünüm bu cihazda kalır."
+            "value" : "Dil, görünüm ve yazı tipi bu cihazda kalır."
           }
         }
       }

@@ -52,7 +52,7 @@ struct LecturePage: View {
                 // The headline takes two lines in the middle of the bar.
                 ToolbarItem(placement: .principal) {
                     Text(barTitle)
-                        .font(.subheadline.weight(.semibold))
+                        .appFont(.subheadline, weight: .semibold)
                         .lineLimit(2)
                         .multilineTextAlignment(.center)
                 }
@@ -169,7 +169,7 @@ struct LectureNote: View {
                 if showsDate {
                     Section {
                         Text(lecture.startedAt.formatted(date: .abbreviated, time: .omitted))
-                            .font(.title2.weight(.semibold))
+                            .appFont(.title2, weight: .semibold)
                     }
                 }
                 if lecture.isRecordedOnly && workingStage == nil {
@@ -378,7 +378,7 @@ struct LectureNote: View {
         if hasCorrection || workingStage == nil {
             Section {
                 Text(CorrectionText.attributed(bodyText))
-                    .font(.body)
+                    .appFont(.body)
                     .lineSpacing(4)
                     .textSelection(.enabled)
             }
@@ -417,7 +417,7 @@ struct LectureNote: View {
                     } label: {
                         HStack(alignment: .firstTextBaseline, spacing: 12) {
                             Text(MediaClock.short(second))
-                                .font(.subheadline.monospacedDigit())
+                                .appFont(.subheadline, digits: true)
                                 .foregroundStyle(.secondary)
                                 .frame(width: 52, alignment: .leading)
                             Text("I didn't get this")
@@ -536,7 +536,7 @@ struct LectureNote: View {
                         beginNaming(block.speaker)
                     } label: {
                         Text(speakerTitle(block.speaker))
-                            .font(.subheadline.weight(.semibold))
+                            .appFont(.subheadline, weight: .semibold)
                             .foregroundStyle(Color.accentColor)
                     }
                     .buttonStyle(.plain)
@@ -545,7 +545,7 @@ struct LectureNote: View {
                     audio.seek(to: block.second, play: true)
                 } label: {
                     Text(MediaClock.short(block.second))
-                        .font(.subheadline.monospacedDigit())
+                        .appFont(.subheadline, digits: true)
                         .foregroundStyle(emphasize ? Color.accentColor : Color.secondary)
                 }
                 .buttonStyle(.plain)
@@ -562,7 +562,7 @@ struct LectureNote: View {
             .buttonStyle(.plain)
             if block.missing || block.userFlag {
                 Text("Missing")
-                    .font(.caption)
+                    .appFont(.caption)
                     .foregroundStyle(.secondary)
             }
         }
@@ -687,7 +687,7 @@ struct LectureNote: View {
                         }
                     } label: {
                         Text(verbatim: tag.title)
-                            .font(.subheadline)
+                            .appFont(.subheadline)
                             .lineLimit(1)
                             // Only the text changes when the tag is chosen: the accent colour.
                             .foregroundStyle(chosen ? Color.accentColor : Color.primary)

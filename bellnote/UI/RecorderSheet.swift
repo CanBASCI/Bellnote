@@ -19,7 +19,7 @@ struct ConsentSheet: View {
                 Toggle("I am allowed to record this class", isOn: $allowed)
                 Toggle("The lecturer or school permitted recording", isOn: $permitted)
                 Text("This is your confirmation, not proof that the lecturer consented.")
-                    .font(.footnote)
+                    .appFont(.footnote)
                     .foregroundStyle(.secondary)
             }
             .navigationTitle("Recording")
@@ -59,7 +59,7 @@ struct RecorderSheet: View {
             VStack(spacing: 20) {
                 VStack(spacing: 10) {
                     Label("On this device", systemImage: "lock.fill")
-                        .font(.caption.weight(.semibold))
+                        .appFont(.caption, weight: .semibold)
                         .foregroundStyle(.green)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 4)
@@ -73,7 +73,7 @@ struct RecorderSheet: View {
                         .symbolEffect(.variableColor.iterative, isActive: capture.isRunning)
                         .accessibilityHidden(true)
                     Text(capture.isRunning ? "Recording" : "Paused")
-                        .font(.subheadline)
+                        .appFont(.subheadline)
                         .foregroundStyle(.secondary)
                 }
                 .padding(.top, 12)
@@ -86,12 +86,12 @@ struct RecorderSheet: View {
                     if !lecture.flaggedSeconds.isEmpty {
                         VStack(alignment: .leading, spacing: 12) {
                             Text("So far")
-                                .font(.subheadline.weight(.semibold))
+                                .appFont(.subheadline, weight: .semibold)
                                 .foregroundStyle(.secondary)
                             ForEach(Array(lecture.flaggedSeconds.enumerated()), id: \.offset) { _, second in
                                 HStack(alignment: .firstTextBaseline, spacing: 12) {
                                     Text(MediaClock.short(second))
-                                        .font(.subheadline.monospacedDigit())
+                                        .appFont(.subheadline, digits: true)
                                         .foregroundStyle(.secondary)
                                         .frame(width: 56, alignment: .leading)
                                     Text("I didn't get this")
@@ -172,7 +172,7 @@ struct RecorderSheet: View {
             if prominent {
                 Button(action: action) {
                     Image(systemName: systemImage)
-                        .font(.title)
+                        .appFont(.title)
                         .frame(width: 44, height: 44)
                 }
                 .buttonStyle(.glassProminent)
@@ -183,7 +183,7 @@ struct RecorderSheet: View {
             } else {
                 Button(action: action) {
                     Image(systemName: systemImage)
-                        .font(.title3)
+                        .appFont(.title3)
                         .frame(width: 32, height: 32)
                 }
                 .buttonStyle(.glass)
@@ -192,7 +192,7 @@ struct RecorderSheet: View {
                 .accessibilityLabel(Text(title))
             }
             Text(title)
-                .font(.caption)
+                .appFont(.caption)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .frame(width: 84)

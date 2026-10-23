@@ -221,11 +221,11 @@ struct TodayPage: View {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(row.courseName)
                             Text(examLine(row))
-                                .font(.subheadline)
+                                .appFont(.subheadline)
                                 .foregroundStyle(.secondary)
                             if row.overlaps {
                                 Text("Overlaps another sitting.")
-                                    .font(.footnote)
+                                    .appFont(.footnote)
                             }
                         }
                     }
@@ -491,11 +491,11 @@ struct TodayPage: View {
                     // A step above title2. The lecturer below drops by the same ratio, so the pair still
                     // fits the badge.
                     Text(name)
-                        .font(.system(size: heroNameSize, weight: .semibold))
+                        .appFont(size: heroNameSize, weight: .semibold)
                         .minimumScaleFactor(0.7)
                         .lineLimit(2)
                     iconLine(lecturer.isEmpty ? String(localized: "Lecturer") : lecturer, systemImage: "person.crop.circle")
-                        .font(.system(size: heroLecturerSize))
+                        .appFont(size: heroLecturerSize)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
@@ -520,7 +520,7 @@ struct TodayPage: View {
         .padding(.bottom, Self.heroVerticalPadding)
         // The card sits above the scrolling list, which has its own font. The texts and the button keep the
         // fonts set above, so this is only the base.
-        .font(.body)
+        .appFont(.body)
     }
 
     /// The large time on the hero. While the class is on, the minutes left. Before it starts today, the minutes
@@ -550,12 +550,12 @@ struct TodayPage: View {
         }
         return HStack(alignment: .firstTextBaseline, spacing: 8) {
             Text(verbatim: amount)
-                .font(.largeTitle.weight(.semibold))
+                .appFont(.largeTitle, weight: .semibold)
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
             if let word {
                 Text(word)
-                    .font(.title3)
+                    .appFont(.title3)
             }
         }
         .foregroundStyle(.primary)
@@ -642,7 +642,7 @@ struct TodayPage: View {
             Button("Delete", systemImage: "trash", role: .destructive) { askDelete(course) }
         } label: {
             Image(systemName: "ellipsis")
-                .font(.body.weight(.semibold))
+                .appFont(.body, weight: .semibold)
                 .foregroundStyle(.secondary)
                 .frame(width: Self.menuSize, height: Self.menuSize)
                 .contentShape(.rect)
@@ -665,7 +665,7 @@ struct TodayPage: View {
                     // it. The lecturer line is under the icon, so it goes on to the right edge of the card.
                     HStack(spacing: 0) {
                         Text(course.name)
-                            .font(.headline)
+                            .appFont(.headline)
                             // One line. A long name is cut at the end with "…".
                             .lineLimit(1)
                             .truncationMode(.tail)
@@ -673,7 +673,7 @@ struct TodayPage: View {
                         Color.clear.frame(width: Self.menuSize, height: 0)
                     }
                     Text(verbatim: lecturer.isEmpty ? String(localized: "Lecturer") : lecturer)
-                        .font(.caption2)
+                        .appFont(.caption2)
                         .foregroundStyle(lecturer.isEmpty ? Color.secondary : Color.primary)
                         .lineLimit(1)
                 }
@@ -686,7 +686,7 @@ struct TodayPage: View {
             VStack(alignment: .leading, spacing: 2) {
                 ForEach(Array(scheduleLines(course).enumerated()), id: \.element) { index, line in
                     Text(verbatim: line)
-                        .font(.subheadline)
+                        .appFont(.subheadline)
                         .foregroundStyle(index == 0 ? Color.primary : Color.secondary)
                         .lineLimit(1)
                 }
@@ -713,7 +713,7 @@ struct TodayPage: View {
                 if course.isFavorite {
                     // Outline only on the card: colored stroke, no fill.
                     Image(systemName: "star")
-                        .font(.subheadline)
+                        .appFont(.subheadline)
                         .foregroundStyle(CourseStyle.favoriteTint)
                         .accessibilityLabel(Text("Favorite"))
                 }
@@ -747,7 +747,7 @@ struct TodayPage: View {
                 .controlSize(.small)
                 .frame(maxWidth: .infinity)
             Text(verbatim: String(format: String(localized: "%lld recorded"), share.recorded))
-                .font(.caption2)
+                .appFont(.caption2)
                 .foregroundStyle(share.recorded > 0 ? Color.primary : Color.secondary)
                 .lineLimit(1)
                 .fixedSize(horizontal: true, vertical: false)
@@ -857,7 +857,7 @@ struct TodayPage: View {
             Text(count, format: .number)
                 .foregroundStyle(count > 0 ? Color.primary : Color.secondary)
         }
-        .font(.system(size: courseTotalSize, weight: .medium))
+        .appFont(size: courseTotalSize, weight: .medium)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text(name))
         .accessibilityValue(Text(count, format: .number))
@@ -1130,7 +1130,7 @@ private struct HeroDetailLine: View {
                 }
             }
         }
-        .font(.subheadline)
+        .appFont(.subheadline)
         .foregroundStyle(.secondary)
     }
 

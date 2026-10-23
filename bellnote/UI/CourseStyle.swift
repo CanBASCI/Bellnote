@@ -226,7 +226,7 @@ struct StatusChip: View {
 
     var body: some View {
         Text(title)
-            .font(.caption.weight(.semibold))
+            .appFont(.caption, weight: .semibold)
             .foregroundStyle(tint)
             .padding(.horizontal, 8)
             .padding(.vertical, 3)
@@ -300,7 +300,7 @@ struct AssignmentRow: View {
                         ? "xmark.circle"
                         : (assignment.done ? "checkmark.circle.fill" : "circle")
                 )
-                .font(.title3)
+                .appFont(.title3)
                 .foregroundStyle(assignment.done && !assignment.cancelled ? Color.green : Color.secondary)
                 .frame(height: smallTitle ? subheadlineLineHeight : bodyLineHeight)
                 .frame(width: markWidth)
@@ -336,7 +336,7 @@ struct AssignmentRow: View {
     private var details: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(assignment.text)
-                .font(smallTitle ? .subheadline.weight(.medium) : nil)
+                .appFont(smallTitle ? .subheadline : .body, weight: smallTitle ? .medium : nil)
                 .strikethrough(assignment.done || assignment.cancelled)
                 .foregroundStyle(assignment.done || assignment.cancelled ? .secondary : .primary)
                 .multilineTextAlignment(.leading)
@@ -349,7 +349,7 @@ struct AssignmentRow: View {
                 StatusChip(title: AssignmentRow.dueTitle(due), tint: .accentColor)
             } else {
                 Text("No date was spoken.")
-                    .font(plainDetails ? .subheadline : .caption)
+                    .appFont(plainDetails ? .subheadline : .caption)
                     .foregroundStyle(.secondary)
             }
             if let lecture = assignment.sourceLecture {
@@ -371,7 +371,7 @@ struct AssignmentRow: View {
                         }
                     }
                 }
-                .font(plainDetails ? .subheadline : .caption)
+                .appFont(plainDetails ? .subheadline : .caption)
                 .foregroundStyle(.secondary)
             }
             }

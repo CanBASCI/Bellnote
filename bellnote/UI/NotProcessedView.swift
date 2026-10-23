@@ -11,9 +11,9 @@ struct NotProcessedView: View {
                 .foregroundStyle(.secondary)
                 .accessibilityHidden(true)
             Text("Not processed yet")
-                .font(.title3.weight(.semibold))
+                .appFont(.title3, weight: .semibold)
             Text("Process the recording to get the raw text, AI correction and assignments.")
-                .font(.subheadline)
+                .appFont(.subheadline)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
             // Same look as Ask and Listen.

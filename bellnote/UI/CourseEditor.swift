@@ -115,12 +115,12 @@ struct CourseEditor: View {
                 Text(verbatim: day)
                     .foregroundStyle(.primary)
                 Text(verbatim: detail)
-                    .font(.subheadline)
+                    .appFont(.subheadline)
                     .foregroundStyle(.secondary)
             }
             Spacer(minLength: 8)
             Image(systemName: "chevron.right")
-                .font(.footnote.weight(.semibold))
+                .appFont(.footnote, weight: .semibold)
                 .foregroundStyle(.tertiary)
                 .accessibilityHidden(true)
         }

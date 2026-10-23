@@ -62,7 +62,7 @@ struct TermEditor: View {
                 }
                 if alreadyExists {
                     Text("This year and term already exist.")
-                        .font(.footnote)
+                        .appFont(.footnote)
                         .foregroundStyle(.red)
                 }
                 LabeledContent("Name") {
@@ -73,11 +73,11 @@ struct TermEditor: View {
                 DatePicker("Ends", selection: $end, displayedComponents: .date)
                 if endsBeforeStart {
                     Text("The end cannot be before the start.")
-                        .font(.footnote)
+                        .appFont(.footnote)
                         .foregroundStyle(.red)
                 } else if overlapsAnotherTerm {
                     Text("These dates overlap another term.")
-                        .font(.footnote)
+                        .appFont(.footnote)
                         .foregroundStyle(.red)
                 }
             }
@@ -174,14 +174,14 @@ struct PendingSheet: View {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(lecture.course?.name ?? String(localized: "Course"))
                         Text(lecture.startedAt.formatted(date: .abbreviated, time: .shortened))
-                            .font(.subheadline)
+                            .appFont(.subheadline)
                             .foregroundStyle(.secondary)
                         Text(lecture.statusTitle)
-                            .font(.subheadline)
+                            .appFont(.subheadline)
                             .foregroundStyle(.secondary)
                         if let failure = lecture.failureMessageKey, !failure.isEmpty {
                             Text(String(localized: String.LocalizationValue(failure)))
-                                .font(.footnote)
+                                .appFont(.footnote)
                                 .foregroundStyle(.secondary)
                         }
                     }
@@ -192,7 +192,7 @@ struct PendingSheet: View {
                     VStack(alignment: .leading, spacing: 8) {
                         ProgressView(value: workingStage.fraction)
                         Text(workingStage.title)
-                            .font(.subheadline)
+                            .appFont(.subheadline)
                             .foregroundStyle(.secondary)
                     }
                     .padding()
@@ -247,6 +247,10 @@ struct SettingsPage: View {
         let stored = UserDefaults.standard.string(forKey: AppPreferences.appearanceKey) ?? AppAppearance.system.rawValue
         return AppAppearance(rawValue: stored) ?? .system
     }()
+    @State private var typeface: AppTypeface = {
+        let stored = UserDefaults.standard.string(forKey: AppPreferences.typefaceKey) ?? AppTypeface.sfPro.rawValue
+        return AppTypeface(rawValue: stored) ?? .sfPro
+    }()
 
     var body: some View {
         Form {
@@ -271,10 +275,23 @@ struct SettingsPage: View {
                 .onChange(of: appearance) { _, newValue in
                     session.setAppearance(newValue)
                 }
+                Picker(selection: $typeface) {
+                    ForEach(AppTypeface.allCases, id: \.self) { face in
+                        Text(verbatim: face.menuTitle)
+                            .font(face.font(style: .body, weight: nil, digits: false))
+                            .fontWidth(face.width)
+                            .tag(face)
+                    }
+                } label: {
+                    Label("Font", systemImage: "textformat")
+                }
+                .onChange(of: typeface) { _, newValue in
+                    session.setTypeface(newValue)
+                }
             } header: {
                 Text("App")
             } footer: {
-                Text("Language and appearance stay on this device.")
+                Text("Language, appearance and font stay on this device.")
             }
 
             Section {
@@ -298,7 +315,7 @@ struct SettingsPage: View {
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Models")
                             Text("AI, speech and voice")
-                                .font(.caption)
+                                .appFont(.caption)
                                 .foregroundStyle(.secondary)
                         }
                     } icon: {
@@ -357,7 +374,7 @@ struct ModelsPage: View {
                     }
                     .pickerStyle(.menu)
                     Text("Tags, AI correction and Ask use this model.")
-                        .font(.caption)
+                        .appFont(.caption)
                         .foregroundStyle(.secondary)
                 }
             }
@@ -374,7 +391,7 @@ struct ModelsPage: View {
                 }
                 .pickerStyle(.menu)
                 Text(transcriptHint)
-                    .font(.caption)
+                    .appFont(.caption)
                     .foregroundStyle(.secondary)
             }
             Section("Audio") {
@@ -393,7 +410,7 @@ struct ModelsPage: View {
                 Text(session.readAloud == .supertonic
                     ? "Supertonic reads the notes."
                     : "Apple Dictation reads the notes.")
-                    .font(.caption)
+                    .appFont(.caption)
                     .foregroundStyle(.secondary)
                 if session.readAloud == .supertonic, supertonicInstalled {
                     Picker("Voice", selection: Binding(
@@ -478,14 +495,14 @@ struct ModelsPage: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("FluidAudio")
                     Text(bytes.formatted(.byteCount(style: .file)))
-                        .font(.caption)
+                        .appFont(.caption)
                         .foregroundStyle(.secondary)
                     Text(String(localized: "Separates speakers while processing a lecture."))
-                        .font(.caption)
+                        .appFont(.caption)
                         .foregroundStyle(.secondary)
                     if ready, !downloadingFluid {
                         Text("Installed")
-                            .font(.caption)
+                            .appFont(.caption)
                             .foregroundStyle(.secondary)
                     }
                 }
@@ -495,7 +512,7 @@ struct ModelsPage: View {
                         ProgressView(value: downloadProgress.clamped(to: 0...1))
                             .frame(width: 96)
                         Text(downloadProgress.clamped(to: 0...1), format: .percent.precision(.fractionLength(0)))
-                            .font(.caption2)
+                            .appFont(.caption2)
                             .foregroundStyle(.secondary)
                     }
                 } else if ready {
@@ -536,7 +553,7 @@ struct ModelsPage: View {
             }
             if let fluidStatus {
                 Text(fluidStatus)
-                    .font(.caption)
+                    .appFont(.caption)
                     .foregroundStyle(.secondary)
             }
         }
@@ -553,18 +570,18 @@ struct ModelsPage: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Supertonic")
                     Text(bytes.formatted(.byteCount(style: .file)))
-                        .font(.caption)
+                        .appFont(.caption)
                         .foregroundStyle(.secondary)
                     Text("Reads notes aloud in Turkish and English.")
-                        .font(.caption)
+                        .appFont(.caption)
                         .foregroundStyle(.secondary)
                     if supertonicPartial, !ready {
                         Text("Incompletely installed")
-                            .font(.caption)
+                            .appFont(.caption)
                             .foregroundStyle(.secondary)
                     } else if ready, !downloadingSupertonic {
                         Text("Installed")
-                            .font(.caption)
+                            .appFont(.caption)
                             .foregroundStyle(.secondary)
                     }
                 }
@@ -574,7 +591,7 @@ struct ModelsPage: View {
                         ProgressView(value: downloadProgress.clamped(to: 0...1))
                             .frame(width: 96)
                         Text(downloadProgress.clamped(to: 0...1), format: .percent.precision(.fractionLength(0)))
-                            .font(.caption2)
+                            .appFont(.caption2)
                             .foregroundStyle(.secondary)
                     }
                 } else if ready || supertonicPartial {
@@ -615,7 +632,7 @@ struct ModelsPage: View {
             }
             if let supertonicStatus {
                 Text(supertonicStatus)
-                    .font(.caption)
+                    .appFont(.caption)
                     .foregroundStyle(.secondary)
             }
         }
@@ -653,19 +670,19 @@ struct ModelsPage: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(title)
                     Text(bytes.formatted(.byteCount(style: .file)))
-                        .font(.caption)
+                        .appFont(.caption)
                         .foregroundStyle(.secondary)
                     if leftover[role] == true, !ready {
                         Text("Incompletely installed")
-                            .font(.caption)
+                            .appFont(.caption)
                             .foregroundStyle(.secondary)
                     } else if locked, !ready {
                         Text(Self.lockedHint(role))
-                            .font(.caption)
+                            .appFont(.caption)
                             .foregroundStyle(.secondary)
                     } else if ready, downloading != role {
                         Text("Installed")
-                            .font(.caption)
+                            .appFont(.caption)
                             .foregroundStyle(.secondary)
                     }
                 }
@@ -674,7 +691,7 @@ struct ModelsPage: View {
                     VStack(alignment: .trailing, spacing: 4) {
                         ProgressView()
                         Text("Preparing…")
-                            .font(.caption2)
+                            .appFont(.caption2)
                             .foregroundStyle(.secondary)
                     }
                 } else if downloading == role {
@@ -682,7 +699,7 @@ struct ModelsPage: View {
                         ProgressView(value: downloadProgress.clamped(to: 0...1))
                             .frame(width: 96)
                         Text(downloadProgress.clamped(to: 0...1), format: .percent.precision(.fractionLength(0)))
-                            .font(.caption2)
+                            .appFont(.caption2)
                             .foregroundStyle(.secondary)
                     }
                 } else if ready || leftover[role] == true {
@@ -726,7 +743,7 @@ struct ModelsPage: View {
             }
             if let status = status[role] {
                 Text(status)
-                    .font(.caption)
+                    .appFont(.caption)
                     .foregroundStyle(.secondary)
             }
         }
@@ -801,7 +818,7 @@ struct ModelsPage: View {
 
     private func rowIcon(_ symbol: String) -> some View {
         Image(systemName: symbol)
-            .font(.title3)
+            .appFont(.title3)
             .foregroundStyle(.tint)
             .frame(width: 28)
             .accessibilityHidden(true)
@@ -853,7 +870,7 @@ struct CalendarPage: View {
                 weekdayHeader
                 monthGrid
                 Text(selected.formatted(.dateTime.weekday(.wide).day().month(.wide)))
-                    .font(.headline)
+                    .appFont(.headline)
                 dayList
             }
             .padding()
@@ -877,7 +894,7 @@ struct CalendarPage: View {
         return HStack(spacing: 0) {
             ForEach(Array(ordered.enumerated()), id: \.offset) { _, symbol in
                 Text(symbol)
-                    .font(.caption.weight(.semibold))
+                    .appFont(.caption, weight: .semibold)
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity)
             }
@@ -906,7 +923,7 @@ struct CalendarPage: View {
         } label: {
             VStack(spacing: 4) {
                 Text("\(Calendar.current.component(.day, from: date))")
-                    .font(.body.weight(isSelected || isToday ? .semibold : .regular))
+                    .appFont(.body, weight: isSelected || isToday ? .semibold : .regular)
                     .frame(width: 32, height: 32)
                     .background {
                         if isSelected {
@@ -935,7 +952,7 @@ struct CalendarPage: View {
         return VStack(spacing: 10) {
             if marks.isEmpty {
                 Text("No class")
-                    .font(.subheadline)
+                    .appFont(.subheadline)
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.vertical, 8)
@@ -954,16 +971,16 @@ struct CalendarPage: View {
                 .frame(maxHeight: .infinity)
             VStack(alignment: .leading, spacing: 4) {
                 Text(mark.name)
-                    .font(.body.weight(.semibold))
+                    .appFont(.body, weight: .semibold)
                     .foregroundStyle(.primary)
                 Text(mark.detail)
-                    .font(.subheadline)
+                    .appFont(.subheadline)
                     .foregroundStyle(.secondary)
             }
             Spacer(minLength: 0)
             if mark.lecture != nil {
                 Image(systemName: "chevron.right")
-                    .font(.caption.weight(.semibold))
+                    .appFont(.caption, weight: .semibold)
                     .foregroundStyle(.tertiary)
             }
         }
@@ -1131,7 +1148,7 @@ struct ProgramPage: View {
                     VStack(alignment: .leading, spacing: 4) {
                         ForEach(hourRows, id: \.courseName) { row in
                             Text("\(row.courseName) · \(String(format: String(localized: "%lld min"), row.weeklyMinutes))")
-                                .font(.footnote)
+                                .appFont(.footnote)
                                 .foregroundStyle(.secondary)
                         }
                     }
@@ -1189,7 +1206,7 @@ struct ProgramPage: View {
                     day = value
                 } label: {
                     Text(shortName(value))
-                        .font(.subheadline.weight(value == day ? .semibold : .regular))
+                        .appFont(.subheadline, weight: value == day ? .semibold : .regular)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 8)
                         .foregroundStyle(value == day ? Color.primary : Color.secondary)
@@ -1212,7 +1229,7 @@ struct ProgramPage: View {
             ForEach(start..<end, id: \.self) { hour in
                 HStack(alignment: .top, spacing: 8) {
                     Text("\(hour)")
-                        .font(.caption.monospacedDigit())
+                        .appFont(.caption, digits: true)
                         .foregroundStyle(.tertiary)
                         .frame(width: 24, alignment: .leading)
                         .id(hour)
@@ -1257,19 +1274,19 @@ struct ProgramPage: View {
             ViewThatFits(in: .vertical) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(name)
-                        .font(.subheadline.weight(.semibold))
+                        .appFont(.subheadline, weight: .semibold)
                     Text(detail)
-                        .font(.caption)
+                        .appFont(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
                 HStack(spacing: 6) {
                     Text(name)
-                        .font(.subheadline.weight(.semibold))
+                        .appFont(.subheadline, weight: .semibold)
                         .lineLimit(1)
                         .layoutPriority(1)
                     Text(detail)
-                        .font(.caption)
+                        .appFont(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
@@ -1600,7 +1617,7 @@ struct StudySheet: View {
                     }
                     if asked.isEmpty {
                         Text("Answers come only from your lectures.")
-                            .font(.footnote)
+                            .appFont(.footnote)
                             .foregroundStyle(.secondary)
                     }
                 }

@@ -150,7 +150,7 @@ struct AssistantPage: View {
                 AssistantVoiceOrb(phase: talk.phase, hearing: hearingSpeech)
                     .frame(width: 280, height: 280)
                 Text(verbatim: orbStatusLine)
-                    .font(.subheadline)
+                    .appFont(.subheadline)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 24)
@@ -176,13 +176,13 @@ struct AssistantPage: View {
                     if let past = pastLine {
                         ViewThatFits(in: .vertical) {
                             Text(verbatim: past)
-                                .font(.subheadline)
+                                .appFont(.subheadline)
                                 .foregroundStyle(.secondary)
                                 .multilineTextAlignment(.center)
                                 .fixedSize(horizontal: false, vertical: true)
                             ScrollView {
                                 Text(verbatim: past)
-                                    .font(.subheadline)
+                                    .appFont(.subheadline)
                                     .foregroundStyle(.secondary)
                                     .multilineTextAlignment(.center)
                             }
@@ -221,7 +221,7 @@ struct AssistantPage: View {
         TalkTurnColumn(spacing: 8, maxWidth: maxWidth, maxHeight: maxHeight) {
             HStack(alignment: .center, spacing: 8) {
                 Text(card.title)
-                    .font(.caption.weight(.semibold))
+                    .appFont(.caption, weight: .semibold)
                     .foregroundStyle(.secondary)
                 Spacer(minLength: 8)
                 if card.showSource {
@@ -242,7 +242,7 @@ struct AssistantPage: View {
             .padding(.horizontal, 14)
             TalkBubbleBody(maxWidth: bodyMax, maxHeight: textMax) {
                 Text(verbatim: card.body)
-                    .font(.body)
+                    .appFont(.body)
                     .textSelection(.enabled)
                 ScrollViewReader { proxy in
                     ScrollView {
@@ -250,7 +250,7 @@ struct AssistantPage: View {
                             .frame(height: 1)
                             .id(TalkBubbleEnd.top)
                         Text(verbatim: card.body)
-                            .font(.body)
+                            .appFont(.body)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .textSelection(.enabled)
                         Color.clear

@@ -17,12 +17,12 @@ struct PlayerAccessory: View {
                 audio.toggle()
             }
             .labelStyle(.iconOnly)
-            .font(.title3)
+            .appFont(.title3)
             .buttonStyle(.plain)
             .frame(width: 36, height: 36)
             if placement != .inline {
                 Text(MediaClock.short(Int(shown)))
-                    .font(.caption.monospacedDigit())
+                    .appFont(.caption, digits: true)
                     .foregroundStyle(.secondary)
             }
             Slider(
@@ -51,7 +51,7 @@ struct PlayerAccessory: View {
             }
             if placement != .inline {
                 Text(MediaClock.short(audio.duration))
-                    .font(.caption.monospacedDigit())
+                    .appFont(.caption, digits: true)
                     .foregroundStyle(.tertiary)
             }
             // Right of the scrubber: same Picker-in-Menu pattern as the term menu on Home.
@@ -70,7 +70,7 @@ struct PlayerAccessory: View {
                 .tint(.primary)
             } label: {
                 Text(Self.rateLabel(audio.rate))
-                    .font(.caption.weight(.semibold).monospacedDigit())
+                    .appFont(.caption, weight: .semibold, digits: true)
                     .frame(minWidth: 36)
             }
             .tint(.primary)
