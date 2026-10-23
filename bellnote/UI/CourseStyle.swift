@@ -47,10 +47,6 @@ enum CourseStyle {
     static let assignmentsTint = rgb(63, 156, 140)
     static let examsTint = rgb(194, 112, 138)
 
-    /// The star of a favourite course: a soft amber (#D4A34A), in the same muted range as the course colors. The
-    /// system yellow is much brighter than they are.
-    static let favoriteTint = rgb(212, 163, 74)
-
     static func initial(of name: String) -> String {
         name.trimmingCharacters(in: .whitespaces).first.map { String($0).uppercased() } ?? "?"
     }
@@ -146,18 +142,28 @@ extension View {
     }
 }
 
-/// A rounded square with the course initial.
+/// A rounded square with the course initial. Filled, it is flat like a date cover.
+/// Outlined, the glass shows through and the initial is primary. The border is `borderColor`.
 struct CourseBadge: View {
     var name: String
     var color: Color
     var size: CGFloat = 40
+    var outlined = false
+    var borderColor: Color = .primary
 
     var body: some View {
+        let shape = RoundedRectangle(cornerRadius: size * 0.27, style: .continuous)
         Text(CourseStyle.initial(of: name))
             .font(.system(size: size * 0.45, weight: .bold, design: .rounded))
-            .foregroundStyle(.white)
+            .foregroundStyle(outlined ? Color.primary : Color.white)
             .frame(width: size, height: size)
-            .background(color.gradient, in: RoundedRectangle(cornerRadius: size * 0.27, style: .continuous))
+            .background {
+                if outlined {
+                    shape.strokeBorder(borderColor, lineWidth: max(1.5, size * 0.045))
+                } else {
+                    shape.fill(color)
+                }
+            }
             .accessibilityHidden(true)
     }
 }

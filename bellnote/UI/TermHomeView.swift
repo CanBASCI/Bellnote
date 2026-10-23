@@ -122,13 +122,6 @@ struct TermHomeView: View {
     }
 }
 
-/// The label of the button as it is. The system plain style fades the label while the button is held down.
-private struct UnfadedCardStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-    }
-}
-
 struct TodayPage: View {
     @Bindable var term: Term
     var terms: [Term]
@@ -166,10 +159,8 @@ struct TodayPage: View {
     @State private var openedCourse: Course?
     @State private var editingCourse: Course?
     @State private var deleteNotice: String?
-    /// Width of the three count icons on a course card, so the bar ends with the last of them and not at the star.
-    @State private var countWidths: [UUID: CGFloat] = [:]
-    /// Left edge of the section header. The cards and the hero sit `cardRowOutset` further out, on the grouped list edge.
-    @State private var courseCardLeading: CGFloat = 32
+    /// Left edge of the first course row’s content. The hero glass uses the same edge.
+    @State private var courseCardLeading: CGFloat = 16
     /// Height of the glass band as it is laid out now, open or collapsed.
     @State private var heroBandHeight: CGFloat = 0
     /// Height of the glass band while the hero is fully open. The list keeps this top margin, so shrinking the band does not jump the cards.
@@ -179,46 +170,35 @@ struct TodayPage: View {
 
     var body: some View {
         ZStack(alignment: .top) {
-            // The course cards report their left edge in this space, and the fixed hero uses it.
-            Color(.systemGroupedBackground)
-                .ignoresSafeArea()
             List {
-            // Two glass cards per row. They sit in the section header, like the stat tiles of a course:
-            // a list row would clip the glass shadow and draw a grey band under the cards.
-            // The delete of a course is in the menu icon at the end of the name row of its card.
+            // One row per course, in a plain list. The menu sits above the row, not inside the button, so both stay tappable.
             if !orderedCourses.isEmpty {
                 Section {
-                    EmptyView()
-                } header: {
-                    VStack(alignment: .leading, spacing: 0) {
-                        LazyVGrid(columns: Self.noteColumns, spacing: Self.noteSpacing) {
-                            ForEach(orderedCourses) { course in
-                                // The card does not fade while it is held down.
-                                // The menu is not inside the label of that button but above it, so both stay tappable.
-                                Button {
-                                    openedCourse = course
-                                } label: {
-                                    noteCard(course)
-                                }
-                                .buttonStyle(UnfadedCardStyle())
-                                .overlay(alignment: .topTrailing) {
-                                    courseMenu(course)
-                                        .padding(.top, menuTopInset)
-                                        .padding(.trailing, Self.cardPadding)
-                                }
-                            }
+                    ForEach(orderedCourses) { course in
+                        let row = Button {
+                            openedCourse = course
+                        } label: {
+                            noteCard(course)
                         }
-                        .padding(.horizontal, -Self.cardRowOutset)
+                        .overlay(alignment: .topTrailing) {
+                            courseMenu(course)
+                                .padding(.top, menuTopInset)
+                        }
+                        // A plain list draws a line above the first row and under the last, even with nothing beyond them.
+                        .listRowSeparator(.hidden, edges: outerSeparatorEdges(for: course))
+                        if course.token == orderedCourses.first?.token {
+                            row.onGeometryChange(for: CGFloat.self) { proxy in
+                                proxy.frame(in: .named("home")).minX
+                            } action: { leading in
+                                guard abs(leading - courseCardLeading) > 0.5 else { return }
+                                courseCardLeading = leading
+                            }
+                        } else {
+                            row
+                        }
                     }
-                    .onGeometryChange(for: CGFloat.self) { proxy in
-                        proxy.frame(in: .named("home")).minX
-                    } action: { leading in
-                        guard abs(leading - courseCardLeading) > 0.5 else { return }
-                        courseCardLeading = leading
-                    }
-                    .textCase(nil)
-                    .foregroundStyle(.primary)
                 }
+                .listSectionSeparator(.hidden)
             }
             if !examRows.isEmpty {
                 Section {
@@ -239,9 +219,11 @@ struct TodayPage: View {
                 }
             }
         }
-        .listStyle(.insetGrouped)
-        .listRowSpacing(4)
+        // A plain list, like This week on the course page: no rounded groups, rows run from edge to edge.
+        // The list’s own plate is not the system page color, so the page uses that color itself.
+        .listStyle(.plain)
         .scrollContentBackground(.hidden)
+        .background(Color(.systemBackground).ignoresSafeArea())
         .scrollIndicators(.hidden)
         // The list fills the page. Its first row starts under the open glass band, then scrolls up behind it.
         // The margin stays at the open height, so the band can shrink without moving the cards.
@@ -332,8 +314,8 @@ struct TodayPage: View {
                 hero(slot)
                     .foregroundStyle(.primary)
                     // 4 pt under the navigation bar, then the course row.
-                    // The cards sit 20 pt out of the header, 12 pt from the screen. The glass uses that same edge.
-                    .padding(.horizontal, max(courseCardLeading - Self.cardRowOutset, 0))
+                    // The glass uses the same left edge as the course rows.
+                    .padding(.horizontal, courseCardLeading)
                     .padding(.bottom, Self.heroTopInset)
                     // Course color in the glass for the whole band, from the top of the screen to the gap before the course cards.
                     .background {
@@ -523,7 +505,7 @@ struct TodayPage: View {
             // Open: badge, name, lecturer, and the large time on the bottom of that row.
             // Closed: the name and the time only, at the same size.
             HStack(alignment: .bottom, spacing: 10 * (1 - collapse)) {
-                CourseBadge(name: name, color: tint, size: heroBadgeSize)
+                CourseBadge(name: name, color: tint, size: heroBadgeSize, outlined: true)
                     .frame(
                         width: heroBadgeSize * (1 - collapse),
                         height: heroOpenRow * (1 - collapse) + heroCollapsedLineHeight * collapse,
@@ -645,15 +627,6 @@ struct TodayPage: View {
         )
     }
 
-    private static let noteColumns = [
-        GridItem(.flexible(), spacing: noteSpacing),
-        GridItem(.flexible(), spacing: noteSpacing),
-    ]
-    private static let noteSpacing: CGFloat = 10
-    /// Pulls the course row out of the section header, 4 pt past the grouped list edge.
-    /// That edge is 16 pt from the screen, so the glass and the cards land at 12 pt.
-    private static let cardRowOutset: CGFloat = 20
-    private static let cardPadding: CGFloat = 12
     /// Inside the hero glass, between the glass edge and the badge.
     private static let heroContentSidePadding: CGFloat = 6
     /// Room under the scrolling line, inside the glass.
@@ -662,8 +635,12 @@ struct TodayPage: View {
     private static let heroContentTopPadding: CGFloat = 4
     /// Extra room under the hero content, above the course cards. The top gap is separate and is 0.
     private static let heroTopInset: CGFloat = 4
+    /// The course icon on a list row.
+    private static let courseBadgeSize: CGFloat = 34
     /// The same height as the course badge, so the icon is centred on the name row.
     private static let menuSize: CGFloat = 34
+    /// Pulls a trailing symbol onto the same screen edge as the ellipsis.
+    private static let trailingSymbolNudge: CGFloat = 2
 
     /// The height of one line of the name (15 pt, semibold) and of the lecturer (`caption2`). They follow the text size.
     @ScaledMetric(relativeTo: .subheadline) private var nameLineHeight: CGFloat = 20
@@ -671,15 +648,24 @@ struct TodayPage: View {
     /// Recordings / Assignments / Exams on the course card: between footnote (13) and subheadline (15).
     @ScaledMetric(relativeTo: .footnote) private var courseTotalSize: CGFloat = 14
 
-    /// The space above the menu icon, from the top of the card, so that its middle is on the middle of the name line.
-    /// The name sits at the bottom of the row, with the lecturer under it, so any spare height is above the name.
-    private var menuTopInset: CGFloat {
-        let block = nameLineHeight + lecturerLineHeight
-        let row = max(Self.menuSize, block)
-        return max(0, Self.cardPadding + (row - block) + nameLineHeight / 2 - Self.menuSize / 2)
+    /// Top edge of the first course, bottom edge of the last. The lines between courses stay.
+    private func outerSeparatorEdges(for course: Course) -> VerticalEdge.Set {
+        var edges = VerticalEdge.Set()
+        if course.token == orderedCourses.first?.token { edges.insert(.top) }
+        if course.token == orderedCourses.last?.token { edges.insert(.bottom) }
+        return edges
     }
 
-    /// The menu icon at the far end of the name row of a card. The favourite and the delete of the course are in it.
+    /// Shifts the menu so its middle meets the middle of the name line.
+    /// The name sits at the bottom of the icon row, so this inset can be negative.
+    private var menuTopInset: CGFloat {
+        let block = nameLineHeight + lecturerLineHeight
+        let row = max(Self.courseBadgeSize, block)
+        let nameMid = (row - block) + nameLineHeight / 2
+        return nameMid - Self.menuSize / 2
+    }
+
+    /// The menu icon at the far end of the name row of a course. The favourite and the delete of the course are in it.
     private func courseMenu(_ course: Course) -> some View {
         Menu {
             Button(
@@ -693,120 +679,147 @@ struct TodayPage: View {
         } label: {
             Image(systemName: "ellipsis")
                 .appFont(.body, weight: .semibold)
-                .foregroundStyle(.secondary)
-                .frame(width: Self.menuSize, height: Self.menuSize)
+                .foregroundStyle(.primary)
+                // The glyph sits on the row’s trailing edge, the same edge as the recorded count.
+                .padding(.trailing, -Self.trailingSymbolNudge)
+                .frame(width: Self.menuSize, height: Self.menuSize, alignment: .trailing)
                 .contentShape(.rect)
         }
         .menuIndicator(.hidden)
     }
 
-    /// One course as a glass card. The three numbers are the totals of the whole course, not of one week.
+    /// One course as a list row. The three numbers are the totals of the whole course, not of one week.
     private func noteCard(_ course: Course) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            // The name and the lecturer sit on the bottom of this row, like the open hero. The menu icon
-            // (above the card) stays on the line of the name, see `menuTopInset`.
-            HStack(alignment: .bottom, spacing: 8) {
-                CourseBadge(name: course.name, color: course.color, size: 34)
-                // The name with the lecturer under it as a subtitle, like the course page. A course with no
-                // lecturer name shows "Lecturer" there, the same as the course page.
-                let lecturer = course.lecturer?.displayName ?? ""
+        let lecturer = course.lecturer?.displayName ?? ""
+        let share = recordedShare(for: course)
+        return VStack(alignment: .leading, spacing: 6) {
+            // The name and the lecturer sit on the bottom of the icon, like the open hero.
+            // The menu stays on the name line. The counts end where the attendance bar ends.
+            HStack(alignment: .bottom, spacing: 10) {
+                CourseBadge(name: course.name, color: course.color, size: Self.courseBadgeSize, outlined: true, borderColor: .secondary)
                 VStack(alignment: .leading, spacing: 0) {
-                    // Only the name line leaves room for the menu icon, which sits above the card at the far end of
-                    // it. The lecturer line is under the icon, so it goes on to the right edge of the card.
                     HStack(spacing: 0) {
                         Text(course.name)
                             .appFont(.subheadline, weight: .semibold)
-                            // One line. A long name is cut at the end with "…".
                             .lineLimit(1)
                             .truncationMode(.tail)
                         Spacer(minLength: 0)
                         Color.clear.frame(width: Self.menuSize, height: 0)
                     }
-                    Text(verbatim: lecturer.isEmpty ? String(localized: "Lecturer") : lecturer)
-                        .appFont(.caption2)
-                        .foregroundStyle(lecturer.isEmpty ? Color.secondary : Color.primary)
-                        .lineLimit(1)
+                    HStack(spacing: 0) {
+                        Text(verbatim: lecturer.isEmpty ? String(localized: "Lecturer") : lecturer)
+                            .appFont(.caption2)
+                            .foregroundStyle(lecturer.isEmpty ? Color.secondary : Color.primary)
+                            .lineLimit(1)
+                        Spacer(minLength: 0)
+                        Color.clear.frame(width: Self.menuSize, height: 0)
+                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
-            // Extra height of a taller neighbour goes here, between the name and the rest, so the totals and the
-            // times keep the same distance in every card.
-            Spacer(minLength: 4)
-            // Nearest upcoming slot first and primary; the rest of the week stays secondary.
-            VStack(alignment: .leading, spacing: 2) {
-                ForEach(Array(scheduleLines(course).enumerated()), id: \.element) { index, line in
-                    Text(verbatim: line)
-                        .appFont(.subheadline)
-                        .foregroundStyle(index == 0 ? Color.primary : Color.secondary)
-                        .lineLimit(1)
-                }
+            scheduleAndCounts(course, share: share)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// Earlier slots stack above. The last slot shares its row with the counts.
+    /// The counts end where the attendance bar ends. The star stays on the recorded count’s edge.
+    private func scheduleAndCounts(_ course: Course, share: RecordedShare?) -> some View {
+        let lines = scheduleLines(course)
+        let earlier = Array(lines.dropLast())
+        let lastIsNearest = earlier.isEmpty
+        return VStack(alignment: .leading, spacing: 2) {
+            ForEach(Array(earlier.enumerated()), id: \.offset) { index, line in
+                scheduleLine(line, nearest: index == 0)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
-            // One system bar: of the meetings already held, how many have a recording. No bar until one has ended.
-            // The bar and its count are as wide as the three icons under them, so the count sits at the exams
-            // number, not at the far edge of the card.
-            if let share = recordedShare(for: course), let width = countWidths[course.token], width > 0 {
-                attendanceBar(share, tint: course.color)
-                    .frame(width: width, alignment: .leading)
-            }
-            HStack(spacing: 10) {
-                HStack(spacing: 10) {
-                    total(course.lectures.count, "waveform", "Recordings", tint: CourseStyle.recordingsTint)
-                    total(course.assignments.count, "checklist", "Assignments", tint: CourseStyle.assignmentsTint)
-                    total(course.sittings.count, "calendar", "Exams", tint: CourseStyle.examsTint)
+            if let share {
+                Grid(alignment: .leading, horizontalSpacing: 6, verticalSpacing: 6) {
+                    GridRow(alignment: .center) {
+                        countRow(course, last: lines.last, nearest: lastIsNearest)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        if course.isFavorite {
+                            favoriteStar()
+                                .gridColumnAlignment(.trailing)
+                        } else {
+                            Color.clear.frame(width: 0, height: 0)
+                        }
+                    }
+                    GridRow(alignment: .center) {
+                        ProgressView(value: Double(share.recorded), total: Double(share.past))
+                            .progressViewStyle(AttendanceGlassProgressStyle(tint: course.color))
+                            .accessibilityElement(children: .ignore)
+                            .accessibilityLabel(recordedAccessLabel(share))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        recordedCount(share)
+                            .accessibilityHidden(true)
+                            .gridColumnAlignment(.trailing)
+                    }
                 }
-                .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width in
-                    guard abs((countWidths[course.token] ?? 0) - width) > 0.5 else { return }
-                    countWidths[course.token] = width
-                }
-                Spacer(minLength: 0)
-                // A favourite course has a star at the far end of the totals.
-                if course.isFavorite {
-                    // Outline only on the card: colored stroke, no fill.
-                    Image(systemName: "star")
-                        .appFont(.subheadline)
-                        .foregroundStyle(CourseStyle.favoriteTint)
-                        .accessibilityLabel(Text("Favorite"))
+                .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                HStack(alignment: .center, spacing: 10) {
+                    countRow(course, last: lines.last, nearest: lastIsNearest)
+                    if course.isFavorite {
+                        favoriteStar()
+                    }
                 }
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .padding(Self.cardPadding)
-        // A square: the height is the width of the column, so every card has the same size, whatever the course
-        // has in it. The free room goes to the space under the name.
-        .aspectRatio(1, contentMode: .fit)
-        // Plain glass, same as the hero. A background, so it does not change the text colours.
-        .background {
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .fill(.clear)
-                .glassEffect(.regular, in: .rect(cornerRadius: 22))
+    }
+
+    /// One weekly slot, with a list bullet in front. The nearest slot is primary. The rest are secondary.
+    private func scheduleLine(_ line: String, nearest: Bool) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            Text(verbatim: "•")
+                .accessibilityHidden(true)
+            Text(verbatim: line)
+                .lineLimit(1)
         }
-        .contentShape(.rect(cornerRadius: 22))
+        .appFont(.subheadline)
+        .foregroundStyle(nearest ? Color.primary : Color.secondary)
+    }
+
+    /// The last slot on the leading side, and the three course totals on the trailing side.
+    private func countRow(_ course: Course, last: String?, nearest: Bool) -> some View {
+        HStack(alignment: .center, spacing: 10) {
+            if let last {
+                scheduleLine(last, nearest: nearest)
+            }
+            Spacer(minLength: 10)
+            total(course.lectures.count, "waveform", "Recordings")
+            total(course.assignments.count, "checklist", "Assignments")
+            total(course.sittings.count, "calendar", "Exams")
+        }
+    }
+
+    /// The outline star of a favourite course.
+    private func favoriteStar() -> some View {
+        Image(systemName: "star")
+            .appFont(.subheadline)
+            .foregroundStyle(.primary)
+            // The same trailing pull as the ellipsis, so both glyphs share one screen edge.
+            .padding(.trailing, -Self.trailingSymbolNudge)
+            .accessibilityLabel(Text("Favorite"))
+    }
+
+    /// The count at the end of the attendance bar, such as "2 recorded".
+    private func recordedCount(_ share: RecordedShare) -> some View {
+        Text(verbatim: String(format: String(localized: "%lld recorded"), share.recorded))
+            .appFont(.caption2)
+            .foregroundStyle(share.recorded > 0 ? Color.primary : Color.secondary)
+            .lineLimit(1)
+            .fixedSize(horizontal: true, vertical: false)
+    }
+
+    private func recordedAccessLabel(_ share: RecordedShare) -> Text {
+        Text(verbatim: String(format: String(localized: "%1$lld of %2$lld recorded"), share.recorded, share.past))
     }
 
     /// Past meetings of one course, and how many of them have a recording.
     private struct RecordedShare {
         var recorded: Int
         var past: Int
-    }
-
-    /// The short system bar under the dates. The fill is the course color. Zero stays an empty track, and its count is secondary.
-    private func attendanceBar(_ share: RecordedShare, tint: Color) -> some View {
-        HStack(spacing: 6) {
-            ProgressView(value: Double(share.recorded), total: Double(share.past))
-                .tint(tint)
-                .controlSize(.small)
-                .frame(maxWidth: .infinity)
-            Text(verbatim: String(format: String(localized: "%lld recorded"), share.recorded))
-                .appFont(.caption2)
-                .foregroundStyle(share.recorded > 0 ? Color.primary : Color.secondary)
-                .lineLimit(1)
-                .fixedSize(horizontal: true, vertical: false)
-                .layoutPriority(1)
-        }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(
-            Text(verbatim: String(format: String(localized: "%1$lld of %2$lld recorded"), share.recorded, share.past))
-        )
     }
 
     /// Past meetings of this course, and how many of them have a recording. Today’s meeting counts only after it has
@@ -899,15 +912,14 @@ struct TodayPage: View {
         }
     }
 
-    /// Count chip on a course card. Zero stays secondary; a real count uses the same muted tint as the course page tiles.
-    private func total(_ count: Int, _ symbol: String, _ name: LocalizedStringKey, tint: Color) -> some View {
+    /// Count chip on a course row. Zero stays secondary. A real count, icon and number, is primary.
+    private func total(_ count: Int, _ symbol: String, _ name: LocalizedStringKey) -> some View {
         HStack(spacing: 3) {
             Image(systemName: symbol)
-                .foregroundStyle(count > 0 ? tint : Color.secondary)
             Text(count, format: .number)
-                .foregroundStyle(count > 0 ? Color.primary : Color.secondary)
         }
         .appFont(size: courseTotalSize, weight: .medium)
+        .foregroundStyle(count > 0 ? Color.primary : Color.secondary)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text(name))
         .accessibilityValue(Text(count, format: .number))
@@ -1011,17 +1023,18 @@ struct TodayPage: View {
         return days * 24 * 60 + slot.startMinutes - minutes
     }
 
-    /// One line per weekly slot: nearest upcoming first ("Mon 09:00–10:30"), then the rest of the week.
+    /// Up to two weekly slots, nearest upcoming first ("Mon 09:00–10:30").
     private func scheduleLines(_ course: Course) -> [String] {
         let symbols = Calendar.current.shortWeekdaySymbols
-        return term.slots
+        let lines = term.slots
             .filter { $0.course?.token == course.token }
             .sorted { minutesUntilNextOccurrence($0) < minutesUntilNextOccurrence($1) }
-            .compactMap { slot in
+            .compactMap { slot -> String? in
                 guard symbols.indices.contains(slot.weekday - 1) else { return nil }
                 let span = "\(ReminderScheduler.clock(slot.startMinutes))–\(ReminderScheduler.clock(slot.endMinutes))"
                 return "\(symbols[slot.weekday - 1]) \(span)"
             }
+        return Array(lines.prefix(2))
     }
 
     private func examLine(_ row: ExamRow) -> String {
@@ -1079,6 +1092,35 @@ struct TodayPage: View {
             )
             deleteNotice = String(localized: "The course could not be deleted.")
         }
+    }
+}
+
+/// The home attendance bar. The track is the system progress track. The filled part is Liquid Glass
+/// in the course color, because the system fill cannot be glass.
+private struct AttendanceGlassProgressStyle: ProgressViewStyle {
+    var tint: Color
+    @Environment(\.colorScheme) private var colorScheme
+
+    func makeBody(configuration: Configuration) -> some View {
+        let fraction = configuration.fractionCompleted ?? 0
+        GeometryReader { geo in
+            let width = max(0, geo.size.width * fraction)
+            ZStack(alignment: .leading) {
+                Capsule()
+                    .fill(.quaternary)
+                if width > 0 {
+                    Capsule()
+                        .fill(.clear)
+                        .frame(width: width, height: geo.size.height)
+                        .glassEffect(glass, in: .capsule)
+                }
+            }
+        }
+        .frame(height: 4)
+    }
+
+    private var glass: Glass {
+        .regular.tint(tint.opacity(colorScheme == .dark ? 0.5 : 0.28))
     }
 }
 
