@@ -665,15 +665,9 @@ struct TodayPage: View {
         return nameMid - Self.menuSize / 2
     }
 
-    /// The menu icon at the far end of the name row of a course. The favourite and the delete of the course are in it.
+    /// The menu icon at the far end of the name row of a course. Edit and delete live here.
     private func courseMenu(_ course: Course) -> some View {
         Menu {
-            Button(
-                course.isFavorite ? "Remove from favorites" : "Add to favorites",
-                systemImage: course.isFavorite ? "star.slash" : "star"
-            ) {
-                course.isFavorite.toggle()
-            }
             Button("Edit course", systemImage: "pencil") { editingCourse = course }
             Button("Delete", systemImage: "trash", role: .destructive) { askDelete(course) }
         } label: {
@@ -738,12 +732,8 @@ struct TodayPage: View {
                     GridRow(alignment: .center) {
                         countRow(course, last: lines.last, nearest: lastIsNearest)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                        if course.isFavorite {
-                            favoriteStar()
-                                .gridColumnAlignment(.trailing)
-                        } else {
-                            Color.clear.frame(width: 0, height: 0)
-                        }
+                        favoriteStar(course)
+                            .gridColumnAlignment(.trailing)
                     }
                     GridRow(alignment: .center) {
                         ProgressView(value: Double(share.recorded), total: Double(share.past))
@@ -760,9 +750,7 @@ struct TodayPage: View {
             } else {
                 HStack(alignment: .center, spacing: 10) {
                     countRow(course, last: lines.last, nearest: lastIsNearest)
-                    if course.isFavorite {
-                        favoriteStar()
-                    }
+                    favoriteStar(course)
                 }
             }
         }
@@ -793,14 +781,25 @@ struct TodayPage: View {
         }
     }
 
-    /// The outline star of a favourite course.
-    private func favoriteStar() -> some View {
-        Image(systemName: "star")
-            .appFont(.subheadline)
-            .foregroundStyle(.primary)
-            // The same trailing pull as the ellipsis, so both glyphs share one screen edge.
-            .padding(.trailing, -Self.trailingSymbolNudge)
-            .accessibilityLabel(Text("Favorite"))
+    /// The star on every course row. A tap opens the same kind of menu as the ellipsis, with one choice.
+    /// A favourite is a filled star. One that is not is an outline. Both are secondary.
+    private func favoriteStar(_ course: Course) -> some View {
+        Menu {
+            Button(
+                course.isFavorite ? "Remove from favorites" : "Add to favorites",
+                systemImage: course.isFavorite ? "star.slash" : "star"
+            ) {
+                course.isFavorite.toggle()
+            }
+        } label: {
+            Image(systemName: course.isFavorite ? "star.fill" : "star")
+                .appFont(.subheadline)
+                .foregroundStyle(.secondary)
+                // The same trailing pull as the ellipsis, so both glyphs share one screen edge.
+                .padding(.trailing, -Self.trailingSymbolNudge)
+        }
+        .buttonStyle(.borderless)
+        .menuIndicator(.hidden)
     }
 
     /// The count at the end of the attendance bar, such as "2 recorded".
