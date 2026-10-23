@@ -43,6 +43,24 @@
         }
       }
     },
+    "%1$lld of %2$lld recorded" : {
+      "comment" : "VoiceOver for the attendance bar on a course card: recordings, then past meetings.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld of %2$lld recorded"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld / %2$lld kayıt"
+          }
+        }
+      }
+    },
     "%lld days later" : {
       "localizations" : {
         "en" : {
@@ -112,6 +130,24 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld dk"
+          }
+        }
+      }
+    },
+    "%lld recorded" : {
+      "comment" : "The short count beside the attendance bar on a course card.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld recorded"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld kayıt"
           }
         }
       }

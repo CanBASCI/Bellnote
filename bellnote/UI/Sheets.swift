@@ -1314,7 +1314,8 @@ struct ProgramPage: View {
 
     private func startHour(_ slots: [WeeklySlot]) -> Int {
         guard let first = slots.map(\.startMinutes).min() else { return 8 }
-        return max(7, first / 60 - 1)
+        // One hour before the first slot. A floor of 7 pushed a 04:00 block above the day title.
+        return max(0, first / 60 - 1)
     }
 
     private func endHour(_ slots: [WeeklySlot]) -> Int {
@@ -1409,7 +1410,8 @@ struct SlotEditor: View {
             _place = State(initialValue: editing.placeName)
         } else {
             _start = State(initialValue: hour)
-            _end = State(initialValue: hour.addingTimeInterval(90 * 60))
+            // The end wheel opens on the start time, so it is not a fixed hour and a half later.
+            _end = State(initialValue: hour)
         }
     }
 
@@ -1429,7 +1431,8 @@ struct SlotEditor: View {
                 if lockedCourse == nil {
                     Picker("Course", selection: $choice) {
                         Text("None").tag(SlotCourseChoice.none)
-                        Text("New course").tag(SlotCourseChoice.new)
+                        // The plus marks the row that creates a course. The words stay the shared "New course" string.
+                        (Text(verbatim: "+ ") + Text("New course")).tag(SlotCourseChoice.new)
                         ForEach(term.courses) { course in
                             Text(course.name).tag(SlotCourseChoice.existing(course.token))
                         }
@@ -1450,6 +1453,11 @@ struct SlotEditor: View {
                     }
                 }
                 DatePicker("Start", selection: $start, displayedComponents: .hourAndMinute)
+                    .onChange(of: start) { _, newStart in
+                        // A new slot follows the start. Editing keeps the end the student already saved.
+                        guard editing == nil else { return }
+                        end = newStart
+                    }
                 DatePicker("End", selection: $end, displayedComponents: .hourAndMinute)
                 TextField("Place", text: $place)
             }
