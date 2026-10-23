@@ -198,6 +198,12 @@ struct TodayPage: View {
                             .foregroundStyle(.secondary)
                             .frame(maxWidth: .infinity, alignment: .center)
                             .padding(.bottom, Self.coursesTitleToCards)
+                            .onGeometryChange(for: CGFloat.self) { proxy in
+                                proxy.frame(in: .named("home")).minX
+                            } action: { leading in
+                                guard abs(leading - courseCardLeading) > 0.5 else { return }
+                                courseCardLeading = leading
+                            }
                         LazyVGrid(columns: Self.noteColumns, spacing: Self.noteSpacing) {
                             ForEach(orderedCourses) { course in
                                 // The card does not fade while it is held down.
@@ -215,13 +221,7 @@ struct TodayPage: View {
                                 }
                             }
                         }
-                        .padding(.horizontal, -Self.cardRowOutset)
-                        .onGeometryChange(for: CGFloat.self) { proxy in
-                            proxy.frame(in: .named("home")).minX
-                        } action: { leading in
-                            guard abs(leading - courseCardLeading) > 0.5 else { return }
-                            courseCardLeading = leading
-                        }
+                        .padding(.horizontal, -cardRowOutset)
                     }
                     .textCase(nil)
                     .foregroundStyle(.primary)
@@ -330,7 +330,7 @@ struct TodayPage: View {
                     .padding(.top, Self.heroTopInset)
                     // The cards are pulled out of the header. The hero uses that same edge, so its
                     // glass lines up with the outer corners of the card row.
-                    .padding(.horizontal, max(courseCardLeading - Self.cardRowOutset, 0))
+                    .padding(.horizontal, max(courseCardLeading - cardRowOutset, 0))
                     .padding(.bottom, Self.heroTopInset)
                     // Course color in the glass for the whole band, from the top of the screen to the gap before Courses.
                     .background {
@@ -667,9 +667,11 @@ struct TodayPage: View {
         GridItem(.flexible(), spacing: noteSpacing),
     ]
     private static let noteSpacing: CGFloat = 10
-    /// Pulls the course row out of the section header. The grouped list edge is 16 pt from the screen,
-    /// so 22 pt leaves 10 pt between the screen and the outer card.
-    private static let cardRowOutset: CGFloat = 22
+    /// Pulls the course row out of the section header until each outer card is `noteSpacing` from the screen.
+    /// `courseCardLeading` is the header’s own edge; the grouped list inset is wider than 16 pt, so a fixed pull left the cards too far in.
+    private var cardRowOutset: CGFloat {
+        max(0, courseCardLeading - Self.noteSpacing)
+    }
     private static let cardPadding: CGFloat = 12
     /// Inside the hero glass. The glass edge is 10 pt from the screen, so the content lands at 16 pt.
     private static let heroContentSidePadding: CGFloat = 6
