@@ -1432,7 +1432,7 @@ struct SlotEditor: View {
                     Picker("Course", selection: $choice) {
                         Text("None").tag(SlotCourseChoice.none)
                         // The plus marks the row that creates a course. The words stay the shared "New course" string.
-                        (Text(verbatim: "+ ") + Text("New course")).tag(SlotCourseChoice.new)
+                        Text("+ \(Text("New course"))").tag(SlotCourseChoice.new)
                         ForEach(term.courses) { course in
                             Text(course.name).tag(SlotCourseChoice.existing(course.token))
                         }
