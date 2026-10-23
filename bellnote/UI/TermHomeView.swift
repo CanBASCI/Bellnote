@@ -171,10 +171,6 @@ struct TodayPage: View {
     @State private var heroExpandedHeight: CGFloat = 0
     /// How far the course list has moved up from its resting position.
     @State private var courseScroll: CGFloat = 0
-    /// Height of the name row, so the record icon can land on it as the hero closes.
-    @State private var nameRowHeight: CGFloat = 0
-    /// Height of the large time row, from a copy that is never compressed.
-    @State private var timeRowHeight: CGFloat = 0
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -280,10 +276,21 @@ struct TodayPage: View {
         }
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
-                Button("Pending", systemImage: "clock") { showPending = true }
-            }
-            ToolbarItem(placement: .primaryAction) {
                 termMenu
+            }
+            // Pending sits just left of Record. Record stays the outer trailing icon.
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                Button("Pending", systemImage: "clock") { showPending = true }
+                if let course = nextSlot?.course {
+                    Button("Record", systemImage: "record.circle") {
+                        recordCourse = course
+                        showConsent = true
+                    }
+                    .tint(.red)
+                    .consentFlow(course: recordCourse, asPopover: true, isPresented: $showConsent) { course, faceID in
+                        activeLecture = LectureStarter.make(course: course, faceID: faceID, context: modelContext)
+                    }
+                }
             }
         }
         .sheet(isPresented: $showEditTerm) { TermEditor(terms: terms, editing: term) }
@@ -459,42 +466,20 @@ struct TodayPage: View {
         }
     }
 
-    /// Same symbol as the course page bar (`record.circle`), drawn a bit over half the course badge.
-    /// Later recordings use the same confirm as the course page Record control (title + red Start recording button).
-    /// A `Menu` can only show text rows; the glass Start recording control needs that confirm.
-    private func startRecordIcon(_ course: Course) -> some View {
-        Button {
-            recordCourse = course
-            showConsent = true
-        } label: {
-            Image(systemName: "record.circle")
-                .resizable()
-                .scaledToFit()
-                .foregroundStyle(.red)
-                // A bit over half the course badge (0.5 × 1.25), so it stays under the name block height.
-                .frame(width: heroBadgeSize * 0.625, height: heroBadgeSize * 0.625)
-        }
-        .buttonStyle(.borderless)
-        .accessibilityLabel(Text("Record"))
-        .consentFlow(course: recordCourse, asPopover: true, isPresented: $showConsent) { course, faceID in
-            activeLecture = LectureStarter.make(course: course, faceID: faceID, context: modelContext)
-        }
-    }
-
     /// Top margin of the course list. Stays at the open band so the cards do not jump while the hero closes.
     private var courseListTopMargin: CGFloat {
         guard nextSlot != nil else { return 0 }
         return heroExpandedHeight > 0 ? heroExpandedHeight : heroBandHeight
     }
 
-    /// Height of the time row, the gap above it, the fact line, and the gap above that line.
+    /// The gap above the fact line, plus that line. The large time stays on the name row and does not close.
     private var heroLowerSpan: CGFloat {
-        timeRowHeight + heroDetailLineHeight + 20
+        heroDetailLineHeight + 10
     }
 
-    /// 0 while the hero is open, 1 when it has closed onto the name row. Follows the course-list scroll.
+    /// 0 while the hero is open, 1 when the fact line has closed. Follows the course-list scroll.
     private var heroCollapse: CGFloat {
-        guard timeRowHeight > 1, heroLowerSpan > 1 else { return 0 }
+        guard heroLowerSpan > 1 else { return 0 }
         return min(1, max(0, courseScroll / heroLowerSpan))
     }
 
@@ -503,16 +488,10 @@ struct TodayPage: View {
         let name = slot.course?.name ?? String(localized: "Course")
         let tint = slot.course?.color ?? CourseStyle.color(for: name)
         let lecturer = slot.course?.lecturer?.displayName ?? ""
-        let iconSide = heroBadgeSize * 0.625
         let collapse = heroCollapse
-        let rowHeight = nameRowHeight > 0 ? nameRowHeight : heroBadgeSize
-        // The icon starts centred on the time row and ends centred on the name row.
-        let expandedIconTop = rowHeight + 10 + max(0, timeRowHeight - iconSide) / 2
-        let collapsedIconTop = max(0, rowHeight - iconSide) / 2
-        let iconTop = expandedIconTop + (collapsedIconTop - expandedIconTop) * collapse
         VStack(alignment: .leading, spacing: 0) {
-            // Badge, name, and lecturer. The record icon joins this row as the hero closes.
-            HStack(alignment: .center, spacing: 10) {
+            // Badge and names on the left. The large time sits on the trailing edge, on the bottom of this row.
+            HStack(alignment: .bottom, spacing: 10) {
                 // A square as high as the name and the lecturer together (one line of the name). The width is the
                 // same as the height, so the shape does not change.
                 CourseBadge(name: name, color: tint, size: heroBadgeSize)
@@ -529,40 +508,20 @@ struct TodayPage: View {
                         .lineLimit(1)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
+                heroMoment(slot)
+                    .fixedSize(horizontal: true, vertical: false)
+                    .layoutPriority(1)
             }
-            .padding(.trailing, (iconSide + 10) * collapse)
-            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
-                guard abs(height - nameRowHeight) > 0.5 else { return }
-                nameRowHeight = height
-            }
-            // The time, then the quiet fact line. Both close upward as the cards scroll up.
-            VStack(alignment: .leading, spacing: 10) {
-                HStack(alignment: .center, spacing: 10) {
-                    heroMoment(slot)
-                    Spacer(minLength: 8)
-                    Color.clear
-                        .frame(width: iconSide, height: iconSide)
-                        .accessibilityHidden(true)
-                        .allowsHitTesting(false)
-                }
-                HeroDetailLine(items: heroDetail(slot))
-            }
-            .padding(.top, 10)
-            .frame(height: timeRowHeight > 0 ? heroLowerSpan * (1 - collapse) : nil, alignment: .top)
-            .clipped()
-            .opacity(1 - collapse)
-            .accessibilityHidden(collapse > 0.95)
+            // The quiet fact line closes upward as the cards scroll up. The time stays on the row above.
+            HeroDetailLine(items: heroDetail(slot))
+                .padding(.top, 10)
+                .frame(height: heroLowerSpan * (1 - collapse), alignment: .top)
+                .clipped()
+                .opacity(1 - collapse)
+                .accessibilityHidden(collapse > 0.95)
         }
-        .background { heroLowerMeasure(slot, iconSide: iconSide) }
-        .overlay(alignment: .topTrailing) {
-            if let course = slot.course {
-                startRecordIcon(course)
-                    .fixedSize()
-                    .padding(.top, iconTop)
-            }
-        }
-        // The glass is 10 pt from the screen. 6 pt more puts the badge and the record icon 16 pt in,
-        // the same as the navigation bar’s leading and trailing icons.
+        // The glass is 10 pt from the screen. 6 pt more puts the badge 16 pt in,
+        // the same as the navigation bar’s leading icons.
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, Self.heroContentSidePadding)
         .padding(.top, Self.heroContentTopPadding)
@@ -570,27 +529,6 @@ struct TodayPage: View {
         // The card sits above the scrolling list, which has its own font. The texts and the button keep the
         // fonts set above, so this is only the base.
         .font(.body)
-    }
-
-    /// Uncompressed copy of the rows that collapse, used only to measure the time row.
-    private func heroLowerMeasure(_ slot: WeeklySlot, iconSide: CGFloat) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .center, spacing: 10) {
-                heroMoment(slot)
-                Spacer(minLength: 8)
-                Color.clear.frame(width: iconSide, height: iconSide)
-            }
-            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
-                guard abs(height - timeRowHeight) > 0.5 else { return }
-                timeRowHeight = height
-            }
-            Color.clear.frame(height: heroDetailLineHeight)
-        }
-        .padding(.top, 10)
-        .fixedSize(horizontal: false, vertical: true)
-        .hidden()
-        .accessibilityHidden(true)
-        .allowsHitTesting(false)
     }
 
     /// The large time on the hero. While the class is on, the minutes left. Before it starts today, the minutes
