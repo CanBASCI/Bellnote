@@ -147,23 +147,28 @@ struct TodayPage: View {
     @State private var pendingCourse: Course?
     @State private var pendingTermDelete = false
     @State private var showEditTerm = false
-    /// The side of the badge on the hero card. The name is a step above title 2 and the lecturer a step under
-    /// subheadline, and together with the room between them they still match this side. It grows with the text
-    /// size, and it is not measured from the laid out texts, so the badge and the texts cannot push each other
-    /// around in a loop.
-    @ScaledMetric(relativeTo: .title2) private var heroBadgeSize: CGFloat = 50
-    /// A step above title 2. Scales with that text style.
-    @ScaledMetric(relativeTo: .title2) private var heroNameSize: CGFloat = 25
-    /// A step under subheadline, the same ratio the name grew by. Scales with that text style.
-    @ScaledMetric(relativeTo: .subheadline) private var heroLecturerSize: CGFloat = 13
-    /// Matches the quiet fact line under the large time, so the collapse distance includes that row.
-    @ScaledMetric(relativeTo: .subheadline) private var heroDetailLineHeight: CGFloat = 22
+    /// The side of the badge. It matches one line of the course name plus the lecturer, and it grows
+    /// with the text size. It is not measured from the laid out texts, so the badge and the texts cannot
+    /// push each other around in a loop.
+    @ScaledMetric(relativeTo: .title2) private var heroBadgeSize: CGFloat = 44
+    /// Course name while the hero is open. One step under the old 20 pt size.
+    @ScaledMetric(relativeTo: .body) private var heroNameSize: CGFloat = 18
+    /// Course name and the time once the hero has closed.
+    @ScaledMetric(relativeTo: .callout) private var heroCollapsedSize: CGFloat = 16
+    /// Lecturer, a step under the name. Scales with caption.
+    @ScaledMetric(relativeTo: .caption) private var heroLecturerSize: CGFloat = 12
+    /// Open size of the time. The count matches the course name; the small word is quieter.
+    /// Collapsed, both words meet the course name at `heroCollapsedSize`.
+    @ScaledMetric(relativeTo: .body) private var heroTimeAmountSize: CGFloat = 18
+    @ScaledMetric(relativeTo: .subheadline) private var heroTimeWordSize: CGFloat = 15
+    /// Matches the quiet fact line, so the collapse distance includes that row.
+    @ScaledMetric(relativeTo: .footnote) private var heroDetailLineHeight: CGFloat = 18
     @State private var openedCourse: Course?
     @State private var editingCourse: Course?
     @State private var deleteNotice: String?
     /// Width of the three count icons on a course card, so the bar ends with the last of them and not at the star.
     @State private var countWidths: [UUID: CGFloat] = [:]
-    /// Left edge of the course-card header. The cards themselves sit `cardRowOutset` further out.
+    /// Left edge of the section header. The cards and the hero sit `cardRowOutset` further out, on the grouped list edge.
     @State private var courseCardLeading: CGFloat = 32
     /// Height of the glass band as it is laid out now, open or collapsed.
     @State private var heroBandHeight: CGFloat = 0
@@ -203,7 +208,7 @@ struct TodayPage: View {
                                 }
                             }
                         }
-                        .padding(.horizontal, -cardRowOutset)
+                        .padding(.horizontal, -Self.cardRowOutset)
                     }
                     .onGeometryChange(for: CGFloat.self) { proxy in
                         proxy.frame(in: .named("home")).minX
@@ -326,10 +331,9 @@ struct TodayPage: View {
                 // Fixed over the list. Scrolling the courses up collapses this glass; scrolling back opens it.
                 hero(slot)
                     .foregroundStyle(.primary)
-                    .padding(.top, Self.heroTopInset)
-                    // The cards are pulled out of the header. The hero uses that same edge, so its
-                    // glass lines up with the outer corners of the card row.
-                    .padding(.horizontal, max(courseCardLeading - cardRowOutset, 0))
+                    // 4 pt under the navigation bar, then the course row.
+                    // The cards sit 20 pt out of the header, 12 pt from the screen. The glass uses that same edge.
+                    .padding(.horizontal, max(courseCardLeading - Self.cardRowOutset, 0))
                     .padding(.bottom, Self.heroTopInset)
                     // Course color in the glass for the whole band, from the top of the screen to the gap before the course cards.
                     .background {
@@ -464,12 +468,45 @@ struct TodayPage: View {
         return heroExpandedHeight > 0 ? heroExpandedHeight : heroBandHeight
     }
 
-    /// The gap above the fact line, plus that line. The large time stays on the name row and does not close.
-    private var heroLowerSpan: CGFloat {
+    /// The fact line, including the gap above it. This part of the band closes with the scroll.
+    private var heroFactSpan: CGFloat {
         heroDetailLineHeight + 10
     }
 
-    /// 0 while the hero is open, 1 when the fact line has closed. Follows the course-list scroll.
+    /// Room under the lecturer line so its words sit on the icon's bottom edge, not under it.
+    private static let heroLecturerLift: CGFloat = 2
+
+    /// The lecturer line plus the gap under the name.
+    private var heroLecturerBlock: CGFloat {
+        UIFont.systemFont(ofSize: heroLecturerSize).lineHeight + 2
+    }
+
+    /// One line of the open course name.
+    private var heroNameLineHeight: CGFloat {
+        UIFont.systemFont(ofSize: heroNameSize, weight: .semibold).lineHeight
+    }
+
+    /// One line once the hero has closed. The name and the time meet at this size.
+    private var heroCollapsedLineHeight: CGFloat {
+        UIFont.systemFont(ofSize: heroCollapsedSize, weight: .semibold).lineHeight
+    }
+
+    /// The open name row: the badge, or the name with the lecturer when that is taller.
+    private var heroOpenRow: CGFloat {
+        max(heroBadgeSize, heroNameLineHeight + heroLecturerBlock)
+    }
+
+    /// How much shorter the name row is once the badge and the lecturer have closed.
+    private var heroRowDrop: CGFloat {
+        max(0, heroOpenRow - heroCollapsedLineHeight)
+    }
+
+    /// Scroll that fully closes the fact line, the badge, and the lecturer. Matches the height the band loses.
+    private var heroLowerSpan: CGFloat {
+        heroFactSpan + heroRowDrop
+    }
+
+    /// 0 while the hero is open, 1 when the icon, the lecturer, and the fact line have closed.
     private var heroCollapse: CGFloat {
         guard heroLowerSpan > 1 else { return 0 }
         return min(1, max(0, courseScroll / heroLowerSpan))
@@ -481,39 +518,50 @@ struct TodayPage: View {
         let tint = slot.course?.color ?? CourseStyle.color(for: name)
         let lecturer = slot.course?.lecturer?.displayName ?? ""
         let collapse = heroCollapse
+        let nameSize = heroNameSize + (heroCollapsedSize - heroNameSize) * collapse
         VStack(alignment: .leading, spacing: 0) {
-            // Badge and names on the left. The large time sits on the trailing edge, on the bottom of this row.
-            HStack(alignment: .bottom, spacing: 10) {
-                // A square as high as the name and the lecturer together (one line of the name). The width is the
-                // same as the height, so the shape does not change.
+            // Open: badge, name, lecturer, and the large time on the bottom of that row.
+            // Closed: the name and the time only, at the same size.
+            HStack(alignment: .bottom, spacing: 10 * (1 - collapse)) {
                 CourseBadge(name: name, color: tint, size: heroBadgeSize)
-                VStack(alignment: .leading, spacing: 2) {
-                    // A step above title2. The lecturer below drops by the same ratio, so the pair still
-                    // fits the badge.
+                    .frame(
+                        width: heroBadgeSize * (1 - collapse),
+                        height: heroOpenRow * (1 - collapse) + heroCollapsedLineHeight * collapse,
+                        alignment: .bottom
+                    )
+                    .clipped()
+                    .opacity(1 - collapse)
+                    .accessibilityHidden(collapse > 0.95)
+                VStack(alignment: .leading, spacing: 0) {
                     Text(name)
-                        .appFont(size: heroNameSize, weight: .semibold)
-                        .minimumScaleFactor(0.7)
+                        .appFont(size: nameSize, weight: .semibold)
                         .lineLimit(2)
                     iconLine(lecturer.isEmpty ? String(localized: "Lecturer") : lecturer, systemImage: "person.crop.circle")
                         .appFont(size: heroLecturerSize)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
+                        .padding(.top, 2)
+                        .frame(height: heroLecturerBlock * (1 - collapse), alignment: .bottom)
+                        .clipped()
+                        // The line box was flush with the icon's bottom, so the words sat under that edge.
+                        .padding(.bottom, Self.heroLecturerLift * (1 - collapse))
+                        .opacity(1 - collapse)
+                        .accessibilityHidden(collapse > 0.95)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                heroMoment(slot)
+                heroMoment(slot, collapse: collapse)
                     .fixedSize(horizontal: true, vertical: false)
                     .layoutPriority(1)
             }
-            // The quiet fact line closes upward as the cards scroll up. The time stays on the row above.
+            // The quiet fact line closes upward as the cards scroll up.
             HeroDetailLine(items: heroDetail(slot))
                 .padding(.top, 10)
-                .frame(height: heroLowerSpan * (1 - collapse), alignment: .top)
+                .frame(height: heroFactSpan * (1 - collapse), alignment: .top)
                 .clipped()
                 .opacity(1 - collapse)
                 .accessibilityHidden(collapse > 0.95)
         }
-        // The glass is 10 pt from the screen. 6 pt more puts the badge 16 pt in,
-        // the same as the navigation bar’s leading icons.
+        // A little room inside the glass, between its edge and the badge.
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, Self.heroContentSidePadding)
         .padding(.top, Self.heroContentTopPadding)
@@ -525,7 +573,7 @@ struct TodayPage: View {
 
     /// The large time on the hero. While the class is on, the minutes left. Before it starts today, the minutes
     /// until it starts. On another day, today, tomorrow, or the day count.
-    private func heroMoment(_ slot: WeeklySlot) -> some View {
+    private func heroMoment(_ slot: WeeklySlot, collapse: CGFloat) -> some View {
         let amount: String
         let word: LocalizedStringKey?
         if let left = minutesLeft(for: slot) {
@@ -548,14 +596,19 @@ struct TodayPage: View {
                 word = "later"
             }
         }
-        return HStack(alignment: .firstTextBaseline, spacing: 8) {
+        // Both words meet the closed course name. The number must not shrink by itself, or it
+        // ends smaller than "later" and the line jumps when the badge closes.
+        let amountSize = heroTimeAmountSize + (heroCollapsedSize - heroTimeAmountSize) * collapse
+        let wordSize = heroTimeWordSize + (heroCollapsedSize - heroTimeWordSize) * collapse
+        // The gap matches a word space, the same room as between the count and "gün".
+        return HStack(alignment: .firstTextBaseline, spacing: 4) {
             Text(verbatim: amount)
-                .appFont(.largeTitle, weight: .semibold)
+                .appFont(size: amountSize, weight: .semibold)
                 .lineLimit(1)
-                .minimumScaleFactor(0.6)
             if let word {
                 Text(word)
-                    .appFont(.title3)
+                    .appFont(size: wordSize)
+                    .lineLimit(1)
             }
         }
         .foregroundStyle(.primary)
@@ -597,36 +650,33 @@ struct TodayPage: View {
         GridItem(.flexible(), spacing: noteSpacing),
     ]
     private static let noteSpacing: CGFloat = 10
-    /// Pulls the course row out of the section header until each outer card is `noteSpacing` from the screen.
-    /// `courseCardLeading` is the header’s own edge; the grouped list inset is wider than 16 pt, so a fixed pull left the cards too far in.
-    private var cardRowOutset: CGFloat {
-        max(0, courseCardLeading - Self.noteSpacing)
-    }
+    /// Pulls the course row out of the section header, 4 pt past the grouped list edge.
+    /// That edge is 16 pt from the screen, so the glass and the cards land at 12 pt.
+    private static let cardRowOutset: CGFloat = 20
     private static let cardPadding: CGFloat = 12
-    /// Inside the hero glass. The glass edge is 10 pt from the screen, so the content lands at 16 pt.
+    /// Inside the hero glass, between the glass edge and the badge.
     private static let heroContentSidePadding: CGFloat = 6
-    /// Room under the scrolling line. With `heroTopInset` this matches the gap under the navigation bar.
+    /// Room under the scrolling line, inside the glass.
     private static let heroVerticalPadding: CGFloat = 8
-    /// Room above the course row, inside the glass, under the navigation bar.
-    private static let heroContentTopPadding: CGFloat = 8
-    /// Extra room above the hero content, under the navigation bar.
+    /// Room above the course row, inside the glass. The gap under the navigation bar is 4 pt.
+    private static let heroContentTopPadding: CGFloat = 4
+    /// Extra room under the hero content, above the course cards. The top gap is separate and is 0.
     private static let heroTopInset: CGFloat = 4
     /// The same height as the course badge, so the icon is centred on the name row.
     private static let menuSize: CGFloat = 34
 
-    /// The height of one line of the name (`headline`) and of the lecturer (`caption2`). They follow the text size.
-    @ScaledMetric(relativeTo: .headline) private var nameLineHeight: CGFloat = 22
+    /// The height of one line of the name (15 pt, semibold) and of the lecturer (`caption2`). They follow the text size.
+    @ScaledMetric(relativeTo: .subheadline) private var nameLineHeight: CGFloat = 20
     @ScaledMetric(relativeTo: .caption2) private var lecturerLineHeight: CGFloat = 13
     /// Recordings / Assignments / Exams on the course card: between footnote (13) and subheadline (15).
     @ScaledMetric(relativeTo: .footnote) private var courseTotalSize: CGFloat = 14
 
     /// The space above the menu icon, from the top of the card, so that its middle is on the middle of the name line.
-    /// The row of the card is as tall as the badge or the name with the lecturer, whichever is taller, and the
-    /// name is at the top of its block.
+    /// The name sits at the bottom of the row, with the lecturer under it, so any spare height is above the name.
     private var menuTopInset: CGFloat {
         let block = nameLineHeight + lecturerLineHeight
         let row = max(Self.menuSize, block)
-        return max(0, Self.cardPadding + (row - block) / 2 + nameLineHeight / 2 - Self.menuSize / 2)
+        return max(0, Self.cardPadding + (row - block) + nameLineHeight / 2 - Self.menuSize / 2)
     }
 
     /// The menu icon at the far end of the name row of a card. The favourite and the delete of the course are in it.
@@ -653,9 +703,9 @@ struct TodayPage: View {
     /// One course as a glass card. The three numbers are the totals of the whole course, not of one week.
     private func noteCard(_ course: Course) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            // The badge is in the middle of the name and the lecturer. The menu icon (above the card) is on the line
-            // of the name, see `menuTopInset`.
-            HStack(spacing: 8) {
+            // The name and the lecturer sit on the bottom of this row, like the open hero. The menu icon
+            // (above the card) stays on the line of the name, see `menuTopInset`.
+            HStack(alignment: .bottom, spacing: 8) {
                 CourseBadge(name: course.name, color: course.color, size: 34)
                 // The name with the lecturer under it as a subtitle, like the course page. A course with no
                 // lecturer name shows "Lecturer" there, the same as the course page.
@@ -665,7 +715,7 @@ struct TodayPage: View {
                     // it. The lecturer line is under the icon, so it goes on to the right edge of the card.
                     HStack(spacing: 0) {
                         Text(course.name)
-                            .appFont(.headline)
+                            .appFont(.subheadline, weight: .semibold)
                             // One line. A long name is cut at the end with "…".
                             .lineLimit(1)
                             .truncationMode(.tail)
@@ -1038,16 +1088,16 @@ private struct HeroDetailItem: Equatable {
     var text: String
 }
 
-/// The quiet fact line under the large time on the home hero.
-/// One row of symbol and words. When that row is wider than the card, it slides left in a loop.
+/// The quiet fact line under the time on the home hero.
+/// One row of symbol and words. When that row is wider than the hero, it slides left in a loop.
 /// A gap sits between one copy and the next, so the end does not meet the start.
 /// A horizontal drag moves it. After the finger lifts and the slide settles, the loop waits, then continues
-/// from the place where it was left.
+/// from the place where it was left. Reduce Motion leaves it still.
 private struct HeroDetailLine: View {
     var items: [HeroDetailItem]
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @ScaledMetric(relativeTo: .subheadline) private var lineHeight: CGFloat = 22
+    @ScaledMetric(relativeTo: .footnote) private var lineHeight: CGFloat = 18
 
     @State private var textWidth: CGFloat = 0
     @State private var containerWidth: CGFloat = 0
@@ -1102,7 +1152,7 @@ private struct HeroDetailLine: View {
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text(verbatim: items.map(\.text).joined(separator: ", ")))
-            .onChange(of: items) { _, _ in start() }
+        .onChange(of: items) { _, _ in start() }
         .onChange(of: overflows) { _, now in
             if now {
                 start()
@@ -1130,7 +1180,7 @@ private struct HeroDetailLine: View {
                 }
             }
         }
-        .appFont(.subheadline)
+        .appFont(.footnote)
         .foregroundStyle(.secondary)
     }
 
