@@ -186,20 +186,6 @@ struct TodayPage: View {
                     EmptyView()
                 } header: {
                     VStack(alignment: .leading, spacing: 0) {
-                        // Looks like the section titles of the course page ("This week", "Assignments"), which the
-                        // system draws in a plain list. This header sits in a grouped list, so the look is set by hand
-                        // here. Change the font in this one place if the two do not match.
-                        Text("Courses")
-                            .font(.headline)
-                            .foregroundStyle(.secondary)
-                            .frame(maxWidth: .infinity, alignment: .center)
-                            .padding(.bottom, Self.coursesTitleToCards)
-                            .onGeometryChange(for: CGFloat.self) { proxy in
-                                proxy.frame(in: .named("home")).minX
-                            } action: { leading in
-                                guard abs(leading - courseCardLeading) > 0.5 else { return }
-                                courseCardLeading = leading
-                            }
                         LazyVGrid(columns: Self.noteColumns, spacing: Self.noteSpacing) {
                             ForEach(orderedCourses) { course in
                                 // The card does not fade while it is held down.
@@ -218,6 +204,12 @@ struct TodayPage: View {
                             }
                         }
                         .padding(.horizontal, -cardRowOutset)
+                    }
+                    .onGeometryChange(for: CGFloat.self) { proxy in
+                        proxy.frame(in: .named("home")).minX
+                    } action: { leading in
+                        guard abs(leading - courseCardLeading) > 0.5 else { return }
+                        courseCardLeading = leading
                     }
                     .textCase(nil)
                     .foregroundStyle(.primary)
@@ -339,7 +331,7 @@ struct TodayPage: View {
                     // glass lines up with the outer corners of the card row.
                     .padding(.horizontal, max(courseCardLeading - cardRowOutset, 0))
                     .padding(.bottom, Self.heroTopInset)
-                    // Course color in the glass for the whole band, from the top of the screen to the gap before Courses.
+                    // Course color in the glass for the whole band, from the top of the screen to the gap before the course cards.
                     .background {
                         GeometryReader { geo in
                             let name = slot.course?.name ?? String(localized: "Course")
@@ -613,8 +605,6 @@ struct TodayPage: View {
     private static let cardPadding: CGFloat = 12
     /// Inside the hero glass. The glass edge is 10 pt from the screen, so the content lands at 16 pt.
     private static let heroContentSidePadding: CGFloat = 6
-    /// Vertical room under "Courses", above the first course card.
-    private static let coursesTitleToCards: CGFloat = 10
     /// Room under the scrolling line. With `heroTopInset` this matches the gap under the navigation bar.
     private static let heroVerticalPadding: CGFloat = 8
     /// Room above the course row, inside the glass, under the navigation bar.

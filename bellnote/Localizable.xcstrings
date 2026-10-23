@@ -771,6 +771,7 @@
       }
     },
     "Courses" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
