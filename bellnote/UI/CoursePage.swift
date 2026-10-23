@@ -19,11 +19,14 @@ enum LectureStarter {
     }
 }
 
-/// One line under a count tile: the number drives primary vs secondary, the text is what the student reads.
+/// One line under a count tile. The symbol and the word lead. The value sits at the trailing end.
+/// A zero count is quiet. An exam line is the sitting itself, so it is never quiet.
 private struct StatDetail: Identifiable, Hashable {
-    var id: String { text }
-    let count: Int
-    let text: String
+    let id: String
+    let symbol: String
+    let label: String
+    let value: String
+    let quiet: Bool
 }
 
 /// Ask → Source hand-off: recording plus the Raw block to open, kept in one value for the push.
@@ -54,7 +57,6 @@ struct CoursePage: View {
     @Bindable var course: Course
     var focus: Focus?
     @Environment(\.modelContext) private var modelContext
-    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.locale) private var locale
     @State private var showConsent = false
     @State private var activeLecture: Lecture?
@@ -96,7 +98,7 @@ struct CoursePage: View {
                         statTile(value: visibleAssignments.count, title: "Assignments", tint: CourseStyle.assignmentsTint, details: assignmentBreakdown(of: visibleAssignments)) {
                             scrollToAssignments(proxy)
                         }
-                        statTile(value: visibleSittings.count, title: "Exams", tint: CourseStyle.examsTint)
+                        statTile(value: visibleSittings.count, title: "Exams", tint: CourseStyle.examsTint, details: examLines(of: visibleSittings))
                     }
                     .scrollTargetLayout()
                 }
@@ -435,22 +437,31 @@ struct CoursePage: View {
         return "\(first) – \(last)"
     }
 
-    /// Counts of recordings per status, such as "9 Ready".
+    /// One row per recording status. The count sits at the trailing end.
     private func lectureBreakdown(of lectures: [Lecture]) -> [StatDetail] {
         let processed = lectures.filter { !$0.isRecordedOnly }
         func count(_ state: LectureState) -> Int {
             processed.filter { $0.state == state.rawValue }.count
         }
-        let entries: [(title: String, count: Int)] = [
-            (LectureState.ready.title, count(.ready)),
-            (String(localized: "Recorded"), lectures.filter(\.isRecordedOnly).count),
-            (LectureState.processing.title, count(.processing)),
-            (LectureState.failed.title, count(.failed)),
-            (LectureState.recording.title, count(.recording)),
-            (LectureState.paused.title, count(.paused))
+        let recorded = lectures.filter(\.isRecordedOnly).count
+        let entries: [(symbol: String, title: String, count: Int)] = [
+            (LectureState.ready.symbol, LectureState.ready.title, count(.ready)),
+            ("waveform", String(localized: "Recorded"), recorded),
+            (LectureState.processing.symbol, LectureState.processing.title, count(.processing)),
+            (LectureState.failed.symbol, LectureState.failed.title, count(.failed)),
+            (LectureState.recording.symbol, LectureState.recording.title, count(.recording)),
+            (LectureState.paused.symbol, LectureState.paused.title, count(.paused))
         ]
         // Every status always shows, even at 0, so the tile has the same number of lines at all times.
-        return entries.map { StatDetail(count: $0.count, text: "\($0.count) \($0.title)") }
+        return entries.map { entry in
+            StatDetail(
+                id: entry.symbol + entry.title,
+                symbol: entry.symbol,
+                label: entry.title,
+                value: entry.count.formatted(.number),
+                quiet: entry.count == 0
+            )
+        }
     }
 
     /// Done, cancelled and pending assignments. The big number on the tile is the total of all three.
@@ -459,10 +470,37 @@ struct CoursePage: View {
         let done = assignments.filter { $0.done && !$0.cancelled }.count
         let cancelled = assignments.filter(\.cancelled).count
         return [
-            StatDetail(count: done, text: "\(done) \(String(localized: "Done"))"),
-            StatDetail(count: cancelled, text: "\(cancelled) \(String(localized: "Cancelled"))"),
-            StatDetail(count: pending, text: "\(pending) \(String(localized: "Pending"))")
+            StatDetail(id: "done", symbol: "checkmark.circle", label: String(localized: "Done"), value: done.formatted(.number), quiet: done == 0),
+            StatDetail(id: "cancelled", symbol: "xmark.circle", label: String(localized: "Cancelled"), value: cancelled.formatted(.number), quiet: cancelled == 0),
+            StatDetail(id: "pending", symbol: "circle", label: String(localized: "Pending"), value: pending.formatted(.number), quiet: pending == 0)
         ]
+    }
+
+    /// One line per exam in the week: its name, and the day it falls on.
+    private func examLines(of sittings: [ExamSitting]) -> [StatDetail] {
+        sittings
+            .sorted { ($0.date ?? .distantFuture) < ($1.date ?? .distantFuture) }
+            .map { sitting in
+                let day = sitting.date?.formatted(.dateTime.day().month(.abbreviated).locale(locale)) ?? ""
+                return StatDetail(
+                    id: sitting.token.uuidString,
+                    symbol: "calendar",
+                    label: examName(sitting),
+                    value: day,
+                    quiet: false
+                )
+            }
+    }
+
+    /// The title the student gave the exam, or the name of its kind.
+    private func examName(_ sitting: ExamSitting) -> String {
+        let title = sitting.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !title.isEmpty { return title }
+        switch ExamKind(rawValue: sitting.kind) {
+        case .midterm: return String(localized: "Midterm")
+        case .final: return String(localized: "Final")
+        case .other, nil: return String(localized: "Exam")
+        }
     }
 
     /// Assignments in the order the list shows them: by due date, undated ones last.
@@ -573,12 +611,7 @@ struct CoursePage: View {
             // The gap between the colored line and the details. The line itself takes the place of the empty line.
             .padding(.bottom, 6)
             ForEach(details) { line in
-                Text(verbatim: line.text)
-                    .appFont(.footnote)
-                    // A zero count on that line is quiet; a real count stays primary.
-                    .foregroundStyle(line.count == 0 ? .secondary : .primary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.85)
+                statDetailRow(line)
             }
         }
         .padding(12)
@@ -595,11 +628,29 @@ struct CoursePage: View {
         .accessibilityElement(children: .combine)
     }
 
+    /// Symbol, word, then the value at the trailing end. A zero count is secondary.
+    private func statDetailRow(_ line: StatDetail) -> some View {
+        HStack(alignment: .center, spacing: 6) {
+            // A narrow symbol such as pause would pull its word to the left. Every symbol uses the same width.
+            Image(systemName: line.symbol)
+                .frame(width: 18, alignment: .center)
+                .accessibilityHidden(true)
+            Text(verbatim: line.label)
+                .lineLimit(1)
+            Spacer(minLength: 4)
+            Text(verbatim: line.value)
+                .appFont(.footnote, digits: true)
+                .layoutPriority(1)
+        }
+        .appFont(.footnote)
+        .foregroundStyle(line.quiet ? Color.secondary : Color.primary)
+    }
+
     private func lectureRow(_ lecture: Lecture) -> some View {
         // The day is the cover on the left, like the cover of a song in Apple Music. The title is the time of day.
         let separatorStart = Self.coverSize + Self.coverGap
         return HStack(spacing: Self.coverGap) {
-            DateCover(date: lecture.startedAt, color: course.color, size: Self.coverSize)
+            DateCover(date: lecture.startedAt, color: course.color, size: Self.coverSize, outlined: true)
                 .accessibilityValue(Text(lecture.statusTitle))
             // The time and the length on the first line, the summary under them.
             VStack(alignment: .leading, spacing: 2) {
@@ -614,11 +665,7 @@ struct CoursePage: View {
                         .scaledToFit()
                         .frame(maxHeight: timeDigitHeight)
                         .appFont(.subheadline, weight: .medium)
-                        // The system colours are bright. On the light background a small symbol in them is hard to
-                        // see, so there they are mixed with black. On the dark background they stay as they are.
-                        .foregroundStyle(
-                            colorScheme == .dark ? lecture.statusTint : lecture.statusTint.mix(with: .black, by: 0.3)
-                        )
+                        .foregroundStyle(.secondary)
                         // The cover already tells the status to VoiceOver.
                         .accessibilityHidden(true)
                     if lecture.recordedSeconds >= 60 {

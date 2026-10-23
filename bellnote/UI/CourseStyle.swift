@@ -169,25 +169,33 @@ struct CourseBadge: View {
 }
 
 /// The day of a recording as a small square, where Apple Music shows the cover of a song.
-/// It is a flat rounded square in the colour of the course, with the month on top and the day number under it.
+/// Filled, it is the colour of the course with white type. Outlined, the square is empty,
+/// the type is primary, and the border is secondary.
 /// It has no glass. Glass is for the controls that float above the content, not for the rows of a list.
 struct DateCover: View {
     var date: Date
     var color: Color
     var size: CGFloat = 48
+    var outlined = false
     @Environment(\.locale) private var locale
 
     var body: some View {
+        let shape = RoundedRectangle(cornerRadius: size * 0.2, style: .continuous)
         VStack(spacing: 0) {
             Text(date.formatted(.dateTime.month(.abbreviated).locale(locale)).localizedUppercase)
                 .font(.system(size: size * 0.22, weight: .semibold, design: .rounded))
             Text(date.formatted(.dateTime.day().locale(locale)))
                 .font(.system(size: size * 0.45, weight: .bold, design: .rounded))
         }
-        // White on the colour of the course, so it reads in light and dark mode.
-        .foregroundStyle(.white)
+        .foregroundStyle(outlined ? Color.primary : Color.white)
         .frame(width: size, height: size)
-        .background(color, in: .rect(cornerRadius: size * 0.2, style: .continuous))
+        .background {
+            if outlined {
+                shape.strokeBorder(Color.secondary, lineWidth: max(1.5, size * 0.045))
+            } else {
+                shape.fill(color)
+            }
+        }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text(verbatim: date.formatted(.dateTime.day().month(.wide).locale(locale))))
     }
