@@ -82,6 +82,8 @@ final class TalkSession {
     private var loopTask: Task<Void, Never>?
     private var warmTask: Task<Void, Never>?
     private var running = false
+    /// Bumped on every start and stop. A reply that is still finishing must not close the new mic.
+    private var audioGeneration = 0
     private var terms: [Term] = []
     private var locale = Locale.current
     private weak var session: AppSession?
@@ -104,6 +106,7 @@ final class TalkSession {
             Self.log.info("Talk start ignored alreadyRunning phase=\(String(describing: self.phase), privacy: .public)")
             return
         }
+        audioGeneration += 1
         running = true
         reader.ownsAudioSession = false
         // Same idea as processing: keep the screen awake so Talk is not cut by auto-lock.
@@ -117,6 +120,7 @@ final class TalkSession {
     }
 
     func stop() {
+        audioGeneration += 1
         Self.log.info("Talk stop phase=\(String(describing: self.phase), privacy: .public) turns=\(self.turns.count)")
         running = false
         loopTask?.cancel()
@@ -323,8 +327,9 @@ final class TalkSession {
 
     /// Model runs while the mic stays open. A new spoken turn cancels that answer.
     private func thinkWhileListening(question: String) async -> ThinkRace {
+        let generation = audioGeneration
         // Hop via named MainActor methods — `addTask { @MainActor in }` trips the region checker.
-        await withTaskGroup(of: ThinkRace?.self) { group in
+        return await withTaskGroup(of: ThinkRace?.self) { group in
             group.addTask {
                 await self.thinkAnswerBranch(question: question)
             }
@@ -339,7 +344,7 @@ final class TalkSession {
                 group.cancelAll()
                 break
             }
-            self.finishThinkRace()
+            self.finishThinkRace(generation: generation)
             return outcome
                 ?? .answered(TalkReply(text: String(localized: "Something went wrong. Try again.")))
         }
@@ -383,7 +388,8 @@ final class TalkSession {
         }
     }
 
-    private func finishThinkRace() {
+    private func finishThinkRace(generation: Int) {
+        guard generation == audioGeneration else { return }
         listen.stopListening(cancelTurn: true)
     }
 
@@ -524,13 +530,12 @@ final class TalkSession {
             let totalMs = Int(Date().timeIntervalSince(answerStarted) * 1000)
             let foldedReply = Self.asciiFold(reply)
             let missing = reply.contains("NOT_IN_NOTES") || reply.isEmpty
-                || foldedReply.contains("not contain")
-                || foldedReply.contains("do not contain")
-                || foldedReply.contains("notes do not")
+                || Self.admitsMissing(foldedReply)
+            let echoed = Self.repeatsQuestion(reply, question: question)
             Self.log.info(
-                "Talk answer done modelMs=\(modelMs) totalMs=\(totalMs) retrieveMs=\(retrieveMs) notInNotes=\(missing) characters=\(reply.count) text=\(reply, privacy: .public)"
+                "Talk answer done modelMs=\(modelMs) totalMs=\(totalMs) retrieveMs=\(retrieveMs) notInNotes=\(missing) echo=\(echoed) characters=\(reply.count) text=\(reply, privacy: .public)"
             )
-            if missing {
+            if missing || echoed {
                 return TalkReply(text: String(localized: "The lectures do not contain that."))
             }
             let sources = sourcesForAnswer(question: question, reply: reply, pick: pick)
@@ -638,6 +643,34 @@ final class TalkSession {
                     && !token.hasPrefix("soyle")
                     && !token.hasPrefix("ders")
             }
+    }
+
+    /// “Anlamadım”, “bulamadım”, or “the notes do not contain that” is not a found fact.
+    /// Source is chosen from question words, so this has to be dropped before that step.
+    private static func admitsMissing(_ foldedReply: String) -> Bool {
+        let reply = foldedReply.replacingOccurrences(of: "'", with: "")
+        let cues = [
+            "not contain", "do not contain", "notes do not",
+            "anlamadim", "anlamiyorum", "anlayamadim", "anlayamiyorum",
+            "bulamadim", "bulamiyorum",
+            "dont understand", "do not understand",
+            "didnt understand", "did not understand",
+            "cant find", "cannot find", "couldnt find", "could not find",
+        ]
+        return cues.contains { reply.contains($0) }
+    }
+
+    /// The model sometimes prints the question back when the notes have no fact.
+    /// That is not an answer, and a shared word such as a name in a title must not become Source.
+    private static func repeatsQuestion(_ reply: String, question: String) -> Bool {
+        let spoken = foldedLetters(reply)
+        let asked = foldedLetters(question)
+        guard spoken.count >= 8, asked.count >= 8 else { return false }
+        return spoken == asked
+    }
+
+    private static func foldedLetters(_ text: String) -> String {
+        asciiFold(text).filter(\.isLetter)
     }
 
     /// How strongly a note matches the question’s topic words. Zero means those words are not in the note.
@@ -1925,7 +1958,9 @@ final class TalkSession {
     }
 
     /// Speaks the reply on the same audio engine as the mic, so Voice Processing can cancel echo.
+    /// The mic is open while the clip is built. A question in that gap cancels the voice before it starts.
     private func speak(_ text: String) async -> SpeakOutcome {
+        let generation = audioGeneration
         listen.disarmBargeIn()
         listen.stopListening(cancelTurn: false)
         let bargeFlag = BargeFlag()
@@ -1933,6 +1968,30 @@ final class TalkSession {
         speakCancel = cancel
 
         Self.log.info("Talk speak begin characters=\(text.count)")
+        do {
+            try await listen.startBargeMonitor(locale: locale, echoOf: "")
+        } catch {
+            Self.log.error("Talk barge monitor failed \(error.localizedDescription, privacy: .public)")
+            return .finished
+        }
+        listen.armBargeIn(after: .milliseconds(80)) { [weak self] in
+            guard let self, generation == self.audioGeneration else { return }
+            bargeFlag.value = true
+            cancel.stopped = true
+            Self.log.info("Talk barge-in stop speech → listen")
+            self.listen.stopPlayback()
+        }
+        let poll = Task { @MainActor in
+            while !Task.isCancelled {
+                guard generation == self.audioGeneration else { return }
+                let live = self.listen.partialText
+                if !live.isEmpty, !self.listen.looksLikeEcho(live) {
+                    self.partialTranscript = live
+                }
+                try? await Task.sleep(for: .milliseconds(80))
+            }
+        }
+
         let code = locale.language.languageCode?.identifier ?? locale.identifier
         let language = code.hasPrefix("tr") ? "tr" : "en"
         let speaker = SupertonicVoice.clamped(UserDefaults.standard.integer(forKey: AppPreferences.supertonicVoiceKey))
@@ -1940,28 +1999,27 @@ final class TalkSession {
         do {
             clip = try await SupertonicSpeech.clip(text: text, language: language, speaker: speaker, cancel: cancel)
         } catch {
+            poll.cancel()
             Self.log.error("Talk speak clip failed \(error.localizedDescription, privacy: .public)")
+            endSpeakMic(generation: generation)
             return .finished
         }
-        guard running, !Task.isCancelled, !cancel.stopped, !clip.samples.isEmpty else { return .finished }
-
-        do {
-            try await listen.startBargeMonitor(locale: locale, echoOf: text)
-        } catch {
-            Self.log.error("Talk barge monitor failed \(error.localizedDescription, privacy: .public)")
+        poll.cancel()
+        guard generation == audioGeneration else { return .finished }
+        let heardDuringClip = bargeFlag.value || cancel.stopped
+        guard running, !Task.isCancelled, heardDuringClip || !clip.samples.isEmpty else {
+            endSpeakMic(generation: generation)
             return .finished
         }
-        listen.armBargeIn(after: .milliseconds(280)) { [weak self] in
-            guard let self else { return }
-            bargeFlag.value = true
-            Self.log.info("Talk barge-in stop speech → listen")
-            self.listen.stopPlayback()
-        }
-        // Clear any leftover You line so the Bellnote card stays on the full reply while TTS plays.
-        partialTranscript = ""
-        listen.play(clip)
 
-        while !Task.isCancelled, listen.isPlaybackActive {
+        if !heardDuringClip {
+            listen.setBargeEcho(text)
+            listen.duckBargeEnergy()
+            partialTranscript = ""
+            listen.play(clip)
+        }
+
+        while !Task.isCancelled, generation == audioGeneration, listen.isPlaybackActive {
             let live = listen.partialText
             // Ignore TTS echo on the card; only keep a real barge-in line.
             if !live.isEmpty, !listen.looksLikeEcho(live) {
@@ -1969,6 +2027,7 @@ final class TalkSession {
             }
             try? await Task.sleep(for: .milliseconds(80))
         }
+        guard generation == audioGeneration else { return .finished }
         var wasBarged = bargeFlag.value
         let carried = listen.partialText
         // Playback can finish before the energy trip; keep a real student line instead of dropping it.
@@ -1980,8 +2039,7 @@ final class TalkSession {
         Self.log.info("Talk speak end barged=\(wasBarged) carried=\(carried.count)")
 
         guard wasBarged, running, !Task.isCancelled else {
-            listen.disarmBargeIn()
-            listen.stopListening(cancelTurn: false)
+            endSpeakMic(generation: generation)
             return .finished
         }
 
@@ -1990,14 +2048,15 @@ final class TalkSession {
         statusLine = String(localized: "Listening…")
         partialTranscript = carried
         try? await Task.sleep(for: .milliseconds(150))
-        guard running, !Task.isCancelled else {
-            listen.stopListening(cancelTurn: false)
+        guard running, !Task.isCancelled, generation == audioGeneration else {
+            endSpeakMic(generation: generation)
             return .finished
         }
 
         do {
             let poll = Task { @MainActor in
                 while !Task.isCancelled {
+                    guard generation == self.audioGeneration else { return }
                     self.partialTranscript = self.listen.partialText
                     try? await Task.sleep(for: .milliseconds(120))
                 }
@@ -2006,13 +2065,20 @@ final class TalkSession {
             let next = try await listen.finishBargeListenTurn()
             return .bargedIn(next)
         } catch is CancellationError {
-            listen.stopListening(cancelTurn: false)
+            endSpeakMic(generation: generation)
             return .finished
         } catch {
             Self.log.error("Talk barge listen failed \(error.localizedDescription, privacy: .public)")
-            listen.stopListening(cancelTurn: false)
+            endSpeakMic(generation: generation)
             return .finished
         }
+    }
+
+    /// Closes the mic only if this reply still owns the session. A newer Talk start keeps its mic.
+    private func endSpeakMic(generation: Int) {
+        guard generation == audioGeneration else { return }
+        listen.disarmBargeIn()
+        listen.stopListening(cancelTurn: false)
     }
 
     private func trimHistory() {
@@ -2107,7 +2173,11 @@ final class TalkSession {
 
         if matchesHelp(tokens) { return .help }
         if matchesHearCheck(tokens) { return .hearCheck }
+        if matchesCancel(tokens) { return .cancel }
+        if matchesRepeat(tokens) { return .repeatAsk }
         if matchesFarewell(tokens) { return .farewell }
+        if matchesThanks(tokens) { return .thanks }
+        if matchesApology(tokens) { return .apology }
         if matchesHowAreYou(tokens) { return .howAreYou }
         if matchesGreeting(tokens) { return .greeting }
         if matchesPraise(tokens) { return .praise }
@@ -2181,6 +2251,8 @@ final class TalkSession {
             // “anladım tamam sağ ol” — acknowledgment in front of thanks.
             "anladim", "anladik", "anlasildi", "anlasildim",
             "understood", "got", "it", "alright", "gotcha",
+            // “neyse teşekkür ederim şimdilik bu kadar sağ olasın”
+            "neyse", "simdilik", "kadar", "anyway", "now",
         ]
         return tokens.allSatisfy { token in
             filler.contains(token)

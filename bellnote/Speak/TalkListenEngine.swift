@@ -66,6 +66,23 @@ final class TalkListenEngine {
         bargeMeter.disarm()
     }
 
+    /// The reply text, set when playback starts. Empty while the clip is still being built,
+    /// so a question in that gap is not treated as the voice.
+    func setBargeEcho(_ text: String) {
+        bargeEchoSource = Self.asciiFold(text)
+    }
+
+    /// Speaker onset can look like the student. Energy waits; a real transcript can still interrupt.
+    func duckBargeEnergy() {
+        bargeMeter.reset()
+        bargeMeter.disarm()
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(280))
+            guard self.bargeInArmed else { return }
+            self.bargeMeter.arm()
+        }
+    }
+
     private func applyVoiceProcessing(_ enabled: Bool) {
         let input = engine.inputNode
         guard input.isVoiceProcessingEnabled != enabled else { return }

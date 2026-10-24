@@ -1172,6 +1172,22 @@
         }
       }
     },
+    "Due date" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Due date"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Teslim tarihi"
+          }
+        }
+      }
+    },
     "Done" : {
       "localizations" : {
         "en" : {
@@ -1363,6 +1379,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Düzenle"
+          }
+        }
+      }
+    },
+    "Edit assignment" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edit assignment"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ödevi düzenle"
           }
         }
       }
@@ -4675,6 +4707,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Etiketleme, yapay zekâ düzeltme ve Ask bu modeli kullanır."
+          }
+        }
+      }
+    },
+    "Task" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Task"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ödev"
           }
         }
       }

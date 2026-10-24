@@ -144,69 +144,65 @@ struct AssistantPage: View {
     }
 
     private var talkBody: some View {
-        // Orb stays centered; the turn card overlays the bottom so it does not push the orb up.
-        ZStack {
-            VStack(spacing: 8) {
-                AssistantVoiceOrb(phase: talk.phase, hearing: hearingSpeech)
-                    .frame(width: 280, height: 280)
-                Text(verbatim: orbStatusLine)
-                    .appFont(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 24)
-                    .animation(.easeInOut(duration: 0.2), value: orbStatusLine)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-            GeometryReader { geo in
-                let maxCardWidth = max(geo.size.width - 40, 1)
-                // Orb stays centered. The faded question may grow down to it, then scrolls.
-                let statusHeight = UIFont.preferredFont(forTextStyle: .subheadline).lineHeight
-                let statusBlock = 280 + 8 + statusHeight
-                let orbTop = geo.size.height / 2 - statusBlock / 2
-                let pastMax = max(orbTop - 12, 1)
-                let statusBottom = geo.size.height / 2 + statusBlock / 2
-                let bottomInset: CGFloat = 12
-                let gapBelowStatus: CGFloat = 12
-                let maxCardHeight = max(
-                    geo.size.height - statusBottom - gapBelowStatus - bottomInset,
-                    statusHeight
-                )
-                VStack(spacing: 0) {
-                    if let past = pastLine {
-                        ViewThatFits(in: .vertical) {
+        GeometryReader { geo in
+            let height = geo.size.height
+            let maxCardWidth = max(geo.size.width - 40, 1)
+            let statusHeight = UIFont.preferredFont(forTextStyle: .subheadline).lineHeight
+            let orbSide: CGFloat = 280
+            let statusGap: CGFloat = 8
+            let statusBlock = orbSide + statusGap + statusHeight
+            let gap: CGFloat = 12
+            let centeredTop = max(0, (height - statusBlock) / 2)
+            let questionCap = max(centeredTop - gap, statusHeight)
+            TalkStageLayout(gap: gap, statusBlock: statusBlock, questionCap: questionCap) {
+                if let past = pastLine {
+                    ViewThatFits(in: .vertical) {
+                        Text(verbatim: past)
+                            .appFont(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                            .fixedSize(horizontal: false, vertical: true)
+                        ScrollView {
                             Text(verbatim: past)
                                 .appFont(.subheadline)
                                 .foregroundStyle(.secondary)
                                 .multilineTextAlignment(.center)
-                                .fixedSize(horizontal: false, vertical: true)
-                            ScrollView {
-                                Text(verbatim: past)
-                                    .appFont(.subheadline)
-                                    .foregroundStyle(.secondary)
-                                    .multilineTextAlignment(.center)
-                            }
-                            .frame(maxHeight: pastMax)
-                            .scrollBounceBehavior(.basedOnSize)
                         }
-                        .frame(maxWidth: .infinity, maxHeight: pastMax, alignment: .top)
-                        .padding(.horizontal, 28)
-                        .padding(.top, 4)
+                        .frame(maxHeight: questionCap)
+                        .scrollBounceBehavior(.basedOnSize)
                     }
-                    Spacer(minLength: 0)
-                    if let card = turnCardContent {
-                        talkTurnCard(card, maxWidth: maxCardWidth, maxHeight: maxCardHeight)
-                            .padding(.horizontal, 20)
-                            .padding(.bottom, bottomInset)
-                    }
+                    .frame(maxWidth: .infinity, maxHeight: questionCap, alignment: .top)
+                    .padding(.horizontal, 28)
+                    .padding(.top, 4)
+                } else {
+                    Color.clear.frame(height: 0)
+                }
+                VStack(spacing: statusGap) {
+                    AssistantVoiceOrb(phase: talk.phase, hearing: hearingSpeech)
+                        .frame(width: orbSide, height: orbSide)
+                    Text(verbatim: orbStatusLine)
+                        .appFont(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 24)
+                        .animation(.easeInOut(duration: 0.2), value: orbStatusLine)
+                }
+                .frame(maxWidth: .infinity)
+                if let card = turnCardContent {
+                    talkTurnCard(card, maxWidth: maxCardWidth, maxHeight: height)
+                        .padding(.horizontal, 20)
+                        .padding(.bottom, 12)
+                } else {
+                    Color.clear.frame(height: 0)
                 }
             }
+            .animation(.easeOut(duration: 0.22), value: turnCardContent?.body)
         }
     }
 
     /// You / Bellnote leading, Source at the card’s trailing edge, both outside the fill.
     /// The fill hugs short text; Source does not follow that width.
-    /// The card grows with the text up to `maxHeight` (just under the status line), then the body scrolls.
+    /// The card grows with the text up to `maxHeight` (the orb has met the question), then the body scrolls.
     @ViewBuilder
     private func talkTurnCard(
         _ card: (title: String, body: String, showSource: Bool, followTail: Bool),
@@ -214,10 +210,6 @@ struct AssistantPage: View {
         maxHeight: CGFloat
     ) -> some View {
         let bodyMax = max(maxWidth - 28, 1)
-        let textMax = max(
-            maxHeight - 8 - 20 - UIFont.preferredFont(forTextStyle: .caption1).lineHeight,
-            UIFont.preferredFont(forTextStyle: .body).lineHeight
-        )
         TalkTurnColumn(spacing: 8, maxWidth: maxWidth, maxHeight: maxHeight) {
             HStack(alignment: .center, spacing: 8) {
                 Text(card.title)
@@ -240,48 +232,13 @@ struct AssistantPage: View {
                 }
             }
             .padding(.horizontal, 14)
-            TalkBubbleBody(maxWidth: bodyMax, maxHeight: textMax) {
-                Text(verbatim: card.body)
-                    .appFont(.body)
-                    .textSelection(.enabled)
-                ScrollViewReader { proxy in
-                    ScrollView {
-                        Color.clear
-                            .frame(height: 1)
-                            .id(TalkBubbleEnd.top)
-                        Text(verbatim: card.body)
-                            .appFont(.body)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .textSelection(.enabled)
-                        Color.clear
-                            .frame(height: 1)
-                            .id(TalkBubbleEnd.bottom)
-                    }
-                    .id(card.followTail)
-                    .defaultScrollAnchor(card.followTail ? .bottom : .top)
-                    .defaultScrollAnchor(card.followTail ? .bottom : .top, for: .sizeChanges)
-                    .scrollBounceBehavior(.basedOnSize)
-                    .scrollIndicators(.visible)
-                    .scrollContentBackground(.hidden)
-                    .background(.clear)
-                    .onAppear {
-                        proxy.scrollTo(
-                            card.followTail ? TalkBubbleEnd.bottom : TalkBubbleEnd.top,
-                            anchor: card.followTail ? .bottom : .top
-                        )
-                    }
-                    .onChange(of: card.body) { _, _ in
-                        guard card.followTail else { return }
-                        proxy.scrollTo(TalkBubbleEnd.bottom, anchor: .bottom)
-                    }
-                }
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
-            .background(Color(.secondarySystemFill), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            TalkBubble(
+                text: card.body,
+                maxTextWidth: bodyMax,
+                followTail: card.followTail
+            )
         }
         .frame(maxWidth: maxWidth, alignment: .leading)
-        .fixedSize(horizontal: false, vertical: true)
         .animation(.easeOut(duration: 0.12), value: card.body)
     }
 
@@ -519,6 +476,50 @@ struct AssistantPage: View {
     }
 }
 
+private struct TalkStageLayout: Layout {
+    var gap: CGFloat
+    var statusBlock: CGFloat
+    /// The faded question may grow down to this, then it scrolls. It does not enter the orb's home.
+    var questionCap: CGFloat
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        CGSize(width: proposal.width ?? 0, height: proposal.height ?? 0)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        guard subviews.count == 3 else { return }
+        let width = bounds.width
+        let height = bounds.height
+        let centeredTop = max(0, (height - statusBlock) / 2)
+        // Nil height is the text's own height. Proposing `questionCap` makes the flexible
+        // question frame fill that cap, so the card never grows past the centered orb.
+        let questionIdeal = subviews[0].sizeThatFits(ProposedViewSize(width: width, height: nil))
+        let questionHeight = min(max(questionIdeal.height, 0), questionCap)
+        let questionLimit = questionHeight > 1 ? questionHeight + gap : 0
+        let maxCard = max(height - gap - statusBlock - questionLimit, 1)
+        let cardIdeal = subviews[2].sizeThatFits(ProposedViewSize(width: width, height: nil))
+        let cardHeight = min(max(cardIdeal.height, 0), maxCard)
+        let aboveCardTop = height - cardHeight - gap - statusBlock
+        // A short card leaves the orb centered. A taller reply lifts it until the question.
+        let orbTop = max(questionLimit, min(centeredTop, aboveCardTop))
+        subviews[0].place(
+            at: CGPoint(x: bounds.minX, y: bounds.minY),
+            anchor: .topLeading,
+            proposal: ProposedViewSize(width: width, height: questionHeight)
+        )
+        subviews[1].place(
+            at: CGPoint(x: bounds.minX, y: bounds.minY + orbTop),
+            anchor: .topLeading,
+            proposal: ProposedViewSize(width: width, height: statusBlock)
+        )
+        subviews[2].place(
+            at: CGPoint(x: bounds.minX, y: bounds.minY + height - cardHeight),
+            anchor: .topLeading,
+            proposal: ProposedViewSize(width: width, height: cardHeight)
+        )
+    }
+}
+
 /// Header spans the card width (title leading, Source at the trailing edge).
 /// The bubble stays as wide as its text. Total height stops at `maxHeight`.
 private struct TalkTurnColumn: Layout {
@@ -529,11 +530,11 @@ private struct TalkTurnColumn: Layout {
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
         guard subviews.count >= 2 else { return .zero }
         let limit = min(proposal.width ?? maxWidth, maxWidth)
-        // A short proposal must not squash the text; maxHeight is only the ceiling under the status line.
-        let limitH = maxHeight
-        let headerProbe = subviews[0].sizeThatFits(ProposedViewSize(width: limit, height: nil))
-        let bubbleCap = max(limitH - headerProbe.height - spacing, 1)
-        let bubble = subviews[1].sizeThatFits(ProposedViewSize(width: limit, height: bubbleCap))
+        // The stage proposes the ceiling under the risen orb. A nil height keeps `maxHeight`.
+        let limitH = min(maxHeight, proposal.height ?? maxHeight)
+        // Nil height: the bubble reports the wrapped text. A short proposal would
+        // make a scroller look like it fits and the card would never grow.
+        let bubble = subviews[1].sizeThatFits(ProposedViewSize(width: limit, height: nil))
         // Full card width so Source stays at the trailing edge when the fill hugs a short line.
         let width = max(limit, 1)
         let header = subviews[0].sizeThatFits(ProposedViewSize(width: width, height: nil))
@@ -546,14 +547,62 @@ private struct TalkTurnColumn: Layout {
         let header = subviews[0].sizeThatFits(ProposedViewSize(width: bounds.width, height: nil))
         subviews[0].place(
             at: CGPoint(x: bounds.minX, y: bounds.minY),
+            anchor: .topLeading,
             proposal: ProposedViewSize(width: bounds.width, height: header.height)
         )
         let bubbleCap = max(bounds.height - header.height - spacing, 1)
-        let bubble = subviews[1].sizeThatFits(ProposedViewSize(width: bounds.width, height: bubbleCap))
+        let bubble = subviews[1].sizeThatFits(ProposedViewSize(width: bounds.width, height: nil))
+        let bubbleHeight = min(max(bubble.height, 1), bubbleCap)
         subviews[1].place(
             at: CGPoint(x: bounds.minX, y: bounds.minY + header.height + spacing),
-            proposal: ProposedViewSize(width: bubble.width, height: bubble.height)
+            anchor: .topLeading,
+            proposal: ProposedViewSize(width: min(bubble.width, bounds.width), height: bubbleHeight)
         )
+    }
+}
+
+/// Reports the plain text’s height. The scroll copy is placed only when the slot
+/// the stage gave the card is shorter than that text.
+private struct TalkBubbleBox: Layout {
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        guard let text = subviews.first else { return .zero }
+        let width = proposal.width ?? text.sizeThatFits(.unspecified).width
+        let measured = text.sizeThatFits(ProposedViewSize(width: width, height: nil))
+        let natural = max(measured.height, 1)
+        // A nil height is the real text, so the card can rise. A shorter slot is the
+        // cap under the question: report that, and the scroll copy fills it.
+        let height = min(natural, proposal.height ?? natural)
+        return CGSize(width: min(max(measured.width, 1), width), height: max(height, 1))
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        guard subviews.count >= 2 else { return }
+        let text = subviews[0].sizeThatFits(ProposedViewSize(width: bounds.width, height: nil))
+        let fits = text.height <= bounds.height + 1
+        let parked = CGPoint(x: bounds.minX - 4_000, y: bounds.minY - 4_000)
+        if fits {
+            subviews[0].place(
+                at: CGPoint(x: bounds.minX, y: bounds.minY),
+                anchor: .topLeading,
+                proposal: ProposedViewSize(width: bounds.width, height: nil)
+            )
+            subviews[1].place(
+                at: parked,
+                anchor: .topLeading,
+                proposal: ProposedViewSize(width: 0, height: 0)
+            )
+        } else {
+            subviews[0].place(
+                at: parked,
+                anchor: .topLeading,
+                proposal: ProposedViewSize(width: 0, height: 0)
+            )
+            subviews[1].place(
+                at: CGPoint(x: bounds.minX, y: bounds.minY),
+                anchor: .topLeading,
+                proposal: ProposedViewSize(width: bounds.width, height: bounds.height)
+            )
+        }
     }
 }
 
@@ -562,48 +611,56 @@ private enum TalkBubbleEnd {
     static let bottom = "talk-bubble-end"
 }
 
-/// One-line text hugs its width. Wrapped text uses `maxWidth` and its real height.
-/// Past the proposed height the scroll child is shown so glyphs stay inside the bubble.
-private struct TalkBubbleBody: Layout {
-    var maxWidth: CGFloat
-    /// Text height before the body scrolls. Not a fixed line count.
-    var maxHeight: CGFloat
+/// One fill around the text. The scroll copy stays in the layout for a long reply,
+/// but it has no fill of its own, so it cannot paint a second box in the corner.
+private struct TalkBubble: View {
+    var text: String
+    var maxTextWidth: CGFloat
+    var followTail: Bool
 
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        guard let text = subviews.first else { return .zero }
-        let limit = min(proposal.width ?? maxWidth, maxWidth)
-        return measured(text: text, limit: limit, cap: maxHeight).size
-    }
-
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        guard let text = subviews.first else { return }
-        let limit = min(bounds.width, maxWidth)
-        let fit = measured(text: text, limit: limit, cap: maxHeight)
-        let origin = CGPoint(x: bounds.minX, y: bounds.minY)
-        if fit.scroll, subviews.count > 1 {
-            text.place(at: origin, proposal: ProposedViewSize(width: 0, height: 0))
-            subviews[1].place(at: origin, proposal: ProposedViewSize(width: fit.size.width, height: fit.size.height))
-        } else {
-            text.place(at: origin, proposal: ProposedViewSize(width: fit.size.width, height: fit.size.height))
-            if subviews.count > 1 {
-                subviews[1].place(at: origin, proposal: ProposedViewSize(width: 0, height: 0))
+    var body: some View {
+        TalkBubbleBox {
+            // The unused copy is parked outside and clipped, so it cannot sit in the corner.
+            words
+            ScrollViewReader { proxy in
+                ScrollView {
+                    Color.clear.frame(height: 1).id(TalkBubbleEnd.top)
+                    words.frame(maxWidth: .infinity, alignment: .leading)
+                    Color.clear.frame(height: 1).id(TalkBubbleEnd.bottom)
+                }
+                .id(followTail)
+                .defaultScrollAnchor(followTail ? .bottom : .top)
+                .defaultScrollAnchor(followTail ? .bottom : .top, for: .sizeChanges)
+                .defaultScrollAnchor(.top, for: .alignment)
+                .scrollBounceBehavior(.basedOnSize)
+                .scrollIndicators(.visible)
+                .scrollContentBackground(.hidden)
+                .onAppear {
+                    proxy.scrollTo(
+                        followTail ? TalkBubbleEnd.bottom : TalkBubbleEnd.top,
+                        anchor: followTail ? .bottom : .top
+                    )
+                }
+                .onChange(of: text) { _, _ in
+                    guard followTail else { return }
+                    proxy.scrollTo(TalkBubbleEnd.bottom, anchor: .bottom)
+                }
             }
         }
+        .clipped()
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(Color(.secondarySystemFill), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .frame(maxWidth: maxTextWidth + 28, alignment: .leading)
     }
 
-    private func measured(text: LayoutSubview, limit: CGFloat, cap: CGFloat) -> (size: CGSize, scroll: Bool) {
-        let single = text.sizeThatFits(ProposedViewSize(width: nil, height: nil))
-        if single.width <= limit {
-            if single.height <= cap {
-                return (single, false)
-            }
-            return (CGSize(width: min(single.width, limit), height: cap), true)
-        }
-        let wrapped = text.sizeThatFits(ProposedViewSize(width: limit, height: nil))
-        if wrapped.height <= cap {
-            return (CGSize(width: limit, height: wrapped.height), false)
-        }
-        return (CGSize(width: limit, height: cap), true)
+    private var words: some View {
+        Text(verbatim: text)
+            .appFont(.body)
+            .textSelection(.enabled)
+            .multilineTextAlignment(.leading)
+            .frame(maxWidth: maxTextWidth, alignment: .leading)
+            .fixedSize(horizontal: false, vertical: true)
     }
 }
 

@@ -306,6 +306,54 @@ extension View {
     }
 }
 
+/// The task words and the due date. The recording minute stays where the lecturer said it.
+private struct AssignmentEditor: View {
+    @Bindable var assignment: Assignment
+    @Environment(\.dismiss) private var dismiss
+    @State private var text: String
+    @State private var due: Date
+    @State private var hasDue: Bool
+
+    init(assignment: Assignment) {
+        self.assignment = assignment
+        _text = State(initialValue: assignment.text)
+        _hasDue = State(initialValue: assignment.due != nil)
+        _due = State(initialValue: assignment.due ?? Date())
+    }
+
+    private var trimmed: String {
+        text.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                TextField("Task", text: $text, axis: .vertical)
+                Toggle("Due date", isOn: $hasDue)
+                if hasDue {
+                    DatePicker("Due date", selection: $due, displayedComponents: .date)
+                }
+            }
+            .navigationTitle("Edit assignment")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        assignment.text = trimmed
+                        assignment.due = hasDue ? due : nil
+                        dismiss()
+                    }
+                    .disabled(trimmed.isEmpty)
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+    }
+}
+
 /// One homework row. Tapping the circle marks it done.
 struct AssignmentRow: View {
     @Bindable var assignment: Assignment
@@ -363,7 +411,9 @@ struct AssignmentRow: View {
             }
         }
         .onAppear { assignment.fillDueIfMissing() }
-        // Delete is the list's own swipe from the right. Cancelled is the swipe from the left.
+        // Delete is the list's own swipe from the right. The swipe from the left is
+        // Cancelled, and the gray pencil that edits the task text and the due date.
+        // The first button stays the full swipe, so a full swipe still cancels.
         .swipeActions(edge: .leading, allowsFullSwipe: true) {
             Button(
                 assignment.cancelled ? "Restore" : "Cancelled",
@@ -372,8 +422,18 @@ struct AssignmentRow: View {
                 assignment.cancelled.toggle()
             }
             .tint(.orange)
+            Button { editing = true } label: {
+                Image(systemName: "pencil")
+            }
+            .tint(Color(.systemGray))
+            .accessibilityLabel(Text("Edit assignment"))
+        }
+        .sheet(isPresented: $editing) {
+            AssignmentEditor(assignment: assignment)
         }
     }
+
+    @State private var editing = false
 
     private var details: some View {
         VStack(alignment: .leading, spacing: 4) {
