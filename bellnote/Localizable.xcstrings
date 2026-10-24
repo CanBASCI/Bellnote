@@ -722,6 +722,22 @@
         }
       }
     },
+    "Cancel task" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cancel"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "İptal et"
+          }
+        }
+      }
+    },
     "Cancelled" : {
       "localizations" : {
         "en" : {

@@ -31,18 +31,22 @@ extension AppTypeface {
     }
 
     /// A point size that is already scaled, such as a ScaledMetric.
-    func font(size: CGFloat, weight: Font.Weight) -> Font {
+    func font(size: CGFloat, weight: Font.Weight, digits: Bool = false) -> Font {
+        var font: Font
         if self == .newYork {
-            return Font.system(size: size, weight: weight, design: .serif)
-        }
-        if usesSystemFace {
+            font = Font.system(size: size, weight: weight, design: .serif)
+        } else if usesSystemFace {
             // Nil design keeps the width chosen in Settings. The old overload locks SF Pro at its standard width.
-            return Font.system(size: size, weight: weight, design: nil)
+            font = Font.system(size: size, weight: weight, design: nil)
+        } else if let name = installedName(for: weight), UIFont(name: name, size: size) != nil {
+            font = Font.custom(name, fixedSize: size)
+        } else {
+            font = Font.system(size: size, weight: weight, design: nil)
         }
-        if let name = installedName(for: weight), UIFont(name: name, size: size) != nil {
-            return Font.custom(name, fixedSize: size)
+        if digits {
+            font = font.monospacedDigit()
         }
-        return Font.system(size: size, weight: weight, design: nil)
+        return font
     }
 
     private var usesSystemFace: Bool {
@@ -273,8 +277,8 @@ extension View {
     }
 
     /// A size that already follows Dynamic Type, such as a ScaledMetric.
-    func appFont(size: CGFloat, weight: Font.Weight = .regular) -> some View {
-        modifier(AppSizedFont(size: size, weight: weight))
+    func appFont(size: CGFloat, weight: Font.Weight = .regular, digits: Bool = false) -> some View {
+        modifier(AppSizedFont(size: size, weight: weight, digits: digits))
     }
 }
 
@@ -293,8 +297,9 @@ private struct AppSizedFont: ViewModifier {
     @Environment(AppSession.self) private var session
     var size: CGFloat
     var weight: Font.Weight
+    var digits: Bool
 
     func body(content: Content) -> some View {
-        content.font(session.typeface.font(size: size, weight: weight))
+        content.font(session.typeface.font(size: size, weight: weight, digits: digits))
     }
 }

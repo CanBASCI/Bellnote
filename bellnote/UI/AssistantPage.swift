@@ -656,7 +656,7 @@ private struct TalkBubble: View {
 
     private var words: some View {
         Text(verbatim: text)
-            .appFont(.body)
+            .appFont(.callout)
             .textSelection(.enabled)
             .multilineTextAlignment(.leading)
             .frame(maxWidth: maxTextWidth, alignment: .leading)

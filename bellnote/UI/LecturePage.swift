@@ -102,6 +102,10 @@ struct LectureNote: View {
     var focusAssignmentID: PersistentIdentifier? = nil
 
     @Environment(AppSession.self) private var session
+    /// Speaker name and the minute, one point under subheadline.
+    @ScaledMetric(relativeTo: .subheadline) private var speakerPoint: CGFloat = 14
+    /// “Missing”, one point under caption, with the lines under an assignment.
+    @ScaledMetric(relativeTo: .caption) private var noteMetaSize: CGFloat = 11
     @State private var audio = LectureAudio()
     @State private var reader = SpeechReader()
     @State private var showStudy = false
@@ -390,9 +394,11 @@ struct LectureNote: View {
                     Button("Process AI correction again", systemImage: "arrow.clockwise") {
                         askRewriteCorrection = true
                     }
+                    .labelStyle(.iconOnly)
+                    .imageScale(.medium)
                 }
                 Text(CorrectionText.attributed(bodyText))
-                    .appFont(.body)
+                    .appFont(.callout)
                     .lineSpacing(4)
                     .textSelection(.enabled)
             }
@@ -439,10 +445,11 @@ struct LectureNote: View {
                     } label: {
                         HStack(alignment: .firstTextBaseline, spacing: 12) {
                             Text(MediaClock.short(second))
-                                .appFont(.subheadline, digits: true)
+                                .appFont(size: speakerPoint, digits: true)
                                 .foregroundStyle(.secondary)
                                 .frame(width: 52, alignment: .leading)
                             Text("I didn't get this")
+                                .appFont(.callout)
                         }
                     }
                     .buttonStyle(.plain)
@@ -459,13 +466,15 @@ struct LectureNote: View {
                 Button("Process assignments again", systemImage: "arrow.clockwise") {
                     askRewriteAssignments = true
                 }
+                .labelStyle(.iconOnly)
+                .imageScale(.medium)
             }
             if own.isEmpty {
                 Text("No assignments yet.")
                     .foregroundStyle(.secondary)
             }
             ForEach(own) { assignment in
-                AssignmentRow(assignment: assignment) { second in
+                AssignmentRow(assignment: assignment, lectureReading: true) { second in
                     // Plays the sentence where the task was given and pauses there. The play button goes on.
                     audio.seek(to: second, play: true, until: endSecond(of: assignment))
                 }
@@ -560,14 +569,14 @@ struct LectureNote: View {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 if block.speaker > 0 {
                     Text(speakerTitle(block.speaker))
-                        .appFont(.subheadline, weight: .semibold)
+                        .appFont(size: speakerPoint, weight: .semibold)
                         .foregroundStyle(Color.accentColor)
                 }
                 Button {
                     audio.seek(to: block.second, play: true)
                 } label: {
                     Text(MediaClock.short(block.second))
-                        .appFont(.subheadline, digits: true)
+                        .appFont(size: speakerPoint, digits: true)
                         .foregroundStyle(emphasize ? Color.accentColor : Color.secondary)
                 }
                 .buttonStyle(.plain)
@@ -576,15 +585,15 @@ struct LectureNote: View {
                 audio.seek(to: block.second, play: true)
             } label: {
                 Text(verbatim: block.text)
+                    .appFont(.callout, weight: emphasize ? .semibold : .regular)
                     .foregroundStyle(.primary)
-                    .fontWeight(emphasize ? .semibold : .regular)
                     .multilineTextAlignment(.leading)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             .buttonStyle(.plain)
             if block.missing || block.userFlag {
                 Text("Missing")
-                    .appFont(.caption)
+                    .appFont(size: noteMetaSize)
                     .foregroundStyle(.secondary)
             }
         }

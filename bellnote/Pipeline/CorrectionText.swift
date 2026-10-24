@@ -187,7 +187,7 @@ enum CorrectionText {
             var piece = AttributedString(part)
             if index % 2 == 1, index < parts.count - 1 {
                 piece.backgroundColor = Color.yellow.opacity(0.4)
-                piece.font = .body.weight(.semibold)
+                piece.font = .callout.weight(.semibold)
             }
             result.append(piece)
         }

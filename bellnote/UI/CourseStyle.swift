@@ -265,14 +265,43 @@ struct GlassBadge: View {
 struct StatusChip: View {
     var title: String
     var tint: Color
+    /// Nil keeps caption. A recording passes the smaller meta size.
+    var size: CGFloat? = nil
 
     var body: some View {
         Text(title)
-            .appFont(.caption, weight: .semibold)
+            .modifier(StatusChipFont(size: size))
             .foregroundStyle(tint)
             .padding(.horizontal, 8)
             .padding(.vertical, 3)
             .background(tint.opacity(0.15), in: Capsule())
+    }
+}
+
+/// Caption, or a size one point under it on a recording.
+private struct StatusChipFont: ViewModifier {
+    var size: CGFloat?
+
+    func body(content: Content) -> some View {
+        if let size {
+            content.appFont(size: size, weight: .semibold)
+        } else {
+            content.appFont(.caption, weight: .semibold)
+        }
+    }
+}
+
+/// Replaces the caption on the lines under a recording’s assignment. Elsewhere it leaves the font alone.
+private struct LectureMetaFont: ViewModifier {
+    var active: Bool
+    var size: CGFloat
+
+    func body(content: Content) -> some View {
+        if active {
+            content.appFont(size: size)
+        } else {
+            content
+        }
     }
 }
 
@@ -367,6 +396,8 @@ struct AssignmentRow: View {
     var plainDetails = false
     /// The task text in `subheadline`, medium, like the time of a recording row. False keeps the body font.
     var smallTitle = false
+    /// On a recording, the task is one point under body and the lines under it are one point under caption.
+    var lectureReading = false
     /// Called with the second where the lecturer gave the task. Nil makes the row plain.
     var onOpen: ((Int) -> Void)?
 
@@ -376,6 +407,10 @@ struct AssignmentRow: View {
     @ScaledMetric(relativeTo: .body) private var bodyLineHeight: CGFloat = 22
     /// The same for the course page, where the task text is `subheadline`.
     @ScaledMetric(relativeTo: .subheadline) private var subheadlineLineHeight: CGFloat = 20
+    /// One line of the recording task, which is `callout`.
+    @ScaledMetric(relativeTo: .callout) private var calloutLineHeight: CGFloat = 21
+    /// One point under caption, for the date and source lines on a recording.
+    @ScaledMetric(relativeTo: .caption) private var lectureMetaSize: CGFloat = 11
 
     var body: some View {
         // The circle is centered on the first line of the text, in the lecture page and in the course page.
@@ -392,7 +427,7 @@ struct AssignmentRow: View {
                 )
                 .appFont(.title3)
                 .foregroundStyle(assignment.done && !assignment.cancelled ? Color.green : Color.secondary)
-                .frame(height: smallTitle ? subheadlineLineHeight : bodyLineHeight)
+                .frame(height: lectureReading ? calloutLineHeight : (smallTitle ? subheadlineLineHeight : bodyLineHeight))
                 .frame(width: markWidth)
             }
             .buttonStyle(.plain)
@@ -412,11 +447,11 @@ struct AssignmentRow: View {
         }
         .onAppear { assignment.fillDueIfMissing() }
         // Delete is the list's own swipe from the right. The swipe from the left is
-        // Cancelled, and the gray pencil that edits the task text and the due date.
+        // Cancel, and the gray pencil that edits the task text and the due date.
         // The first button stays the full swipe, so a full swipe still cancels.
         .swipeActions(edge: .leading, allowsFullSwipe: true) {
             Button(
-                assignment.cancelled ? "Restore" : "Cancelled",
+                assignment.cancelled ? "Restore" : "Cancel task",
                 systemImage: assignment.cancelled ? "arrow.uturn.backward" : "xmark.circle"
             ) {
                 assignment.cancelled.toggle()
@@ -438,7 +473,7 @@ struct AssignmentRow: View {
     private var details: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(assignment.text)
-                .appFont(smallTitle ? .subheadline : .body, weight: smallTitle ? .medium : nil)
+                .appFont(lectureReading ? .callout : (smallTitle ? .subheadline : .body), weight: smallTitle ? .medium : nil)
                 .strikethrough(assignment.done || assignment.cancelled)
                 .foregroundStyle(assignment.done || assignment.cancelled ? .secondary : .primary)
                 .multilineTextAlignment(.leading)
@@ -446,12 +481,13 @@ struct AssignmentRow: View {
             // recording row: `subheadline` at the medium Dynamic Type size.
             Group {
             if assignment.cancelled {
-                StatusChip(title: String(localized: "Cancelled"), tint: .orange)
+                StatusChip(title: String(localized: "Cancelled"), tint: .orange, size: lectureReading ? lectureMetaSize : nil)
             } else if let due = assignment.due {
-                StatusChip(title: AssignmentRow.dueTitle(due), tint: .accentColor)
+                StatusChip(title: AssignmentRow.dueTitle(due), tint: .accentColor, size: lectureReading ? lectureMetaSize : nil)
             } else {
                 Text("No date was spoken.")
                     .appFont(plainDetails ? .subheadline : .caption)
+                    .modifier(LectureMetaFont(active: lectureReading, size: lectureMetaSize))
                     .foregroundStyle(.secondary)
             }
             if let lecture = assignment.sourceLecture {
@@ -474,6 +510,7 @@ struct AssignmentRow: View {
                     }
                 }
                 .appFont(plainDetails ? .subheadline : .caption)
+                .modifier(LectureMetaFont(active: lectureReading, size: lectureMetaSize))
                 .foregroundStyle(.secondary)
             }
             }
