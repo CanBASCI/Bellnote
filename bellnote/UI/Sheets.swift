@@ -920,6 +920,7 @@ struct CalendarPage: View {
     private func dayCell(_ date: Date) -> some View {
         let recorded = hasLecture(on: date)
         let scheduled = hasSlot(on: date)
+        let exam = hasExam(on: date)
         let isSelected = Calendar.current.isDate(date, inSameDayAs: selected)
         let isToday = Calendar.current.isDateInToday(date)
         return Button {
@@ -937,14 +938,24 @@ struct CalendarPage: View {
                             Circle().stroke(Color.pink, lineWidth: 1.5)
                         }
                     }
-                Circle()
-                    .fill(recorded ? Color.green : Color.clear)
-                    .overlay {
-                        if scheduled && !recorded {
-                            Circle().stroke(Color.green, lineWidth: 1)
-                        }
+                HStack(spacing: 3) {
+                    if recorded || scheduled {
+                        Circle()
+                            .fill(recorded ? Color.green : Color.clear)
+                            .overlay {
+                                if scheduled && !recorded {
+                                    Circle().stroke(Color.green, lineWidth: 1)
+                                }
+                            }
+                            .frame(width: 5, height: 5)
                     }
-                    .frame(width: 5, height: 5)
+                    if exam {
+                        Circle()
+                            .fill(Color.red)
+                            .frame(width: 5, height: 5)
+                    }
+                }
+                .frame(height: 5)
             }
             .frame(maxWidth: .infinity)
         }
@@ -1066,10 +1077,20 @@ struct CalendarPage: View {
         let calendar = Calendar.current
         let weekday = calendar.component(.weekday, from: date)
         let dayLectures = lectures(on: date)
+        let daySittings = sittings(on: date)
         var matched = Set<PersistentIdentifier>()
+        var examLecture: [UUID: Lecture] = [:]
         var marks: [CalendarMark] = []
         if termIncludes(date) {
             for slot in term.slots.filter({ $0.weekday == weekday }).sorted(by: { $0.startMinutes < $1.startMinutes }) {
+                // That hour is the exam. The weekly class does not take its own row.
+                if let sitting = sittingCovering(slot, in: daySittings) {
+                    if let lecture = dayLectures.first(where: { $0.course?.token == slot.course?.token && !matched.contains($0.persistentModelID) }) {
+                        matched.insert(lecture.persistentModelID)
+                        examLecture[sitting.token] = lecture
+                    }
+                    continue
+                }
                 if let lecture = dayLectures.first(where: { $0.course?.token == slot.course?.token && !matched.contains($0.persistentModelID) }) {
                     matched.insert(lecture.persistentModelID)
                     marks.append(mark(for: lecture, place: PlacePreset.displayName(for: slot.placeName)))
@@ -1089,9 +1110,106 @@ struct CalendarPage: View {
             }
         }
         for lecture in dayLectures where !matched.contains(lecture.persistentModelID) {
+            if let sitting = sittingCovering(lecture, in: daySittings) {
+                matched.insert(lecture.persistentModelID)
+                if examLecture[sitting.token] == nil {
+                    examLecture[sitting.token] = lecture
+                }
+                continue
+            }
             marks.append(mark(for: lecture, place: ""))
         }
+        for sitting in daySittings {
+            marks.append(mark(for: sitting, lecture: examLecture[sitting.token]))
+        }
         return marks.sorted { $0.startMinutes < $1.startMinutes }
+    }
+
+    /// The exam of this course whose clock overlaps the class. A sitting with no time does not take the hour.
+    private func sittingCovering(_ slot: WeeklySlot, in sittings: [ExamSitting]) -> ExamSitting? {
+        sittings.first { sitting in
+            guard sitting.course?.token == slot.course?.token else { return false }
+            return sharesTime(sitting, start: slot.startMinutes, end: slot.endMinutes)
+        }
+    }
+
+    private func sittingCovering(_ lecture: Lecture, in sittings: [ExamSitting]) -> ExamSitting? {
+        let parts = Calendar.current.dateComponents([.hour, .minute], from: lecture.startedAt)
+        let start = (parts.hour ?? 0) * 60 + (parts.minute ?? 0)
+        let end = start + max(30, lecture.recordedSeconds / 60)
+        return sittings.first { sitting in
+            guard sitting.course?.token == lecture.course?.token else { return false }
+            return sharesTime(sitting, start: start, end: end)
+        }
+    }
+
+    private func sharesTime(_ sitting: ExamSitting, start: Int, end: Int) -> Bool {
+        guard let examStart = sitting.startMinutes else { return false }
+        let examEnd = max(sitting.endMinutes ?? examStart, examStart)
+        if examEnd == examStart {
+            return examStart >= start && examStart < end
+        }
+        return examStart < end && examEnd > start
+    }
+
+    private func sittings(on date: Date) -> [ExamSitting] {
+        term.courses
+            .flatMap(\.sittings)
+            .filter { sitting in
+                guard let examDate = sitting.date else { return false }
+                return Calendar.current.isDate(examDate, inSameDayAs: date)
+            }
+    }
+
+    private func hasExam(on date: Date) -> Bool {
+        !sittings(on: date).isEmpty
+    }
+
+    /// Course, then kind, time, and place. A sitting with no clock still takes a row.
+    /// A recording of that hour stays on the exam row.
+    private func mark(for sitting: ExamSitting, lecture: Lecture?) -> CalendarMark {
+        let start = sitting.startMinutes ?? (24 * 60)
+        let end = max(sitting.endMinutes ?? start, start)
+        let name = sitting.course?.name ?? String(localized: "Course")
+        return CalendarMark(
+            id: sitting.token.uuidString,
+            name: name,
+            startMinutes: start,
+            endMinutes: end,
+            detail: examDetail(sitting),
+            lecture: lecture,
+            tint: .red
+        )
+    }
+
+    private func examDetail(_ sitting: ExamSitting) -> String {
+        var parts = [examKindName(sitting)]
+        if let start = sitting.startMinutes {
+            if let end = sitting.endMinutes, end > start {
+                parts.append("\(ReminderScheduler.clock(start))–\(ReminderScheduler.clock(end))")
+            } else {
+                parts.append(ReminderScheduler.clock(start))
+            }
+        } else {
+            parts.append(String(localized: "Time not set"))
+        }
+        let place = PlacePreset.displayName(for: sitting.place)
+        if !place.isEmpty {
+            parts.append(place)
+        }
+        return parts.joined(separator: " · ")
+    }
+
+    /// Midterm, final, or the name typed for another exam.
+    private func examKindName(_ sitting: ExamSitting) -> String {
+        let title = sitting.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        if ExamKind(rawValue: sitting.kind) == .other, !title.isEmpty { return title }
+        switch ExamKind(rawValue: sitting.kind) {
+        case .midterm: return String(localized: "Midterm")
+        case .final: return String(localized: "Final")
+        case .other: return String(localized: "Other")
+        case nil: return String(localized: "Exam")
+        }
     }
 
     private func mark(for lecture: Lecture, place: String) -> CalendarMark {
@@ -1590,7 +1708,7 @@ struct SlotEditor: View {
             editing.placeName = placePreset.storedName(custom: placeCustom)
             // The reminder of this time follows the new day and hour.
             ReminderScheduler.replaceSlot(editing, courseName: editing.course?.name ?? "")
-            dismiss()
+            commit()
             return
         }
         let course = lockedCourse ?? courseForSlot()
@@ -1604,7 +1722,19 @@ struct SlotEditor: View {
         )
         modelContext.insert(slot)
         term.slots.append(slot)
-        dismiss()
+        commit()
+    }
+
+    /// The time is written here. The course sheet’s Save is only the name, the language, and the color.
+    private func commit() {
+        do {
+            try modelContext.save()
+            dismiss()
+        } catch {
+            Logger(subsystem: "app.bellnote", category: "slot").error(
+                "Save failed: \(error.localizedDescription, privacy: .public)"
+            )
+        }
     }
 
     private func courseForSlot() -> Course? {

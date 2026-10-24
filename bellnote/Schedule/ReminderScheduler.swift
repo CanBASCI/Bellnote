@@ -38,7 +38,7 @@ enum ReminderScheduler {
 
     static func replaceExam(_ sitting: ExamSitting, courseName: String) {
         let center = UNUserNotificationCenter.current()
-        let id = "exam.\(ObjectIdentifier(sitting).hashValue)"
+        let id = "exam.\(sitting.token.uuidString)"
         center.removePendingNotificationRequests(withIdentifiers: [id])
         let kind = ReminderKind(rawValue: sitting.reminderKind) ?? ReminderKind.none
         guard let date = sitting.date, kind != ReminderKind.none else { return }

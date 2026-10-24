@@ -260,7 +260,8 @@ struct TodayPage: View {
         }
         .onChange(of: scenePhase) { _, phase in
             guard phase == .background else { return }
-            saveCourseOrder()
+            // Not during this view update. A clean store does not touch the database.
+            Task { saveCourseOrder() }
         }
         .onChange(of: term.courses.map { $0.token.uuidString }.sorted(), initial: true) { _, _ in
             reconcileCourseOrder()
@@ -531,13 +532,14 @@ struct TodayPage: View {
         saveCourseOrder()
     }
 
-    /// Writes the current order before the app goes to the background. A drop that is still only on screen is kept.
+    /// Writes the order when a row’s place actually changed. An unchanged list does not open the database.
     private func saveCourseOrder() {
         let rows = orderedCourses
         guard !rows.isEmpty else { return }
-        for (place, course) in rows.enumerated() {
+        for (place, course) in rows.enumerated() where course.homeOrder != place {
             course.homeOrder = place
         }
+        guard modelContext.hasChanges else { return }
         do {
             try modelContext.save()
             logOrder("saved", rows)

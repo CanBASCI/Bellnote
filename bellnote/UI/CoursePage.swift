@@ -476,30 +476,59 @@ struct CoursePage: View {
         ]
     }
 
-    /// One line per exam in the week: its name, and the day it falls on.
+    /// One line per exam on the card: its kind, then the day and month. A set start time follows, as in “27 Oct · 09:00”.
+    /// The nearest sitting is first.
     private func examLines(of sittings: [ExamSitting]) -> [StatDetail] {
-        sittings
-            .sorted { ($0.date ?? .distantFuture) < ($1.date ?? .distantFuture) }
+        nearestFirst(sittings)
             .map { sitting in
-                let day = sitting.date?.formatted(.dateTime.day().month(.abbreviated).locale(locale)) ?? ""
                 return StatDetail(
                     id: sitting.token.uuidString,
                     symbol: "calendar",
-                    label: examName(sitting),
-                    value: day,
+                    label: examKindName(sitting),
+                    value: examWhen(sitting),
                     quiet: false
                 )
             }
     }
 
-    /// The title the student gave the exam, or the name of its kind.
-    private func examName(_ sitting: ExamSitting) -> String {
+    /// Today or later, soonest first. Dates already past follow, the latest of those first. No date goes last.
+    private func nearestFirst(_ sittings: [ExamSitting]) -> [ExamSitting] {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: .now)
+        return sittings.sorted { lhs, rhs in
+            let left = lhs.date.map { calendar.startOfDay(for: $0) }
+            let right = rhs.date.map { calendar.startOfDay(for: $0) }
+            switch (left, right) {
+            case (nil, _):
+                return false
+            case (_, nil):
+                return true
+            case let (left?, right?):
+                let leftPast = left < today
+                let rightPast = right < today
+                if leftPast != rightPast { return !leftPast }
+                return leftPast ? left > right : left < right
+            }
+        }
+    }
+
+    /// Day and month, then the start time when one is set. No year, so the kind still fits on the line.
+    private func examWhen(_ sitting: ExamSitting) -> String {
+        guard let date = sitting.date else { return String(localized: "Date not set") }
+        let day = date.formatted(.dateTime.day().month(.abbreviated).locale(locale))
+        guard let start = sitting.startMinutes else { return day }
+        return "\(day) · \(ReminderScheduler.clock(start))"
+    }
+
+    /// Midterm, final, or the name typed for another exam.
+    private func examKindName(_ sitting: ExamSitting) -> String {
         let title = sitting.title.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !title.isEmpty { return title }
+        if ExamKind(rawValue: sitting.kind) == .other, !title.isEmpty { return title }
         switch ExamKind(rawValue: sitting.kind) {
         case .midterm: return String(localized: "Midterm")
         case .final: return String(localized: "Final")
-        case .other, nil: return String(localized: "Exam")
+        case .other: return String(localized: "Other")
+        case nil: return String(localized: "Exam")
         }
     }
 
@@ -530,12 +559,15 @@ struct CoursePage: View {
         }
     }
 
-    /// The exams that fall in the chosen week. An exam without a date is in no week.
+    /// Every sitting of this course through the end of its term. The week of the lecture list does not apply.
     private var visibleSittings: [ExamSitting] {
         let calendar = Calendar.current
+        guard let end = course.term.map({ calendar.startOfDay(for: $0.endsOn) }) else {
+            return course.sittings
+        }
         return course.sittings.filter { sitting in
-            guard let date = sitting.date else { return false }
-            return calendar.dateInterval(of: .weekOfYear, for: date)?.start == selectedWeek
+            guard let date = sitting.date else { return true }
+            return calendar.startOfDay(for: date) <= end
         }
     }
 

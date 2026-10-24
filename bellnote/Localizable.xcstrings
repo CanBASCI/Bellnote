@@ -40,6 +40,86 @@
         }
       }
     },
+    "%@ has no recording from then." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ has no recording from then."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ için o aralıkta kayıt yok."
+          }
+        }
+      }
+    },
+    "%@ has no recordings." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ has no recordings."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ için kayıt yok."
+          }
+        }
+      }
+    },
+    "%1$@ is in %2$lld recordings: %3$@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ is in %2$lld recordings: %3$@."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@, %2$lld kayıtta: %3$@."
+          }
+        }
+      }
+    },
+    "%1$@ said: %2$@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ said: %2$@"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ dedi: %2$@"
+          }
+        }
+      }
+    },
+    "%1$@ said: %2$@ The rest is in the recording." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ said: %2$@ The rest is in the recording."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ dedi: %2$@ Kalanı kayıtta."
+          }
+        }
+      }
+    },
     "%1$lld of %2$lld recorded" : {
       "comment" : "VoiceOver for the attendance bar on a course card: recordings, then past meetings.",
       "extractionState" : "manual",
@@ -73,6 +153,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld gün"
+          }
+        }
+      }
+    },
+    "%lld days before" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld days before"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld gün önce"
           }
         }
       }
@@ -251,6 +347,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ekle"
+          }
+        }
+      }
+    },
+    "Add exam" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add exam"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sınav ekle"
           }
         }
       }
@@ -932,6 +1044,22 @@
         }
       }
     },
+    "Date" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Date"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tarih"
+          }
+        }
+      }
+    },
     "Date not set" : {
       "localizations" : {
         "en" : {
@@ -1204,22 +1332,6 @@
         }
       }
     },
-    "Due date" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Due date"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Teslim tarihi"
-          }
-        }
-      }
-    },
     "Done" : {
       "localizations" : {
         "en" : {
@@ -1382,6 +1494,22 @@
         }
       }
     },
+    "Due date" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Due date"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Teslim tarihi"
+          }
+        }
+      }
+    },
     "Dusty rose" : {
       "localizations" : {
         "en" : {
@@ -1443,6 +1571,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Dersi düzenle"
+          }
+        }
+      }
+    },
+    "Edit exam" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edit exam"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sınavı düzenle"
           }
         }
       }
@@ -1610,6 +1754,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Sınav"
+          }
+        }
+      }
+    },
+    "Exam name" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exam name"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sınav adı"
           }
         }
       }
@@ -1912,22 +2072,6 @@
         }
       }
     },
-    "I didn't get this" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "I didn't get this"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Bunu anlamadım"
-          }
-        }
-      }
-    },
     "I can't swear." : {
       "localizations" : {
         "en" : {
@@ -1940,6 +2084,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Küfür edebilmem mümkün değil."
+          }
+        }
+      }
+    },
+    "I didn't get this" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "I didn't get this"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bunu anlamadım"
           }
         }
       }
@@ -2102,6 +2262,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Saat %@."
+          }
+        }
+      }
+    },
+    "Kind" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kind"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tür"
           }
         }
       }
@@ -3188,6 +3364,22 @@
         }
       }
     },
+    "Notification" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notification"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bildirim"
+          }
+        }
+      }
+    },
     "Now" : {
       "localizations" : {
         "en" : {
@@ -4043,6 +4235,22 @@
         }
       }
     },
+    "Reminder" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reminder"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Anımsatıcı"
+          }
+        }
+      }
+    },
     "Remove from favorites" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -4288,6 +4496,39 @@
         }
       }
     },
+    "Set a time" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Set a time"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saat belirle"
+          }
+        }
+      }
+    },
+    "Set an end" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Set an end"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bitiş belirle"
+          }
+        }
+      }
+    },
     "Settings" : {
       "localizations" : {
         "en" : {
@@ -4396,6 +4637,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Bir şey ters gitti. Yeniden dene."
+          }
+        }
+      }
+    },
+    "Sound" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sound"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ses"
           }
         }
       }
@@ -4743,22 +5000,6 @@
         }
       }
     },
-    "Task" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Task"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ödev"
-          }
-        }
-      }
-    },
     "Take care." : {
       "localizations" : {
         "en" : {
@@ -4771,6 +5012,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Kendine iyi bak."
+          }
+        }
+      }
+    },
+    "Task" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Task"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ödev"
           }
         }
       }
@@ -5486,6 +5743,22 @@
         }
       }
     },
+    "Time" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Time"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saat"
+          }
+        }
+      }
+    },
     "Time not set" : {
       "localizations" : {
         "en" : {
@@ -6156,86 +6429,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Derslerin toplamı %lld saat %lld dakika."
-          }
-        }
-      }
-    },
-    "%1$@ is in %2$lld recordings: %3$@." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$@ is in %2$lld recordings: %3$@."
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$@, %2$lld kayıtta: %3$@."
-          }
-        }
-      }
-    },
-    "%@ has no recordings." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ has no recordings."
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ için kayıt yok."
-          }
-        }
-      }
-    },
-    "%@ has no recording from then." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ has no recording from then."
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ için o aralıkta kayıt yok."
-          }
-        }
-      }
-    },
-    "%1$@ said: %2$@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$@ said: %2$@"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$@ dedi: %2$@"
-          }
-        }
-      }
-    },
-    "%1$@ said: %2$@ The rest is in the recording." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$@ said: %2$@ The rest is in the recording."
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$@ dedi: %2$@ Kalanı kayıtta."
           }
         }
       }

@@ -1,9 +1,11 @@
+import OSLog
 import SwiftData
 import SwiftUI
 
 /// Changes a course of the term: its name, language, and color, and every time it has in the timetable. A time
 /// opens the same form as "Add slot", filled with its day, hours and place. The times are saved as soon as their
-/// form is saved. The name, the language, and the color are saved with Save.
+/// form is saved. Add exam starts a sitting for this course. An existing exam opens the form filled, and Save
+/// updates that sitting. The name, the language, and the color are saved with Save.
 struct CourseEditor: View {
     @Bindable var course: Course
     var term: Term
@@ -15,6 +17,8 @@ struct CourseEditor: View {
     @State private var editingSlot: WeeklySlot?
     @State private var addingSlot = false
     @State private var pendingDelete: WeeklySlot?
+    @State private var editingSitting: ExamSitting?
+    @State private var addingExam = false
 
     init(course: Course, term: Term) {
         self.course = course
@@ -78,6 +82,17 @@ struct CourseEditor: View {
                     }
                     Button("Add time", systemImage: "plus") { addingSlot = true }
                 }
+                Section("Exams") {
+                    ForEach(sittings) { sitting in
+                        Button {
+                            editingSitting = sitting
+                        } label: {
+                            examRow(sitting)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    Button("Add exam", systemImage: "plus") { addingExam = true }
+                }
             }
             .navigationTitle("Edit course")
             .navigationBarTitleDisplayMode(.inline)
@@ -94,6 +109,12 @@ struct CourseEditor: View {
             .sheet(isPresented: $addingSlot) {
                 SlotEditor(term: term, weekday: Calendar.current.component(.weekday, from: .now), course: course)
             }
+            .sheet(item: $editingSitting) { sitting in
+                ExamEditor(term: term, course: course, editing: sitting)
+            }
+            .sheet(isPresented: $addingExam) {
+                ExamEditor(term: term, course: course)
+            }
             .alert(
                 "Delete this time from the timetable?",
                 isPresented: Binding(
@@ -102,7 +123,10 @@ struct CourseEditor: View {
                 )
             ) {
                 Button("Delete", role: .destructive) {
-                    if let slot = pendingDelete { modelContext.delete(slot) }
+                    if let slot = pendingDelete {
+                        modelContext.delete(slot)
+                        commit()
+                    }
                     pendingDelete = nil
                 }
                 Button("Cancel", role: .cancel) { pendingDelete = nil }
@@ -134,6 +158,42 @@ struct CourseEditor: View {
                 .accessibilityHidden(true)
         }
         .contentShape(.rect)
+    }
+
+    /// This course’s exams, earliest date first. One with no date stays last.
+    private var sittings: [ExamSitting] {
+        course.sittings.sorted { ($0.date ?? .distantFuture) < ($1.date ?? .distantFuture) }
+    }
+
+    private func examRow(_ sitting: ExamSitting) -> some View {
+        let day = sitting.date?.formatted(date: .abbreviated, time: .omitted) ?? String(localized: "Date not set")
+        return HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(verbatim: examKindName(sitting))
+                    .foregroundStyle(.primary)
+                Text(verbatim: day)
+                    .appFont(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 8)
+            Image(systemName: "chevron.right")
+                .appFont(.footnote, weight: .semibold)
+                .foregroundStyle(.tertiary)
+                .accessibilityHidden(true)
+        }
+        .contentShape(.rect)
+    }
+
+    /// Midterm, final, or the name typed for another exam.
+    private func examKindName(_ sitting: ExamSitting) -> String {
+        let title = sitting.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        if ExamKind(rawValue: sitting.kind) == .other, !title.isEmpty { return title }
+        switch ExamKind(rawValue: sitting.kind) {
+        case .midterm: return String(localized: "Midterm")
+        case .final: return String(localized: "Final")
+        case .other: return String(localized: "Other")
+        case nil: return String(localized: "Exam")
+        }
     }
 
     /// The twelve course colors. The chosen one shows a check.
@@ -175,6 +235,18 @@ struct CourseEditor: View {
                 ReminderScheduler.replaceSlot(slot, courseName: course.name)
             }
         }
+        commit()
         dismiss()
+    }
+
+    /// Writes the course fields. A time or an exam is already written by its own sheet.
+    private func commit() {
+        do {
+            try modelContext.save()
+        } catch {
+            Logger(subsystem: "app.bellnote", category: "course").error(
+                "Save failed: \(error.localizedDescription, privacy: .public)"
+            )
+        }
     }
 }

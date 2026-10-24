@@ -22,7 +22,9 @@ struct PauseRecordingIntent: LiveActivityIntent {
 }
 
 /// Resume capture from the Lock Screen or expanded Dynamic Island.
-struct ResumeRecordingIntent: LiveActivityIntent {
+/// `AudioRecordingIntent` wakes the app. After pause the process is often suspended, and a
+/// plain Live Activity intent then runs in the widget, where this notification never reaches the recorder.
+struct ResumeRecordingIntent: LiveActivityIntent, AudioRecordingIntent {
     static var title: LocalizedStringResource { "Resume" }
     static var description: IntentDescription {
         IntentDescription("Resume the lecture recording")

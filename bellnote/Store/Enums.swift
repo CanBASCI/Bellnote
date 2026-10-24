@@ -180,6 +180,14 @@ enum ReminderKind: String, Codable, Sendable, CaseIterable {
     case none
     case notification
     case alert
+
+    var title: String {
+        switch self {
+        case .none: String(localized: "None")
+        case .notification: String(localized: "Notification")
+        case .alert: String(localized: "Sound")
+        }
+    }
 }
 
 enum GapMark: String, Codable, Sendable {
@@ -191,6 +199,14 @@ enum ExamKind: String, Codable, Sendable, CaseIterable {
     case midterm
     case final
     case other
+
+    var title: String {
+        switch self {
+        case .midterm: String(localized: "Midterm")
+        case .final: String(localized: "Final")
+        case .other: String(localized: "Other")
+        }
+    }
 }
 
 enum InventoryKind: String, Codable, Sendable, CaseIterable {
