@@ -856,12 +856,13 @@ private struct CalendarMark: Identifiable {
     var startMinutes: Int
     var endMinutes: Int
     var detail: String
-    var recorded: Bool
     var lecture: Lecture?
+    var tint: Color
 }
 
 struct CalendarPage: View {
     @Bindable var term: Term
+    @Environment(\.colorScheme) private var colorScheme
     @State private var month = Calendar.current.dateInterval(of: .month, for: .now)?.start ?? .now
     @State private var selected = Calendar.current.startOfDay(for: .now)
 
@@ -967,11 +968,16 @@ struct CalendarPage: View {
     }
 
     private func markRow(_ mark: CalendarMark) -> some View {
+        let bar = RoundedRectangle(cornerRadius: 2, style: .continuous)
         let row = HStack(spacing: 12) {
-            RoundedRectangle(cornerRadius: 2, style: .continuous)
-                .fill(mark.recorded ? Color.green : Color.secondary.opacity(0.45))
+            bar
+                .fill(.clear)
                 .frame(width: 3)
                 .frame(maxHeight: .infinity)
+                .glassEffect(
+                    .regular.tint(mark.tint.opacity(colorScheme == .dark ? 0.5 : 0.28)),
+                    in: bar
+                )
             VStack(alignment: .leading, spacing: 4) {
                 Text(mark.name)
                     .appFont(.body, weight: .semibold)
@@ -1075,8 +1081,8 @@ struct CalendarPage: View {
                             startMinutes: slot.startMinutes,
                             endMinutes: max(slot.endMinutes, slot.startMinutes + 30),
                             detail: slotDetail(slot),
-                            recorded: false,
-                            lecture: nil
+                            lecture: nil,
+                            tint: slot.course?.color ?? CourseStyle.color(for: slot.course?.name ?? String(localized: "Course"))
                         )
                     )
                 }
@@ -1109,8 +1115,8 @@ struct CalendarPage: View {
             startMinutes: start,
             endMinutes: start + max(30, lecture.recordedSeconds / 60),
             detail: partsDetail.joined(separator: " · "),
-            recorded: true,
-            lecture: lecture
+            lecture: lecture,
+            tint: lecture.course?.color ?? CourseStyle.color(for: lecture.course?.name ?? String(localized: "Course"))
         )
     }
 
@@ -1123,17 +1129,29 @@ struct CalendarPage: View {
 
 }
 
+private struct HourLabelHeightKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
+    }
+}
+
 struct ProgramPage: View {
     @Bindable var term: Term
     /// Set when Assistant Source opens a slot. Nil on the Timetable tab, which starts on today.
     var focusMinutes: Int?
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.colorScheme) private var colorScheme
     @State private var showEditor = false
     @State private var showCalendar = false
     @State private var day: Int
     @State private var pendingSlot: WeeklySlot?
+    /// Measured height of the hour label. The label is centered on the rule; blocks do not use this for their span.
+    @State private var hourLabelHeight: CGFloat = 16
 
     private let hourHeight: CGFloat = 56
+    /// Left under a block so the next class does not meet it. The top edge stays on the start minute.
+    private let blockGap: CGFloat = 2
 
     init(term: Term, weekday: Int? = nil, focusMinutes: Int? = nil) {
         self.term = term
@@ -1144,23 +1162,34 @@ struct ProgramPage: View {
 
     var body: some View {
         ScrollViewReader { proxy in
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                weekStrip
-                timeline
-                if !hourRows.isEmpty {
-                    VStack(alignment: .leading, spacing: 4) {
-                        ForEach(hourRows, id: \.courseName) { row in
-                            Text("\(row.courseName) · \(String(format: String(localized: "%lld min"), row.weeklyMinutes))")
-                                .appFont(.footnote)
-                                .foregroundStyle(.secondary)
-                        }
+        List {
+            Section {
+                Picker("Day", selection: $day) {
+                    ForEach(visibleDays, id: \.self) { value in
+                        Text(shortName(value)).tag(value)
                     }
-                    .padding(.horizontal, 4)
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .listRowInsets(EdgeInsets(top: 8, leading: 0, bottom: 4, trailing: 0))
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color.clear)
+                timeline
+                    .listRowInsets(EdgeInsets(top: 8, leading: 0, bottom: 0, trailing: 0))
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+                if !hourRows.isEmpty {
+                    dayMinutes
+                        .listRowInsets(EdgeInsets(top: 8, leading: 36, bottom: 8, trailing: 16))
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
                 }
             }
-            .padding()
         }
+        .listStyle(.insetGrouped)
+        .listRowSpacing(0)
+        .environment(\.defaultMinListRowHeight, 0)
+        .scrollContentBackground(.hidden)
         .background(Color(.systemGroupedBackground))
         .navigationTitle(weekdayName(day))
         .navigationSubtitle(date(for: day).formatted(date: .abbreviated, time: .omitted))
@@ -1203,66 +1232,80 @@ struct ProgramPage: View {
         }
     }
 
-    private var weekStrip: some View {
-        HStack(spacing: 6) {
-            ForEach(visibleDays, id: \.self) { value in
-                Button {
-                    day = value
-                } label: {
-                    Text(shortName(value))
-                        .appFont(.subheadline, weight: value == day ? .semibold : .regular)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 8)
-                        .foregroundStyle(value == day ? Color.primary : Color.secondary)
-                        .background {
-                            if value == day {
-                                Capsule().fill(.tertiary)
-                            }
-                        }
-                }
-                .buttonStyle(.plain)
+    /// The selected day's load, under the hours. The minutes stay beside the course.
+    private var dayMinutes: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            ForEach(hourRows, id: \.courseName) { row in
+                Text("\(row.courseName) · \(String(format: String(localized: "%lld min"), row.weeklyMinutes))")
+                    .appFont(.footnote, digits: true)
             }
         }
+        .foregroundStyle(.secondary)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var timeline: some View {
         let slots = slots(on: day)
         let start = startHour(slots)
-        let end = endHour(slots)
+        let lastMinute = slots.map(\.endMinutes).max()
+        let last = lastHour(slots)
+        let spanEnd = lastMinute.map { $0 + 1 } ?? (last + 1) * 60
+        // Each hour row is hourHeight tall and its rule is the top edge of that row. A block uses that
+        // same edge, so 9:00 starts on the 9 rule. The label is only centered on the rule; it does not move it.
+        // The last row stops at the last class, so the totals are not left under an empty hour.
         return VStack(spacing: 0) {
-            ForEach(start..<end, id: \.self) { hour in
-                HStack(alignment: .top, spacing: 8) {
-                    Text("\(hour)")
-                        .appFont(.caption, digits: true)
-                        .foregroundStyle(.tertiary)
-                        .frame(width: 24, alignment: .leading)
-                        .id(hour)
-                    Rectangle()
-                        .fill(.quaternary)
-                        .frame(height: 0.5)
-                        .padding(.top, 7)
+            ForEach(start...last, id: \.self) { hour in
+                hourRow(hour, height: rowHeight(hour: hour, start: start, last: last, lastMinute: lastMinute))
+            }
+        }
+        .overlay(alignment: .topLeading) {
+            ZStack(alignment: .topLeading) {
+                ForEach(slots) { slot in
+                    slotBlock(slot, startHour: start)
+                        .padding(.leading, 36)
+                        .offset(y: minuteOffset(slot.startMinutes, startHour: start))
                 }
-                .frame(height: hourHeight, alignment: .top)
             }
         }
         .overlay(alignment: .topLeading) {
-            ForEach(slots) { slot in
-                slotBlock(slot, startHour: start)
-                    .padding(.leading, 36)
-                    .offset(y: yOffset(slot, startHour: start))
-            }
-        }
-        .overlay(alignment: .topLeading) {
-            if isToday, nowMinutes >= start * 60, nowMinutes < end * 60 {
+            if isToday, nowMinutes >= start * 60, nowMinutes < spanEnd {
                 Capsule()
-                    .fill(Color.pink)
+                    .fill(Color.primary)
                     .frame(height: 2)
                     .padding(.leading, 28)
-                    .offset(y: CGFloat(nowMinutes - start * 60) / 60 * hourHeight)
+                    .offset(y: minuteOffset(nowMinutes, startHour: start) - 1)
                     .accessibilityLabel(Text("Now"))
                     .allowsHitTesting(false)
             }
         }
+        .padding(.top, hourLabelHeight / 2)
+        .onPreferenceChange(HourLabelHeightKey.self) { height in
+            guard height > 1, abs(height - hourLabelHeight) > 0.5 else { return }
+            hourLabelHeight = height
+        }
+    }
+
+    private func hourRow(_ hour: Int, height: CGFloat) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Color.clear.frame(width: 24, height: 0.5)
+            Rectangle()
+                .fill(.quaternary)
+                .frame(height: 0.5)
+        }
+        .overlay(alignment: .topLeading) {
+            Text("\(hour)")
+                .appFont(.caption, digits: true)
+                .foregroundStyle(.tertiary)
+                .frame(width: 24, alignment: .leading)
+                .background {
+                    GeometryReader { proxy in
+                        Color.clear.preference(key: HourLabelHeightKey.self, value: proxy.size.height)
+                    }
+                }
+                .offset(y: -hourLabelHeight / 2)
+        }
+        .frame(height: height, alignment: .top)
+        .id(hour)
     }
 
     private func slotBlock(_ slot: WeeklySlot, startHour: Int) -> some View {
@@ -1271,10 +1314,16 @@ struct ProgramPage: View {
         // A short slot is a short block. It does not have room for two lines, so the name and the
         // time share one line.
         let isShort = blockHeight(slot) < 52
+        let tint = slot.course?.color ?? CourseStyle.color(for: name)
+        let mark = RoundedRectangle(cornerRadius: 2, style: .continuous)
         return HStack(spacing: 8) {
-            RoundedRectangle(cornerRadius: 2, style: .continuous)
-                .fill(Color.green)
+            mark
+                .fill(.clear)
                 .frame(width: 3)
+                .glassEffect(
+                    .regular.tint(tint.opacity(colorScheme == .dark ? 0.5 : 0.28)),
+                    in: mark
+                )
             ViewThatFits(in: .vertical) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(name)
@@ -1301,7 +1350,10 @@ struct ProgramPage: View {
         .padding(.vertical, isShort ? 4 : 6)
         .frame(maxWidth: .infinity, alignment: .leading)
         .frame(height: blockHeight(slot), alignment: .top)
-        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .background(
+            Color(.secondarySystemGroupedBackground),
+            in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+        )
         .contextMenu {
             Button("Delete", role: .destructive) { pendingSlot = slot }
         }
@@ -1339,17 +1391,27 @@ struct ProgramPage: View {
         return max(0, first / 60 - 1)
     }
 
-    private func endHour(_ slots: [WeeklySlot]) -> Int {
-        guard let last = slots.map(\.endMinutes).max() else { return 19 }
-        return min(23, max(startHour(slots) + 4, (last + 59) / 60 + 1))
+    /// The last hour whose rule is drawn. An empty day keeps the old 8–18 span.
+    private func lastHour(_ slots: [WeeklySlot]) -> Int {
+        guard let last = slots.map(\.endMinutes).max() else { return 18 }
+        return min(23, last / 60)
+    }
+
+    /// Full hours until the last one. That row still has to hold the hour label, which hangs below its line.
+    private func rowHeight(hour: Int, start: Int, last: Int, lastMinute: Int?) -> CGFloat {
+        guard hour == last, let lastMinute else { return hourHeight }
+        let used = minuteOffset(lastMinute, startHour: start) - CGFloat(hour - start) * hourHeight
+        let labelBelow = hourLabelHeight / 2 + 4
+        return max(labelBelow, used + 8)
     }
 
     private func blockHeight(_ slot: WeeklySlot) -> CGFloat {
-        max(32, CGFloat(slot.endMinutes - slot.startMinutes) / 60 * hourHeight - 8)
+        max(1, CGFloat(slot.endMinutes - slot.startMinutes) / 60 * hourHeight - blockGap)
     }
 
-    private func yOffset(_ slot: WeeklySlot, startHour: Int) -> CGFloat {
-        CGFloat(slot.startMinutes - startHour * 60) / 60 * hourHeight + 2
+    /// Distance from the first hour rule to this minute. The rule for hour H is the same distance.
+    private func minuteOffset(_ minutes: Int, startHour: Int) -> CGFloat {
+        CGFloat(minutes - startHour * 60) / 60 * hourHeight
     }
 
     private func slotDetail(_ slot: WeeklySlot) -> String {
