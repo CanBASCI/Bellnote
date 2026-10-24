@@ -28,6 +28,27 @@ enum CourseStyle {
 
     static var paletteCount: Int { palette.count }
 
+    /// The spoken name of a palette color. The order matches `palette`.
+    static func paletteTitle(at index: Int) -> LocalizedStringKey {
+        let titles: [LocalizedStringKey] = [
+            "Soft blue",
+            "Sage teal",
+            "Dusty rose",
+            "Periwinkle",
+            "Terracotta",
+            "Ochre",
+            "Olive",
+            "Plum",
+            "Steel cyan",
+            "Clay brown",
+            "Soft coral",
+            "Slate"
+        ]
+        guard !titles.isEmpty else { return "Color" }
+        let place = index % titles.count
+        return titles[place >= 0 ? place : place + titles.count]
+    }
+
     /// The color at a place of the palette. A place past the end wraps around. A negative place (a course that has
     /// no color yet) falls back to a color from the name, so the course still has one until it gets its own.
     static func color(at index: Int, fallbackName name: String) -> Color {
@@ -129,6 +150,13 @@ extension Lecture {
 }
 
 extension View {
+    /// Selected switch track. The thumb stays white, so the track is the label color in light and system gray in dark.
+    func switchTrackTint() -> some View {
+        tint(Color(uiColor: UIColor { traits in
+            traits.userInterfaceStyle == .dark ? .systemGray : .label
+        }))
+    }
+
     /// The swipe from the right that only asks. `onDelete` takes the row out of the list the moment the
     /// student swipes, before the confirm. This button leaves the row where it is until the confirm says yes.
     func askToDeleteSwipe(_ ask: @escaping () -> Void) -> some View {

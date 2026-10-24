@@ -57,8 +57,8 @@ struct LecturePage: View {
                         .multilineTextAlignment(.center)
                 }
             }
-            .alert("Title", isPresented: $editingTitle) {
-                TextField("Title", text: $titleDraft)
+            .alert("Lecture title", isPresented: $editingTitle) {
+                TextField("Lecture title", text: $titleDraft)
                 Button("Save") { saveTitle() }
                 Button("Cancel", role: .cancel) {}
             }
@@ -109,16 +109,16 @@ struct LectureNote: View {
     private var workingStage: PipelineStage? { PipelineActivity.shared.stage(for: lecture) }
     private var workingStep: PipelineActivity.Step? { PipelineActivity.shared.step(for: lecture) }
     @State private var askReprocess = false
+    @State private var askRewriteCorrection = false
+    @State private var askRewriteAssignments = false
     @State private var askNoModel = false
-    @State private var namingSpeaker: Int?
-    @State private var choosingSpeaker = false
-    @State private var typingSpeaker = false
-    @State private var typedSpeakerName = ""
     @State private var showCancel = false
     @State private var tab: LectureTab
     /// Speakers chosen in the Raw tab. Empty means everyone.
     @State private var chosenSpeakers: Set<Int> = []
     @State private var pendingAssignment: Assignment?
+    @State private var pendingTurn: Block?
+    @State private var editingBlock: Block?
     /// Block to emphasize and scroll to in Raw after Ask → Source.
     @State private var highlightBlockToken: UUID?
     /// Bumped so a Raw scroll runs after the list has drawn the source row.
@@ -341,26 +341,6 @@ struct LectureNote: View {
             fluidGate.request { await process() }
         }
         .confirmAssignmentDelete($pendingAssignment)
-        .confirmationDialog("Who is this?", isPresented: $choosingSpeaker, titleVisibility: .visible) {
-            // The lecturer and every name already given to a speaker of this recording.
-            ForEach(namingSuggestions, id: \.self) { name in
-                Button {
-                    assignSpeaker(name)
-                } label: {
-                    Text(verbatim: name)
-                }
-            }
-            Button("Other") {
-                typedSpeakerName = ""
-                typingSpeaker = true
-            }
-            Button("Cancel", role: .cancel) { namingSpeaker = nil }
-        }
-        .alert("Who is this?", isPresented: $typingSpeaker) {
-            TextField("Name", text: $typedSpeakerName)
-            Button("Save") { assignSpeaker(typedSpeakerName) }
-            Button("Cancel", role: .cancel) { namingSpeaker = nil }
-        }
         .alert("Process again?", isPresented: $askReprocess) {
             Button("Delete and process again", role: .destructive) {
                 start()
@@ -368,6 +348,35 @@ struct LectureNote: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("The raw text, the AI correction, the assignments and the title are deleted at once. Cancelling the processing does not bring them back. The recording stays.")
+        }
+        .alert("Process AI correction again?", isPresented: $askRewriteCorrection) {
+            Button("Process AI correction again", role: .destructive) { rewriteCorrection() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("The AI correction is written again from the raw text as it is now. The raw text stays.")
+        }
+        .alert("Process assignments again?", isPresented: $askRewriteAssignments) {
+            Button("Process assignments again", role: .destructive) { rewriteAssignments() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Assignments are taken again from the raw text as it is now. A task marked done stays done when the same words come back. The raw text stays.")
+        }
+        .alert("Delete this turn?", isPresented: Binding(
+            get: { pendingTurn != nil },
+            set: { if !$0 { pendingTurn = nil } }
+        )) {
+            Button("Delete", role: .destructive) {
+                if let block = pendingTurn { deleteTurn(block) }
+                pendingTurn = nil
+            }
+            Button("Cancel", role: .cancel) { pendingTurn = nil }
+        } message: {
+            Text("This speaker's text is removed. The recording stays.")
+        }
+        .sheet(item: $editingBlock) { block in
+            RawTurnEditor(block: block, lecture: lecture) {
+                chosenSpeakers = []
+            }
         }
     }
 
@@ -377,6 +386,11 @@ struct LectureNote: View {
         // the bar. A stopped one with no correction says so.
         if hasCorrection || workingStage == nil {
             Section {
+                if hasSpokenText {
+                    Button("Process AI correction again", systemImage: "arrow.clockwise") {
+                        askRewriteCorrection = true
+                    }
+                }
                 Text(CorrectionText.attributed(bodyText))
                     .appFont(.body)
                     .lineSpacing(4)
@@ -410,6 +424,14 @@ struct LectureNote: View {
                         isSource: block.token == highlightBlockToken
                     )
                     .id(block.token)
+                    .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                        Button { editingBlock = block } label: {
+                            Image(systemName: "pencil")
+                        }
+                        .tint(Color(.systemGray))
+                        .accessibilityLabel(Text("Edit turn"))
+                    }
+                    .askToDeleteSwipe { pendingTurn = block }
                 }
                 ForEach(Array((filter.isEmpty ? orphanFlags : []).enumerated()), id: \.offset) { _, second in
                     Button {
@@ -433,6 +455,11 @@ struct LectureNote: View {
     private var assignmentSections: some View {
         let own = lectureAssignments
         Section {
+            if hasSpokenText {
+                Button("Process assignments again", systemImage: "arrow.clockwise") {
+                    askRewriteAssignments = true
+                }
+            }
             if own.isEmpty {
                 Text("No assignments yet.")
                     .foregroundStyle(.secondary)
@@ -532,14 +559,9 @@ struct LectureNote: View {
         return VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 if block.speaker > 0 {
-                    Button {
-                        beginNaming(block.speaker)
-                    } label: {
-                        Text(speakerTitle(block.speaker))
-                            .appFont(.subheadline, weight: .semibold)
-                            .foregroundStyle(Color.accentColor)
-                    }
-                    .buttonStyle(.plain)
+                    Text(speakerTitle(block.speaker))
+                        .appFont(.subheadline, weight: .semibold)
+                        .foregroundStyle(Color.accentColor)
                 }
                 Button {
                     audio.seek(to: block.second, play: true)
@@ -687,17 +709,19 @@ struct LectureNote: View {
                         }
                     } label: {
                         Text(verbatim: tag.title)
-                            .appFont(.subheadline)
+                            .appFont(.subheadline, weight: chosen ? .semibold : .regular)
                             .lineLimit(1)
-                            // Only the text changes when the tag is chosen: the accent colour.
-                            .foregroundStyle(chosen ? Color.accentColor : Color.primary)
+                            // A black fill is the label color and reads as a solid black capsule.
+                            // The chosen capsule uses the same system gray as a selected switch track in dark,
+                            // with white letters, so the choice stays visible in both modes.
+                            .foregroundStyle(chosen ? Color.white : Color.primary)
                             .padding(.horizontal, 12)
                             .padding(.vertical, 6)
                     }
                     // Plain style with a glass capsule that is not interactive. The `.glass` button style
                     // grows and shrinks under the finger, and this does not.
                     .buttonStyle(.plain)
-                    .glassEffect(.regular, in: .capsule)
+                    .glassEffect(chosen ? .regular.tint(Color(.systemGray)) : .regular, in: .capsule)
                     .accessibilityAddTraits(chosen ? .isSelected : [])
                 }
             }
@@ -705,53 +729,9 @@ struct LectureNote: View {
         }
     }
 
-    private var lecturerName: String? {
-        let name = lecture.course?.lecturer?.displayName ?? ""
-        return name.isEmpty ? nil : name
-    }
-
     private func speakerTitle(_ cluster: Int) -> String {
         if let name = lecture.speakerName(for: cluster) { return name }
         return String(format: String(localized: "Speaker %lld"), cluster)
-    }
-
-    private func beginNaming(_ cluster: Int) {
-        namingSpeaker = cluster
-        typedSpeakerName = ""
-        if nameSuggestions(for: cluster).isEmpty {
-            typingSpeaker = true
-        } else {
-            choosingSpeaker = true
-        }
-    }
-
-    /// The lecturer first, then the names already given to the other speakers of this recording,
-    /// each name once, so the student does not type the same name again.
-    private func nameSuggestions(for cluster: Int) -> [String] {
-        let given = speakerClusters.filter { $0 != cluster }.compactMap { lecture.speakerName(for: $0) }
-        var seen = Set<String>()
-        var result: [String] = []
-        for name in (lecturerName.map { [$0] } ?? []) + given where seen.insert(Self.nameKey(name)).inserted {
-            result.append(name)
-        }
-        return result
-    }
-
-    private var namingSuggestions: [String] {
-        namingSpeaker.map(nameSuggestions(for:)) ?? []
-    }
-
-    private func assignSpeaker(_ name: String) {
-        guard let cluster = namingSpeaker else { return }
-        lecture.setSpeakerName(name, cluster: cluster)
-        // Tags can merge or split with a new name, so an old filter choice could point at nothing.
-        chosenSpeakers = []
-        do {
-            try lecture.modelContext?.save()
-        } catch {
-            Logger(subsystem: "app.bellnote", category: "speaker").error("Speaker name save failed: \(error.localizedDescription, privacy: .public)")
-        }
-        namingSpeaker = nil
     }
 
     /// The block that is playing now: the last one that starts at or before the current second.
@@ -798,6 +778,337 @@ struct LectureNote: View {
             context: context,
             pageModel: AppPreferences.pageModel()
         )
+    }
+
+    /// The raw text has something the correction and the homework can read.
+    private var hasSpokenText: Bool {
+        lecture.blocks.contains { block in
+            block.role != SpeakerRole.room.rawValue
+                && !block.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+    }
+
+    private func rewriteCorrection() {
+        Task {
+            guard await LocalModelRuntime.shared.hasTextModel() else {
+                askNoModel = true
+                return
+            }
+            guard let context = lecture.modelContext else { return }
+            await LecturePipeline.rewriteCorrection(lecture: lecture, context: context)
+        }
+    }
+
+    private func rewriteAssignments() {
+        Task {
+            guard await LocalModelRuntime.shared.hasTextModel() else {
+                askNoModel = true
+                return
+            }
+            guard let context = lecture.modelContext else { return }
+            await LecturePipeline.rewriteAssignments(lecture: lecture, context: context)
+        }
+    }
+
+    private func deleteTurn(_ block: Block) {
+        guard let context = lecture.modelContext else { return }
+        lecture.blocks.removeAll { $0.token == block.token }
+        context.delete(block)
+        do {
+            try context.save()
+        } catch {
+            Logger(subsystem: "app.bellnote", category: "raw").error("Turn delete failed: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+}
+
+/// Edits one speaker turn. The name sits above the text. Chosen sentences can be given to another speaker.
+private struct RawTurnEditor: View {
+    @Bindable var block: Block
+    var lecture: Lecture
+    var onSpeakerNamed: () -> Void
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var context
+    @State private var text: String
+    @State private var nameChoice: NameChoice?
+    @State private var typedName: String
+    @State private var chosen: Set<Int> = []
+    @State private var targetSpeaker: Int
+    @State private var saveFailed = false
+
+    /// A picker value that means a speaker who is not on the recording yet.
+    private static let newSpeaker = -1
+
+    /// A name already used, or a name the student types after choosing Other.
+    private enum NameChoice: Hashable {
+        case known(String)
+        case other
+    }
+
+    init(block: Block, lecture: Lecture, onSpeakerNamed: @escaping () -> Void) {
+        self.block = block
+        self.lecture = lecture
+        self.onSpeakerNamed = onSpeakerNamed
+        _text = State(initialValue: block.text)
+        let stored = lecture.speakerName(for: block.speaker) ?? ""
+        let known = Self.suggestions(for: block, lecture: lecture)
+        let match = known.first { Self.sameName($0, stored) }
+        if let match {
+            _nameChoice = State(initialValue: NameChoice.known(match))
+            _typedName = State(initialValue: "")
+        } else if !stored.isEmpty {
+            _nameChoice = State(initialValue: NameChoice.other)
+            _typedName = State(initialValue: stored)
+        } else {
+            // No name yet. The list is the names already used, plus Other. The field stays hidden until Other.
+            _nameChoice = State(initialValue: nil)
+            _typedName = State(initialValue: "")
+        }
+        let others = Set(
+            lecture.blocks
+                .filter { candidate in
+                    candidate.speaker > 0
+                        && candidate.speaker != block.speaker
+                        && !candidate.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                }
+                .map(\.speaker)
+        )
+        _targetSpeaker = State(initialValue: others.sorted().first ?? Self.newSpeaker)
+    }
+
+    private var sentences: [String] {
+        CorrectionText.sentences(in: text)
+    }
+
+    /// On selects every sentence. Off clears them. It stays on while each sentence is chosen.
+    private var allSentencesChosen: Binding<Bool> {
+        Binding(
+            get: { !sentences.isEmpty && sentences.indices.allSatisfy { chosen.contains($0) } },
+            set: { on in
+                chosen = on ? Set(sentences.indices) : []
+            }
+        )
+    }
+
+    /// The other speakers who already have words on this recording, then New speaker.
+    /// New speaker is the only row that creates a speaker. The next number is not listed before it exists.
+    private var moveTargets: [MoveTarget] {
+        let existing = Array(Set(
+            lecture.blocks
+                .filter { block in
+                    block.speaker > 0
+                        && block.speaker != self.block.speaker
+                        && !block.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                }
+                .map(\.speaker)
+        )).sorted().map { MoveTarget(id: $0, title: speakerTitle($0)) }
+        return existing + [MoveTarget(id: Self.newSpeaker, title: String(localized: "New speaker"))]
+    }
+
+    private struct MoveTarget: Identifiable {
+        var id: Int
+        var title: String
+    }
+
+    /// The lecturer first, then names already given to the other speakers, each once.
+    private var nameSuggestions: [String] {
+        Self.suggestions(for: block, lecture: lecture)
+    }
+
+    private static func suggestions(for block: Block, lecture: Lecture) -> [String] {
+        let lecturer = lecture.course?.lecturer?.displayName.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let given = lecture.blocks
+            .map(\.speaker)
+            .filter { $0 > 0 && $0 != block.speaker }
+            .compactMap { lecture.speakerName(for: $0) }
+        var seen = Set<String>()
+        var result: [String] = []
+        for name in (lecturer.isEmpty ? [] : [lecturer]) + given where seen.insert(nameKey(name)).inserted {
+            result.append(name)
+        }
+        return result
+    }
+
+    private static func sameName(_ left: String, _ right: String) -> Bool {
+        nameKey(left) == nameKey(right) && !nameKey(left).isEmpty
+    }
+
+    private static func nameKey(_ name: String) -> String {
+        name.trimmingCharacters(in: .whitespacesAndNewlines)
+            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                if block.speaker > 0 {
+                    Section {
+                        Picker("Who is this?", selection: $nameChoice) {
+                            ForEach(nameSuggestions, id: \.self) { name in
+                                Text(verbatim: name).tag(NameChoice.known(name) as NameChoice?)
+                            }
+                            Text("Other").tag(NameChoice.other as NameChoice?)
+                        }
+                        if nameChoice == .other {
+                            TextField("Name", text: $typedName)
+                        }
+                    }
+                }
+                Section {
+                    TextEditor(text: $text)
+                        .frame(minHeight: 180)
+                        .appFont(.body)
+                }
+                Section {
+                    if !sentences.isEmpty {
+                        Toggle("Select all", isOn: allSentencesChosen)
+                            .switchTrackTint()
+                    }
+                    ForEach(Array(sentences.enumerated()), id: \.offset) { index, sentence in
+                        Toggle(isOn: Binding(
+                            get: { chosen.contains(index) },
+                            set: { on in
+                                if on {
+                                    chosen.insert(index)
+                                } else {
+                                    chosen.remove(index)
+                                }
+                            }
+                        )) {
+                            Text(verbatim: sentence)
+                        }
+                        .switchTrackTint()
+                    }
+                    Picker("Speaker", selection: $targetSpeaker) {
+                        ForEach(moveTargets) { target in
+                            Text(verbatim: target.title).tag(target.id)
+                        }
+                    }
+                } header: {
+                    Text("Move to another speaker")
+                } footer: {
+                    Text("Chosen sentences leave this speaker and are added to the one you pick.")
+                }
+            }
+            .navigationTitle("Edit turn")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") { save() }
+                }
+            }
+            .onChange(of: text) {
+                let count = sentences.count
+                chosen = chosen.filter { $0 < count }
+            }
+            .alert("The change could not be saved.", isPresented: $saveFailed) {
+                Button("OK", role: .cancel) {}
+            }
+        }
+    }
+
+    /// The name to store. Nil when the student has not chosen anyone yet.
+    private var chosenSpeakerName: String? {
+        switch nameChoice {
+        case .known(let known): known
+        case .other: typedName
+        case nil: nil
+        }
+    }
+
+    private func speakerTitle(_ cluster: Int) -> String {
+        if let name = lecture.speakerName(for: cluster) { return name }
+        return String(format: String(localized: "Speaker %lld"), cluster)
+    }
+
+    private func save() {
+        let parts = sentences
+        let moving = parts.indices.filter { chosen.contains($0) }.map { parts[$0] }
+        if moving.isEmpty {
+            block.text = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        } else {
+            let staying = parts.indices.filter { !chosen.contains($0) }.map { parts[$0] }
+            block.text = Self.joined(staying)
+            give(moving, to: targetSpeaker)
+        }
+        if block.speaker > 0 {
+            let source = block.speaker
+            let remains = lecture.blocks.contains { candidate in
+                candidate.speaker == source
+                    && !candidate.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            }
+            if !remains {
+                lecture.setSpeakerName("", cluster: source)
+                onSpeakerNamed()
+                let leftovers = lecture.blocks.filter { $0.speaker == source }
+                for item in leftovers {
+                    lecture.blocks.removeAll { $0.token == item.token }
+                    context.delete(item)
+                }
+            } else if let name = chosenSpeakerName {
+                lecture.setSpeakerName(name, cluster: source)
+                onSpeakerNamed()
+            }
+        }
+        do {
+            try context.save()
+            dismiss()
+        } catch {
+            Logger(subsystem: "app.bellnote", category: "raw").error("Turn save failed: \(error.localizedDescription, privacy: .public)")
+            saveFailed = true
+        }
+    }
+
+    /// Puts the sentences on the chosen speaker. A new speaker gets a turn of their own at the same minute.
+    private func give(_ sentences: [String], to speaker: Int) {
+        let piece = Self.joined(sentences)
+        guard !piece.isEmpty else { return }
+        if speaker > 0,
+           let target = lecture.blocks
+            .filter({ $0.speaker == speaker && $0.token != block.token })
+            .min(by: { abs($0.second - block.second) < abs($1.second - block.second) }) {
+            let existing = target.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            target.text = existing.isEmpty ? piece : existing + "\n" + piece
+            return
+        }
+        let speakerID = speaker > 0 ? speaker : nextFreeSpeakerID()
+        let role = SpeakerRole(rawValue: block.role) ?? .narrator
+        let created = Block(
+            lecture: lecture,
+            second: block.second,
+            role: role,
+            kind: .other,
+            text: piece,
+            speaker: speakerID
+        )
+        lecture.blocks.append(created)
+    }
+
+    /// The smallest speaker number that has no words left. A speaker whose text was moved away can be used again.
+    private func nextFreeSpeakerID() -> Int {
+        let used = Set(
+            lecture.blocks
+                .filter { candidate in
+                    candidate.speaker > 0
+                        && !candidate.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                }
+                .map(\.speaker)
+        )
+        var id = 1
+        while used.contains(id) {
+            id += 1
+        }
+        return id
+    }
+
+    private static func joined(_ sentences: [String]) -> String {
+        let body = sentences.joined(separator: ". ")
+        guard let last = body.last else { return "" }
+        if last == "." || last == "?" || last == "!" { return body }
+        return body + "."
     }
 }
 

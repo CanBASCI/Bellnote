@@ -277,7 +277,9 @@ struct SettingsPage: View {
                 }
                 Picker(selection: $typeface) {
                     ForEach(AppTypeface.allCases, id: \.self) { face in
-                        Text(verbatim: face.menuTitle)
+                        Text(verbatim: face == .sfPro
+                            ? face.menuTitle + String(localized: " (Default)")
+                            : face.menuTitle)
                             .font(face.font(style: .body, weight: nil, digits: false))
                             .fontWidth(face.width)
                             .tag(face)
@@ -301,6 +303,7 @@ struct SettingsPage: View {
                 )) {
                     Label("Require Face ID", systemImage: "lock.fill")
                 }
+                .switchTrackTint()
             } header: {
                 Text("Privacy")
             } footer: {
@@ -1063,7 +1066,7 @@ struct CalendarPage: View {
             for slot in term.slots.filter({ $0.weekday == weekday }).sorted(by: { $0.startMinutes < $1.startMinutes }) {
                 if let lecture = dayLectures.first(where: { $0.course?.token == slot.course?.token && !matched.contains($0.persistentModelID) }) {
                     matched.insert(lecture.persistentModelID)
-                    marks.append(mark(for: lecture, place: slot.placeName))
+                    marks.append(mark(for: lecture, place: PlacePreset.displayName(for: slot.placeName)))
                 } else {
                     marks.append(
                         CalendarMark(
@@ -1113,8 +1116,9 @@ struct CalendarPage: View {
 
     private func slotDetail(_ slot: WeeklySlot) -> String {
         let span = "\(ReminderScheduler.clock(slot.startMinutes))–\(ReminderScheduler.clock(slot.endMinutes))"
-        guard !slot.placeName.isEmpty else { return span }
-        return "\(span) · \(slot.placeName)"
+        let place = PlacePreset.displayName(for: slot.placeName)
+        guard !place.isEmpty else { return span }
+        return "\(span) · \(place)"
     }
 
 }
@@ -1350,8 +1354,9 @@ struct ProgramPage: View {
 
     private func slotDetail(_ slot: WeeklySlot) -> String {
         let span = "\(ReminderScheduler.clock(slot.startMinutes))–\(ReminderScheduler.clock(slot.endMinutes))"
-        guard !slot.placeName.isEmpty else { return span }
-        return "\(span) · \(slot.placeName)"
+        let place = PlacePreset.displayName(for: slot.placeName)
+        guard !place.isEmpty else { return span }
+        return "\(span) · \(place)"
     }
 
     private func weekdayName(_ day: Int) -> String {
@@ -1395,7 +1400,8 @@ struct SlotEditor: View {
     @State private var choice: SlotCourseChoice
     @State private var newName = ""
     @State private var language = AppLanguage.deviceCourseDefault
-    @State private var place = ""
+    @State private var placePreset: PlacePreset = .other
+    @State private var placeCustom = ""
     /// Set when the sheet changes a time that is already in the timetable. Then the course cannot change.
     private let editing: WeeklySlot?
     /// Set when the sheet adds one more time to a given course. Then the course is fixed and not asked.
@@ -1422,9 +1428,11 @@ struct SlotEditor: View {
         }
         let hour = Calendar.current.dateInterval(of: .hour, for: .now)?.end ?? .now
         if let editing {
+            let resolved = PlacePreset.resolved(from: editing.placeName)
             _start = State(initialValue: Self.date(atMinutes: editing.startMinutes, fallback: hour))
             _end = State(initialValue: Self.date(atMinutes: editing.endMinutes, fallback: hour.addingTimeInterval(90 * 60)))
-            _place = State(initialValue: editing.placeName)
+            _placePreset = State(initialValue: resolved.0)
+            _placeCustom = State(initialValue: resolved.1)
         } else {
             _start = State(initialValue: hour)
             // The end wheel opens on the start time, so it is not a fixed hour and a half later.
@@ -1471,12 +1479,19 @@ struct SlotEditor: View {
                 }
                 DatePicker("Start", selection: $start, displayedComponents: .hourAndMinute)
                     .onChange(of: start) { _, newStart in
-                        // A new slot follows the start. Editing keeps the end the student already saved.
-                        guard editing == nil else { return }
+                        // The end follows the start, for a new time and for one already saved.
                         end = newStart
                     }
                 DatePicker("End", selection: $end, displayedComponents: .hourAndMinute)
-                TextField("Place", text: $place)
+                Picker("Place", selection: $placePreset) {
+                    ForEach(PlacePreset.allCases) { preset in
+                        Text(LocalizedStringKey(preset.menuTitle)).tag(preset)
+                    }
+                }
+                .pickerStyle(.menu)
+                if placePreset == .other {
+                    TextField("Place name", text: $placeCustom)
+                }
             }
             .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
@@ -1510,7 +1525,7 @@ struct SlotEditor: View {
             editing.weekday = day
             editing.startMinutes = minutes(start)
             editing.endMinutes = minutes(end)
-            editing.placeName = place
+            editing.placeName = placePreset.storedName(custom: placeCustom)
             // The reminder of this time follows the new day and hour.
             ReminderScheduler.replaceSlot(editing, courseName: editing.course?.name ?? "")
             dismiss()
@@ -1523,7 +1538,7 @@ struct SlotEditor: View {
             endMinutes: minutes(end),
             course: course,
             term: term,
-            placeName: place
+            placeName: placePreset.storedName(custom: placeCustom)
         )
         modelContext.insert(slot)
         term.slots.append(slot)
@@ -1540,6 +1555,7 @@ struct SlotEditor: View {
             let name = newName.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !name.isEmpty else { return nil }
             let course = Course(name: name, localeIdentifier: language.speechLocaleIdentifier, term: term)
+            course.homeOrder = (term.courses.map(\.homeOrder).max() ?? -1) + 1
             modelContext.insert(course)
             term.courses.append(course)
             return course
@@ -1565,6 +1581,7 @@ struct StudySheet: View {
     var lecture: Lecture?
     /// Opens the Raw tab of the recording that supplied the answer, scrolled to that block.
     var onOpenSource: ((Lecture, UUID, Int) -> Void)?
+    @Environment(AppSession.self) private var session
     @Environment(\.dismiss) private var dismiss
     @State private var prompt = ""
     @State private var asked = ""
@@ -1723,7 +1740,11 @@ struct StudySheet: View {
             )
         }
         do {
-            let reply = try await LocalModelRuntime.shared.answer(question: question, tags: tags)
+            let reply = try await LocalModelRuntime.shared.answer(
+                question: question,
+                tags: tags,
+                replyLanguage: session.locale
+            )
             let missing = reply.contains("NOT_IN_NOTES") || reply.isEmpty
             Self.log.info("Study answer shown notInNotes=\(missing) characters=\(reply.count) sourceSecond=\(pick.source?.second ?? -1)")
             answer = missing ? String(localized: "The lectures do not contain that.") : reply

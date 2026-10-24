@@ -1,9 +1,9 @@
 import SwiftData
 import SwiftUI
 
-/// Changes a course of the term: its name and language, and every time it has in the timetable. A time opens the
-/// same form as "Add slot", filled with its day, hours and place. The times are saved as soon as their form is
-/// saved. The name and the language are saved with Save.
+/// Changes a course of the term: its name, language, and color, and every time it has in the timetable. A time
+/// opens the same form as "Add slot", filled with its day, hours and place. The times are saved as soon as their
+/// form is saved. The name, the language, and the color are saved with Save.
 struct CourseEditor: View {
     @Bindable var course: Course
     var term: Term
@@ -11,6 +11,7 @@ struct CourseEditor: View {
     @Environment(\.dismiss) private var dismiss
     @State private var name: String
     @State private var language: AppLanguage
+    @State private var colorIndex: Int
     @State private var editingSlot: WeeklySlot?
     @State private var addingSlot = false
     @State private var pendingDelete: WeeklySlot?
@@ -20,6 +21,10 @@ struct CourseEditor: View {
         self.term = term
         _name = State(initialValue: course.name)
         _language = State(initialValue: course.localeIdentifier.hasPrefix("tr") ? .turkish : .english)
+        let count = CourseStyle.paletteCount
+        let stored = course.colorIndex
+        let initial = count > 0 && stored >= 0 ? stored % count : 0
+        _colorIndex = State(initialValue: initial)
     }
 
     /// The language of a course with recordings does not change. Its recordings were made in that language.
@@ -55,6 +60,9 @@ struct CourseEditor: View {
                     if languageIsLocked {
                         Text("The language is fixed once a course has recordings.")
                     }
+                }
+                Section("Color") {
+                    colorChoices
                 }
                 Section("Times") {
                     ForEach(slots) { slot in
@@ -109,7 +117,8 @@ struct CourseEditor: View {
         let symbols = Calendar.current.weekdaySymbols
         let day = symbols.indices.contains(slot.weekday - 1) ? symbols[slot.weekday - 1] : ""
         let span = "\(ReminderScheduler.clock(slot.startMinutes))–\(ReminderScheduler.clock(slot.endMinutes))"
-        let detail = slot.placeName.isEmpty ? span : "\(span) · \(slot.placeName)"
+        let place = PlacePreset.displayName(for: slot.placeName)
+        let detail = place.isEmpty ? span : "\(span) · \(place)"
         return HStack {
             VStack(alignment: .leading, spacing: 2) {
                 Text(verbatim: day)
@@ -127,12 +136,39 @@ struct CourseEditor: View {
         .contentShape(.rect)
     }
 
+    /// The twelve course colors. The chosen one shows a check.
+    private var colorChoices: some View {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 44), spacing: 4)], spacing: 4) {
+            ForEach(0..<CourseStyle.paletteCount, id: \.self) { index in
+                Button {
+                    colorIndex = index
+                } label: {
+                    Circle()
+                        .fill(CourseStyle.color(at: index, fallbackName: trimmedName))
+                        .frame(width: 28, height: 28)
+                        .overlay {
+                            if colorIndex == index {
+                                Image(systemName: "checkmark")
+                                    .font(.system(size: 12, weight: .bold))
+                                    .foregroundStyle(.white)
+                            }
+                        }
+                        .frame(width: 44, height: 44)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(Text(CourseStyle.paletteTitle(at: index)))
+                .accessibilityAddTraits(colorIndex == index ? .isSelected : [])
+            }
+        }
+    }
+
     private func save() {
         let oldName = course.name
         course.name = trimmedName
         if !languageIsLocked {
             course.localeIdentifier = language.speechLocaleIdentifier
         }
+        course.colorIndex = colorIndex
         // A reminder shows the name of the course, so the reminders of its times are made again with the new name.
         if oldName != course.name {
             for slot in slots {

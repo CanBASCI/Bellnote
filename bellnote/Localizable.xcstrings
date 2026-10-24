@@ -4,6 +4,22 @@
     "" : {
 
     },
+    " (Default)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " (Default)"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " (varsayılan)"
+          }
+        }
+      }
+    },
     "%@ · %@" : {
       "localizations" : {
         "en" : {
@@ -272,6 +288,7 @@
       }
     },
     "Add to favorites" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -561,6 +578,38 @@
         }
       }
     },
+    "Assignments are taken again from the raw text as it is now. A task marked done stays done when the same words come back. The raw text stays." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Assignments are taken again from the raw text as it is now. A task marked done stays done when the same words come back. The raw text stays."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ödevler ham metnin şu anki halinden yeniden çıkarılır. Aynı sözlerle gelen, tamamlandı işaretli bir ödev tamamlandı kalır. Ham metin durur."
+          }
+        }
+      }
+    },
+    "Assignments are taken again from the raw text." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Assignments are taken again from the raw text."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ödevler ham metinden yeniden çıkarılır."
+          }
+        }
+      }
+    },
     "Assistant" : {
       "localizations" : {
         "en" : {
@@ -722,6 +771,38 @@
         }
       }
     },
+    "Chosen sentences leave this speaker and are added to the one you pick." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chosen sentences leave this speaker and are added to the one you pick."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Seçilen cümleler bu konuşmacıdan çıkar ve seçtiğin konuşmacıya eklenir."
+          }
+        }
+      }
+    },
+    "Clay brown" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clay brown"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kil kahvesi"
+          }
+        }
+      }
+    },
     "Close" : {
       "localizations" : {
         "en" : {
@@ -734,6 +815,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Kapat"
+          }
+        }
+      }
+    },
+    "Color" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Color"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Renk"
           }
         }
       }
@@ -1043,6 +1140,22 @@
         }
       }
     },
+    "Delete this turn?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete this turn?"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bu konuşma silinsin mi?"
+          }
+        }
+      }
+    },
     "Delete Whisper?" : {
       "localizations" : {
         "en" : {
@@ -1221,6 +1334,22 @@
         }
       }
     },
+    "Dusty rose" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dusty rose"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Toz pembe"
+          }
+        }
+      }
+    },
     "Edit" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1298,6 +1427,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Başlığı düzenle"
+          }
+        }
+      }
+    },
+    "Edit turn" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edit turn"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Konuşmayı düzenle"
           }
         }
       }
@@ -1719,6 +1864,38 @@
         }
       }
     },
+    "I can't swear." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "I can't swear."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Küfür edebilmem mümkün değil."
+          }
+        }
+      }
+    },
+    "I don't answer that." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "I don't answer that."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Buna cevap vermem."
+          }
+        }
+      }
+    },
     "I'm well. Ask about your lectures when you want." : {
       "localizations" : {
         "en" : {
@@ -1961,6 +2138,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Son notlar"
+          }
+        }
+      }
+    },
+    "Lecture title" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Title"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Başlık"
           }
         }
       }
@@ -2294,6 +2487,22 @@
         }
       }
     },
+    "Move to another speaker" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move to another speaker"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Başka konuşmacıya taşı"
+          }
+        }
+      }
+    },
     "Name" : {
       "localizations" : {
         "en" : {
@@ -2354,6 +2563,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Yeni ders"
+          }
+        }
+      }
+    },
+    "New speaker" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New speaker"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yeni konuşmacı"
           }
         }
       }
@@ -2915,6 +3140,22 @@
         }
       }
     },
+    "Ochre" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ochre"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hardal"
+          }
+        }
+      }
+    },
     "OK" : {
       "localizations" : {
         "en" : {
@@ -2943,6 +3184,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Tamam."
+          }
+        }
+      }
+    },
+    "Olive" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Olive"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zeytin"
           }
         }
       }
@@ -3110,6 +3367,22 @@
         }
       }
     },
+    "Periwinkle" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Periwinkle"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Menekşe"
+          }
+        }
+      }
+    },
     "Phone" : {
       "localizations" : {
         "en" : {
@@ -3138,6 +3411,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Yer"
+          }
+        }
+      }
+    },
+    "Place home" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Home"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ev"
+          }
+        }
+      }
+    },
+    "Place name" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Place name"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yer adı"
           }
         }
       }
@@ -3187,6 +3492,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Oynatma hızı"
+          }
+        }
+      }
+    },
+    "Plum" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Plum"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mürdüm"
           }
         }
       }
@@ -3303,6 +3624,38 @@
         }
       }
     },
+    "Process AI correction again" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Process AI correction again"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI düzenlemeyi tekrar işle"
+          }
+        }
+      }
+    },
+    "Process AI correction again?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Process AI correction again?"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI düzenleme tekrar işlensin mi?"
+          }
+        }
+      }
+    },
     "Process all" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -3333,6 +3686,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Yine de işle"
+          }
+        }
+      }
+    },
+    "Process assignments again" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Process assignments again"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ödevleri tekrar işle"
+          }
+        }
+      }
+    },
+    "Process assignments again?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Process assignments again?"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ödevler tekrar işlensin mi?"
           }
         }
       }
@@ -3595,6 +3980,7 @@
       }
     },
     "Remove from favorites" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -3709,6 +4095,22 @@
         }
       }
     },
+    "Sage teal" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sage teal"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Adaçayı yeşili"
+          }
+        }
+      }
+    },
     "Save" : {
       "localizations" : {
         "en" : {
@@ -3741,6 +4143,22 @@
         }
       }
     },
+    "School" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "School"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Okul"
+          }
+        }
+      }
+    },
     "Section" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -3754,6 +4172,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Bölüm"
+          }
+        }
+      }
+    },
+    "Select all" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select all"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hepsini seç"
           }
         }
       }
@@ -3822,6 +4256,22 @@
         }
       }
     },
+    "Slate" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Slate"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Arduvaz"
+          }
+        }
+      }
+    },
     "So far" : {
       "localizations" : {
         "en" : {
@@ -3834,6 +4284,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Şu ana kadar"
+          }
+        }
+      }
+    },
+    "Soft blue" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Soft blue"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yumuşak mavi"
+          }
+        }
+      }
+    },
+    "Soft coral" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Soft coral"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mercan"
           }
         }
       }
@@ -3883,6 +4365,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Konuş"
+          }
+        }
+      }
+    },
+    "Speaker" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Speaker"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Konuşmacı"
           }
         }
       }
@@ -4030,6 +4528,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Duraklatılmış kalsın"
+          }
+        }
+      }
+    },
+    "Steel cyan" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Steel cyan"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Çelik mavisi"
           }
         }
       }
@@ -4213,6 +4727,54 @@
         }
       }
     },
+    "Terracotta" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Terracotta"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Terrakota"
+          }
+        }
+      }
+    },
+    "The AI correction is written again from the raw text as it is now. The raw text stays." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The AI correction is written again from the raw text as it is now. The raw text stays."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI düzenleme, ham metnin şu anki halinden yeniden yazılır. Ham metin durur."
+          }
+        }
+      }
+    },
+    "The AI correction is written again from the raw text." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The AI correction is written again from the raw text."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI düzenleme ham metinden yeniden yazılır."
+          }
+        }
+      }
+    },
     "The AI correction is written from the transcript, with correct spelling and punctuation." : {
       "localizations" : {
         "en" : {
@@ -4273,6 +4835,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Bu kaydın sesi, notları ve ödevleri silinecek. Bu geri alınamaz."
+          }
+        }
+      }
+    },
+    "The change could not be saved." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The change could not be saved."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Değişiklik kaydedilemedi."
           }
         }
       }
@@ -4775,6 +5353,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Bu model bu aygıtta kilitli."
+          }
+        }
+      }
+    },
+    "This speaker's text is removed. The recording stays." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This speaker's text is removed. The recording stays."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bu konuşmacının metni silinir. Kayıt durur."
           }
         }
       }
@@ -5482,6 +6076,86 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Derslerin toplamı %lld saat %lld dakika."
+          }
+        }
+      }
+    },
+    "%1$@ is in %2$lld recordings: %3$@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ is in %2$lld recordings: %3$@."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@, %2$lld kayıtta: %3$@."
+          }
+        }
+      }
+    },
+    "%@ has no recordings." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ has no recordings."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ için kayıt yok."
+          }
+        }
+      }
+    },
+    "%@ has no recording from then." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ has no recording from then."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ için o aralıkta kayıt yok."
+          }
+        }
+      }
+    },
+    "%1$@ said: %2$@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ said: %2$@"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ dedi: %2$@"
+          }
+        }
+      }
+    },
+    "%1$@ said: %2$@ The rest is in the recording." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ said: %2$@ The rest is in the recording."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ dedi: %2$@ Kalanı kayıtta."
           }
         }
       }

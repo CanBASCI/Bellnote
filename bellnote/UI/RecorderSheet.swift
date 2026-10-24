@@ -17,7 +17,9 @@ struct ConsentSheet: View {
         NavigationStack {
             Form {
                 Toggle("I am allowed to record this class", isOn: $allowed)
+                    .switchTrackTint()
                 Toggle("The lecturer or school permitted recording", isOn: $permitted)
+                    .switchTrackTint()
                 Text("This is your confirmation, not proof that the lecturer consented.")
                     .appFont(.footnote)
                     .foregroundStyle(.secondary)

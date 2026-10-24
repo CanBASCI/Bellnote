@@ -1,6 +1,8 @@
+import Observation
 import OSLog
 import SwiftData
 import SwiftUI
+import UIKit
 
 struct TermHomeView: View {
     @Environment(AppSession.self) private var session
@@ -27,13 +29,11 @@ struct TermHomeView: View {
                             showTerm: $showTerm,
                             showPending: $showPending
                         )
-                        .tint(Color.accentColor)
                     }
                     .tabItem { Label("Home", systemImage: "text.rectangle.page") }
 
                     NavigationStack {
                         ProgramPage(term: term)
-                            .tint(Color.accentColor)
                     }
                     .tabItem { Label("Timetable", systemImage: "calendar.day.timeline.left") }
                     // Off while a recording is processed — keep focus on the run.
@@ -41,7 +41,6 @@ struct TermHomeView: View {
 
                     NavigationStack {
                         AssistantPage()
-                            .tint(Color.accentColor)
                     }
                     .tabItem { Label("Assistant", systemImage: "waveform.and.mic") }
                     // Off while a recording is processed — Talk and the pipeline share the text model and memory.
@@ -49,14 +48,11 @@ struct TermHomeView: View {
 
                     NavigationStack {
                         SettingsPage()
-                            .tint(Color.accentColor)
                     }
                     .tabItem { Label("Settings", systemImage: "gearshape") }
                     // Off while a recording is processed — model changes must not race the pipeline.
                     .disabled(PipelineActivity.shared.isBusy)
                 }
-                // Selected tab is primary: dark on a light page, light on a dark page. Unselected tabs stay the system gray.
-                .tint(.primary)
                 .tabBarMinimizeBehavior(.onScrollDown)
                 .tabViewBottomAccessory(isEnabled: session.player != nil) {
                     if let player = session.player {
@@ -130,6 +126,7 @@ struct TodayPage: View {
     @Binding var showPending: Bool
 
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.scenePhase) private var scenePhase
     @Environment(\.colorScheme) private var colorScheme
     @Environment(AppSession.self) private var session
     /// Missed and cancelled marks for a meeting. A cancelled one is left out of the card’s bar.
@@ -158,47 +155,82 @@ struct TodayPage: View {
     @ScaledMetric(relativeTo: .footnote) private var heroDetailLineHeight: CGFloat = 18
     @State private var openedCourse: Course?
     @State private var editingCourse: Course?
+    /// The dragged course order. Scrolling rebuilds the list, so the order has to live here, not only in the drag preview.
+    @State private var courseOrder: [UUID] = []
     @State private var deleteNotice: String?
-    /// Left edge of the first course row’s content. The hero glass uses the same edge.
+    /// Left edge of the first course row’s content while that row is at rest. The hero glass uses the same edge.
+    /// A swipe moves the row, so that jump is not copied onto the hero.
     @State private var courseCardLeading: CGFloat = 16
+    /// The latest measured edge, including while the first row is swiped.
+    @State private var measuredCardLeading: CGFloat = 16
+    /// After the page width changes, the next resting edge may replace `courseCardLeading`.
+    @State private var acceptNextCardLeading = true
+    /// Used so a width change can be told apart from a swipe.
+    @State private var homeWidth: CGFloat = 0
     /// Height of the glass band as it is laid out now, open or collapsed.
     @State private var heroBandHeight: CGFloat = 0
     /// Height of the glass band while the hero is fully open. The list keeps this top margin, so shrinking the band does not jump the cards.
     @State private var heroExpandedHeight: CGFloat = 0
     /// How far the course list has moved up from its resting position.
-    @State private var courseScroll: CGFloat = 0
+    /// A class, not view state: scrolling updates the hero without rebuilding the list.
+    @State private var heroScroll = HeroScroll()
+    /// The list’s scroll view, found from the first row. A custom scroll target is not applied by the list.
+    @State private var heroSnapGate = HeroSnapGate()
+    /// One request to finish an open or a close. The id changes each time the finger lifts in between.
+    @State private var heroSnapCommand = HeroSnapCommand()
 
     var body: some View {
         ZStack(alignment: .top) {
             List {
-            // One row per course, in a plain list. The menu sits above the row, not inside the button, so both stay tappable.
+            // One row per course, in a plain list. Swipe asks to delete or opens edit. Dragging reorders.
             if !orderedCourses.isEmpty {
                 Section {
                     ForEach(orderedCourses) { course in
-                        let row = Button {
+                        let token = course.token
+                        Button {
                             openedCourse = course
                         } label: {
                             noteCard(course)
                         }
-                        .overlay(alignment: .topTrailing) {
-                            courseMenu(course)
-                                .padding(.top, menuTopInset)
+                        .buttonStyle(.plain)
+                        .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                            // Same kind of swipe button as delete, so it grows with the swipe instead of staying a fixed picture.
+                            Button { editingCourse = course } label: {
+                                Image(systemName: "pencil")
+                            }
+                            // The tab bar tint is primary. Without its own tint this button uses that, so the
+                            // symbol stays white on a white fill in dark mode.
+                            .tint(Color(.systemGray))
+                            .accessibilityLabel(Text("Edit course"))
                         }
-                        // A plain list draws a line above the first row and under the last, even with nothing beyond them.
-                        .listRowSeparator(.hidden, edges: outerSeparatorEdges(for: course))
-                        if course.token == orderedCourses.first?.token {
-                            row.onGeometryChange(for: CGFloat.self) { proxy in
+                        // Full swipe still only asks. The course stays until the confirm says yes.
+                        .askToDeleteSwipe { askDelete(course) }
+                        .background {
+                            Color.clear.onGeometryChange(for: CGFloat.self) { proxy in
                                 proxy.frame(in: .named("home")).minX
                             } action: { leading in
-                                guard abs(leading - courseCardLeading) > 0.5 else { return }
+                                guard token == courseOrder.first else { return }
+                                measuredCardLeading = leading
+                                let jump = abs(leading - courseCardLeading)
+                                // A swipe pulls the first row sideways. Only a resting edge, or the one after a width change, is kept.
+                                guard acceptNextCardLeading || jump <= 1 else { return }
+                                acceptNextCardLeading = false
+                                guard jump > 0.5 else { return }
                                 courseCardLeading = leading
                             }
-                        } else {
-                            row
                         }
+                        .background {
+                            if token == orderedCourses.first?.token {
+                                HeroScrollFinder(gate: heroSnapGate, command: heroSnapCommand)
+                            }
+                        }
+                        .homeListRowWithoutSeparator()
                     }
+                    .reorderable(collectionID: HomeCourseList.courses)
+                    .listRowSeparator(.hidden, edges: .all)
                 }
-                .listSectionSeparator(.hidden)
+                .listRowSeparator(.hidden, edges: .all)
+                .listSectionSeparator(.hidden, edges: .all)
             }
             if !examRows.isEmpty {
                 Section {
@@ -213,14 +245,26 @@ struct TodayPage: View {
                                     .appFont(.footnote)
                             }
                         }
+                        .homeListRowWithoutSeparator()
                     }
                 } header: {
                     Text("Exams")
                 }
+                .listSectionSeparator(.hidden, edges: .all)
             }
         }
         // A plain list, like This week on the course page: no rounded groups, rows run from edge to edge.
         // The list’s own plate is not the system page color, so the page uses that color itself.
+        .reorderContainer(for: Course.self, in: HomeCourseList.self) { difference in
+            applyCourseOrder(difference)
+        }
+        .onChange(of: scenePhase) { _, phase in
+            guard phase == .background else { return }
+            saveCourseOrder()
+        }
+        .onChange(of: term.courses.map { $0.token.uuidString }.sorted(), initial: true) { _, _ in
+            reconcileCourseOrder()
+        }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .background(Color(.systemBackground).ignoresSafeArea())
@@ -229,11 +273,12 @@ struct TodayPage: View {
         // The margin stays at the open height, so the band can shrink without moving the cards.
         .contentMargins(.top, courseListTopMargin, for: .scrollContent)
         .onScrollGeometryChange(for: CGFloat.self) { geo in
-            // At rest this is 0. Scrolling the cards up makes it positive.
             max(0, geo.contentOffset.y + geo.contentInsets.top)
-        } action: { _, scrolled in
-            guard abs(scrolled - courseScroll) > 0.5 else { return }
-            courseScroll = scrolled
+        } action: { _, distance in
+            heroScroll.update(distance: distance)
+        }
+        .onScrollPhaseChange { old, new, context in
+            finishHeroSnap(from: old, to: new, geometry: context.geometry)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .overlay {
@@ -310,38 +355,56 @@ struct TodayPage: View {
             Button("OK", role: .cancel) {}
         }
             if let slot = nextSlot {
-                // Fixed over the list. Scrolling the courses up collapses this glass; scrolling back opens it.
-                hero(slot)
-                    .foregroundStyle(.primary)
-                    // 4 pt under the navigation bar, then the course row.
-                    // The glass uses the same left edge as the course rows.
-                    .padding(.horizontal, courseCardLeading)
-                    .padding(.bottom, Self.heroTopInset)
-                    // Course color in the glass for the whole band, from the top of the screen to the gap before the course cards.
-                    .background {
-                        GeometryReader { geo in
-                            let name = slot.course?.name ?? String(localized: "Course")
-                            let tint = slot.course?.color ?? CourseStyle.color(for: name)
-                            heroBandShape
-                                .fill(.clear)
-                                .glassEffect(
-                                    .regular.tint(tint.opacity(colorScheme == .dark ? 0.5 : 0.28)),
-                                    in: heroBandShape
-                                )
-                                .frame(width: geo.size.width, height: geo.size.height)
+                // The scroll distance is read here, not in the page, so the course list is not rebuilt while it moves.
+                OpenHero(scroll: heroScroll, lowerSpan: heroLowerSpan) { collapse in
+                    // Fixed over the list. Scrolling the courses up collapses this glass; scrolling back opens it.
+                    hero(slot, collapse: collapse)
+                        .foregroundStyle(.primary)
+                        // 8 pt under the navigation bar, then the course row.
+                        // The glass uses the same left edge as the course rows.
+                        .padding(.horizontal, courseCardLeading)
+                        .padding(.bottom, Self.heroTopInset)
+                        // Course color in the glass for the whole band, from the top of the screen to the gap before the course cards.
+                        .background {
+                            GeometryReader { geo in
+                                let name = slot.course?.name ?? String(localized: "Course")
+                                let tint = slot.course?.color ?? CourseStyle.color(for: name)
+                                heroBandShape
+                                    .fill(.clear)
+                                    .glassEffect(
+                                        .regular.tint(tint.opacity(colorScheme == .dark ? 0.5 : 0.28)),
+                                        in: heroBandShape
+                                    )
+                                    .frame(width: geo.size.width, height: geo.size.height)
+                            }
+                            .ignoresSafeArea(edges: .top)
+                            .allowsHitTesting(false)
                         }
-                        .ignoresSafeArea(edges: .top)
-                        .allowsHitTesting(false)
-                    }
-                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
-                        if abs(height - heroBandHeight) > 0.5 {
-                            heroBandHeight = height
+                        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
+                            // Only while open. During the collapse the live height is shorter on purpose.
+                            guard collapse < 0.02 else { return }
+                            if heroExpandedHeight == 0, abs(height - heroBandHeight) > 0.5 {
+                                heroBandHeight = height
+                            }
+                            guard abs(height - heroExpandedHeight) > 0.5 else { return }
+                            heroExpandedHeight = height
                         }
-                        // Only while open. During the collapse the live height is shorter on purpose.
-                        guard heroCollapse < 0.02, abs(height - heroExpandedHeight) > 0.5 else { return }
-                        heroExpandedHeight = height
-                    }
+                }
             }
+        }
+        .onGeometryChange(for: CGFloat.self) { proxy in
+            proxy.size.width
+        } action: { width in
+            let firstReading = homeWidth == 0
+            guard abs(width - homeWidth) > 0.5 else { return }
+            homeWidth = width
+            // The first reading is not a rotation. The row’s own measurement sets the edge.
+            guard !firstReading else { return }
+            acceptNextCardLeading = true
+            let jump = abs(measuredCardLeading - courseCardLeading)
+            guard jump > 0.5 else { return }
+            courseCardLeading = measuredCardLeading
+            acceptNextCardLeading = false
         }
         .coordinateSpace(.named("home"))
     }
@@ -390,13 +453,117 @@ struct TodayPage: View {
     }
 
     private var orderedCourses: [Course] {
-        term.courses.sorted { lhs, rhs in
-            if lhs.isFavorite != rhs.isFavorite { return lhs.isFavorite }
+        let courses = term.courses
+        guard !courseOrder.isEmpty else { return fallbackSorted(courses) }
+        var byToken: [UUID: Course] = [:]
+        for course in courses { byToken[course.token] = course }
+        return courseOrder.compactMap { byToken[$0] }
+    }
+
+    /// Order before the student drags. A saved `homeOrder` wins. Courses that still share one number sort by the latest lecture, then by name.
+    private func fallbackSorted(_ courses: [Course]) -> [Course] {
+        courses.sorted { lhs, rhs in
+            if lhs.homeOrder != rhs.homeOrder { return lhs.homeOrder < rhs.homeOrder }
             let left = lhs.lectures.map(\.startedAt).max() ?? .distantPast
             let right = rhs.lectures.map(\.startedAt).max() ?? .distantPast
             if left != right { return left > right }
             return lhs.name.localizedCompare(rhs.name) == .orderedAscending
         }
+    }
+
+    /// Keeps a new or deleted course in the dragged order without shuffling the rows the student already placed.
+    private func reconcileCourseOrder() {
+        let courses = term.courses
+        let tokens = Set(courses.map(\.token))
+        if courseOrder.isEmpty {
+            let sorted = fallbackSorted(courses)
+            courseOrder = sorted.map(\.token)
+            logOrder("opened", sorted)
+            return
+        }
+        var order = courseOrder.filter { tokens.contains($0) }
+        let known = Set(order)
+        order.append(contentsOf: fallbackSorted(courses.filter { !known.contains($0.token) }).map(\.token))
+        if order != courseOrder { courseOrder = order }
+    }
+
+    /// Writes the dragged order into the list and onto each course, so a later scroll builds the same list.
+    private func applyCourseOrder(_ difference: ReorderDifference<Course.ID, HomeCourseList>) {
+        var rows = orderedCourses
+        let moving = difference.sources.compactMap { id in rows.first { $0.id == id } }
+        let destination: String
+        switch difference.destination.position {
+        case .end:
+            destination = "end"
+        case .before(let id):
+            destination = "before \(rows.first { $0.id == id }?.name ?? "missing")"
+        }
+        let movingNames = moving.map(\.name).joined(separator: ", ")
+        logOrder("drop sources=\(difference.sources.count) matched=\(moving.count) moving=\(movingNames) \(destination)", rows)
+        guard moving.count == difference.sources.count, !moving.isEmpty else {
+            logOrder("drop ignored", rows)
+            return
+        }
+        let sourceIDs = Set(difference.sources)
+        // The place is taken before the dragged rows leave. If the target is the dragged row, it is still here.
+        // Removing it first made "before this row" miss, and the row was appended at the end.
+        let destinationIndex: Int
+        switch difference.destination.position {
+        case .end:
+            destinationIndex = rows.count
+        case .before(let id):
+            destinationIndex = rows.firstIndex { $0.id == id } ?? rows.count
+        }
+        let removedBefore = rows.prefix(destinationIndex).filter { sourceIDs.contains($0.id) }.count
+        rows.removeAll { sourceIDs.contains($0.id) }
+        let index = min(destinationIndex - removedBefore, rows.count)
+        rows.insert(contentsOf: moving, at: index)
+        commitCourseOrder(rows)
+    }
+
+    /// Keeps the new order in view state and on each course. The next launch reads `homeOrder`.
+    private func commitCourseOrder(_ rows: [Course]) {
+        courseOrder = rows.map(\.token)
+        for (place, course) in rows.enumerated() {
+            course.homeOrder = place
+        }
+        logOrder("write", rows)
+        saveCourseOrder()
+    }
+
+    /// Writes the current order before the app goes to the background. A drop that is still only on screen is kept.
+    private func saveCourseOrder() {
+        let rows = orderedCourses
+        guard !rows.isEmpty else { return }
+        for (place, course) in rows.enumerated() {
+            course.homeOrder = place
+        }
+        do {
+            try modelContext.save()
+            logOrder("saved", rows)
+        } catch {
+            let detail = error.localizedDescription
+            print("home order save failed: \(detail)")
+            Logger(subsystem: "app.bellnote", category: "home-order").error("Save failed: \(detail, privacy: .public)")
+        }
+    }
+
+    /// The list stops where the finger lifts. Move it the rest of the way once that stop is inside the hero.
+    private func finishHeroSnap(from old: ScrollPhase, to new: ScrollPhase, geometry: ScrollGeometry) {
+        let distance = max(0, geometry.contentOffset.y + geometry.contentInsets.top)
+        let span = heroLowerSpan
+        // Idle after the system’s own deceleration. Animating is the finish we just started, so it must not start another.
+        guard new == .idle, old != .idle, old != .animating else { return }
+        guard nextSlot != nil, span > 1, distance > 0.5, distance < span - 0.5 else { return }
+        let delta = (heroScroll.closing ? span : 0) - distance
+        heroSnapCommand = HeroSnapCommand(id: heroSnapCommand.id + 1, delta: delta)
+    }
+
+    /// Xcode console lines for a drag that does not survive a relaunch. `homeOrder` is what the next launch reads.
+    private func logOrder(_ event: String, _ courses: [Course]) {
+        let line = courses.map { "\($0.name)=\($0.homeOrder)" }.joined(separator: " | ")
+        print("home order \(event): \(line)")
+        Logger(subsystem: "app.bellnote", category: "home-order").notice("\(event, privacy: .public): \(line, privacy: .public)")
     }
 
     private var nextSlot: WeeklySlot? {
@@ -447,12 +614,13 @@ struct TodayPage: View {
     /// Top margin of the course list. Stays at the open band so the cards do not jump while the hero closes.
     private var courseListTopMargin: CGFloat {
         guard nextSlot != nil else { return 0 }
-        return heroExpandedHeight > 0 ? heroExpandedHeight : heroBandHeight
+        let band = heroExpandedHeight > 0 ? heroExpandedHeight : heroBandHeight
+        return band + Self.heroToListGap
     }
 
     /// The fact line, including the gap above it. This part of the band closes with the scroll.
     private var heroFactSpan: CGFloat {
-        heroDetailLineHeight + 10
+        heroDetailLineHeight + 16
     }
 
     /// Room under the lecturer line so its words sit on the icon's bottom edge, not under it.
@@ -488,18 +656,11 @@ struct TodayPage: View {
         heroFactSpan + heroRowDrop
     }
 
-    /// 0 while the hero is open, 1 when the icon, the lecturer, and the fact line have closed.
-    private var heroCollapse: CGFloat {
-        guard heroLowerSpan > 1 else { return 0 }
-        return min(1, max(0, courseScroll / heroLowerSpan))
-    }
-
     @ViewBuilder
-    private func hero(_ slot: WeeklySlot) -> some View {
+    private func hero(_ slot: WeeklySlot, collapse: CGFloat) -> some View {
         let name = slot.course?.name ?? String(localized: "Course")
         let tint = slot.course?.color ?? CourseStyle.color(for: name)
         let lecturer = slot.course?.lecturer?.displayName ?? ""
-        let collapse = heroCollapse
         let nameSize = heroNameSize + (heroCollapsedSize - heroNameSize) * collapse
         VStack(alignment: .leading, spacing: 0) {
             // Open: badge, name, lecturer, and the large time on the bottom of that row.
@@ -512,8 +673,10 @@ struct TodayPage: View {
                         alignment: .bottom
                     )
                     .clipped()
-                    .opacity(1 - collapse)
-                    .accessibilityHidden(collapse > 0.95)
+                    // Size follows the whole collapse. The fade finishes in the first half,
+                    // and the icon only returns in the last half of the opening.
+                    .opacity(max(0, 1 - collapse * 2))
+                    .accessibilityHidden(collapse > 0.5)
                 VStack(alignment: .leading, spacing: 0) {
                     Text(name)
                         .appFont(size: nameSize, weight: .semibold)
@@ -537,7 +700,7 @@ struct TodayPage: View {
             }
             // The quiet fact line closes upward as the cards scroll up.
             HeroDetailLine(items: heroDetail(slot))
-                .padding(.top, 10)
+                .padding(.top, 16)
                 .frame(height: heroFactSpan * (1 - collapse), alignment: .top)
                 .clipped()
                 .opacity(1 - collapse)
@@ -601,8 +764,9 @@ struct TodayPage: View {
     /// is set, the last recording, open assignments when there are some, and the next exam when one is coming.
     private func heroDetail(_ slot: WeeklySlot) -> [HeroDetailItem] {
         var items = [HeroDetailItem(symbol: "clock", text: slotDetail(slot))]
-        if !slot.placeName.isEmpty {
-            items.append(HeroDetailItem(symbol: "mappin.and.ellipse", text: slot.placeName))
+        let place = PlacePreset.displayName(for: slot.placeName)
+        if !place.isEmpty {
+            items.append(HeroDetailItem(symbol: "mappin.and.ellipse", text: place))
         }
         if let course = slot.course {
             items.append(HeroDetailItem(symbol: "waveform", text: lastRecordingText(for: course)))
@@ -618,6 +782,61 @@ struct TodayPage: View {
         return items
     }
 
+    /// The next exam of the course that is today or later: "Midterm · 12 days later". Nil when there is none.
+    private func nextExamText(for course: Course) -> String? {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: .now)
+        let upcoming = course.sittings
+            .compactMap { sitting -> (sitting: ExamSitting, date: Date)? in
+                guard let date = sitting.date, calendar.startOfDay(for: date) >= today else { return nil }
+                return (sitting, date)
+            }
+            .min { $0.date < $1.date }
+        guard let upcoming else { return nil }
+        let days = calendar.dateComponents([.day], from: today, to: calendar.startOfDay(for: upcoming.date)).day ?? 0
+        let when: String
+        switch days {
+        case 0: when = String(localized: "Today")
+        case 1: when = String(localized: "Tomorrow")
+        default: when = String(format: String(localized: "%lld days later"), days)
+        }
+        return "\(examName(upcoming.sitting)) · \(when)"
+    }
+
+    /// The title the student gave the exam, or the name of its kind.
+    private func examName(_ sitting: ExamSitting) -> String {
+        let title = sitting.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !title.isEmpty { return title }
+        switch ExamKind(rawValue: sitting.kind) {
+        case .midterm: return String(localized: "Midterm")
+        case .final: return String(localized: "Final")
+        case .other, nil: return String(localized: "Exam")
+        }
+    }
+
+    /// The assignments that are not done and not cancelled, the same count as "Pending" on the course page.
+    private func openAssignmentsText(for course: Course) -> String {
+        let open = course.assignments.filter { !$0.done && !$0.cancelled }.count
+        return String(format: String(localized: "Pending assignments: %lld"), open)
+    }
+
+    /// The newest recording of the course: today, yesterday, or its date. Empty courses say there is none yet.
+    private func lastRecordingText(for course: Course) -> String {
+        guard let last = course.lectures.max(by: { $0.startedAt < $1.startedAt }) else {
+            return String(localized: "No recording yet")
+        }
+        let calendar = Calendar.current
+        let when: String
+        if calendar.isDateInToday(last.startedAt) {
+            when = String(localized: "Today")
+        } else if calendar.isDateInYesterday(last.startedAt) {
+            when = String(localized: "Yesterday")
+        } else {
+            when = last.startedAt.formatted(.dateTime.day().month(.abbreviated))
+        }
+        return String(format: String(localized: "Last recording: %@"), when)
+    }
+
     /// The glass band. Square at the top of the screen. The bottom corners match the old hero card.
     private var heroBandShape: UnevenRoundedRectangle {
         UnevenRoundedRectangle(
@@ -627,133 +846,111 @@ struct TodayPage: View {
         )
     }
 
-    /// Inside the hero glass, between the glass edge and the badge.
-    private static let heroContentSidePadding: CGFloat = 6
-    /// Room under the scrolling line, inside the glass.
-    private static let heroVerticalPadding: CGFloat = 8
-    /// Room above the course row, inside the glass. The gap under the navigation bar is 4 pt.
-    private static let heroContentTopPadding: CGFloat = 4
+    /// Inside the hero glass: the badge and the time sit on the glass edge.
+    private static let heroContentSidePadding: CGFloat = 0
+    /// Room under the course row, inside the glass.
+    private static let heroVerticalPadding: CGFloat = 12
+    /// Room above the course row, inside the glass. The gap under the navigation bar is 8 pt.
+    private static let heroContentTopPadding: CGFloat = 8
     /// Extra room under the hero content, above the course cards. The top gap is separate and is 0.
     private static let heroTopInset: CGFloat = 4
-    /// The course icon on a list row.
+    /// Room between the bottom edge of the hero glass and the first course title.
+    private static let heroToListGap: CGFloat = 16
+    /// The course icon on a list row, before it grows to the two slot lines.
     private static let courseBadgeSize: CGFloat = 34
-    /// The same height as the course badge, so the icon is centred on the name row.
-    private static let menuSize: CGFloat = 34
-    /// Pulls a trailing symbol onto the same screen edge as the ellipsis.
-    private static let trailingSymbolNudge: CGFloat = 2
 
-    /// The height of one line of the name (15 pt, semibold) and of the lecturer (`caption2`). They follow the text size.
-    @ScaledMetric(relativeTo: .subheadline) private var nameLineHeight: CGFloat = 20
-    @ScaledMetric(relativeTo: .caption2) private var lecturerLineHeight: CGFloat = 13
-    /// Recordings / Assignments / Exams on the course card: between footnote (13) and subheadline (15).
-    @ScaledMetric(relativeTo: .footnote) private var courseTotalSize: CGFloat = 14
-
-    /// Top edge of the first course, bottom edge of the last. The lines between courses stay.
-    private func outerSeparatorEdges(for course: Course) -> VerticalEdge.Set {
-        var edges = VerticalEdge.Set()
-        if course.token == orderedCourses.first?.token { edges.insert(.top) }
-        if course.token == orderedCourses.last?.token { edges.insert(.bottom) }
-        return edges
+    /// Height the icon, the name, and the lecturer grow to. It stays the two 15 pt slot lines,
+    /// including the gap between them and the counts on the lower line. The dates themselves are smaller.
+    private var datePairHeight: CGFloat {
+        let slot = UIFont.preferredFont(forTextStyle: .subheadline).lineHeight
+        let counts = UIFont.systemFont(ofSize: courseTotalSize).lineHeight
+        return slot + 2 + max(slot, counts)
     }
 
-    /// Shifts the menu so its middle meets the middle of the name line.
-    /// The name sits at the bottom of the icon row, so this inset can be negative.
-    private var menuTopInset: CGFloat {
-        let block = nameLineHeight + lecturerLineHeight
-        let row = max(Self.courseBadgeSize, block)
-        let nameMid = (row - block) + nameLineHeight / 2
-        return nameMid - Self.menuSize / 2
+    /// The icon, the name, and the lecturer before they grow.
+    private var courseIdentityHeight: CGFloat {
+        let namePoint = UIFont.preferredFont(forTextStyle: .subheadline).pointSize
+        let lecturerPoint = UIFont.preferredFont(forTextStyle: .caption2).pointSize
+        let name = UIFont.systemFont(ofSize: namePoint, weight: .semibold).lineHeight
+        let lecturer = UIFont.systemFont(ofSize: lecturerPoint).lineHeight
+        return max(Self.courseBadgeSize, name + lecturer)
     }
 
-    /// The menu icon at the far end of the name row of a course. Edit and delete live here.
-    private func courseMenu(_ course: Course) -> some View {
-        Menu {
-            Button("Edit course", systemImage: "pencil") { editingCourse = course }
-            Button("Delete", systemImage: "trash", role: .destructive) { askDelete(course) }
-        } label: {
-            Image(systemName: "ellipsis")
-                .appFont(.body, weight: .semibold)
-                .foregroundStyle(.primary)
-                // The glyph sits on the row’s trailing edge, the same edge as the recorded count.
-                .padding(.trailing, -Self.trailingSymbolNudge)
-                .frame(width: Self.menuSize, height: Self.menuSize, alignment: .trailing)
-                .contentShape(.rect)
-        }
-        .menuIndicator(.hidden)
+    /// One factor for the icon, the name, and the lecturer, so the group matches the two slot lines.
+    private var courseIdentityScale: CGFloat {
+        let natural = courseIdentityHeight
+        guard natural > 1 else { return 1 }
+        return datePairHeight / natural
     }
+
+    /// Recordings, assignments, and exams on the course card. Footnote size, regular weight.
+    @ScaledMetric(relativeTo: .footnote) private var courseTotalSize: CGFloat = 13
 
     /// One course as a list row. The three numbers are the totals of the whole course, not of one week.
     private func noteCard(_ course: Course) -> some View {
         let lecturer = course.lecturer?.displayName ?? ""
         let share = recordedShare(for: course)
         return VStack(alignment: .leading, spacing: 6) {
-            // The name and the lecturer sit on the bottom of the icon, like the open hero.
-            // The menu stays on the name line. The counts end where the attendance bar ends.
+            // The icon, the name, and the lecturer stay as tall as two 15 pt date lines.
+            // Dates sit to their right, on the bottom of that block. The three counts stay on the lower date, at the trailing corner.
             HStack(alignment: .bottom, spacing: 10) {
-                CourseBadge(name: course.name, color: course.color, size: Self.courseBadgeSize, outlined: true, borderColor: .secondary)
-                VStack(alignment: .leading, spacing: 0) {
-                    HStack(spacing: 0) {
+                HStack(alignment: .bottom, spacing: 10) {
+                    CourseBadge(name: course.name, color: course.color, size: Self.courseBadgeSize * courseIdentityScale, outlined: true, borderColor: .secondary)
+                    VStack(alignment: .leading, spacing: 0) {
                         Text(course.name)
-                            .appFont(.subheadline, weight: .semibold)
+                            .appFont(size: UIFont.preferredFont(forTextStyle: .subheadline).pointSize * courseIdentityScale, weight: .semibold)
                             .lineLimit(1)
                             .truncationMode(.tail)
-                        Spacer(minLength: 0)
-                        Color.clear.frame(width: Self.menuSize, height: 0)
-                    }
-                    HStack(spacing: 0) {
                         Text(verbatim: lecturer.isEmpty ? String(localized: "Lecturer") : lecturer)
-                            .appFont(.caption2)
+                            .appFont(size: UIFont.preferredFont(forTextStyle: .caption2).pointSize * courseIdentityScale)
                             .foregroundStyle(lecturer.isEmpty ? Color.secondary : Color.primary)
                             .lineLimit(1)
-                        Spacer(minLength: 0)
-                        Color.clear.frame(width: Self.menuSize, height: 0)
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
+                scheduleAndCounts(course)
             }
-            scheduleAndCounts(course, share: share)
+            if let share {
+                ProgressView(value: Double(share.recorded), total: Double(share.past))
+                    .progressViewStyle(AttendanceGlassProgressStyle(tint: course.color))
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(recordedAccessLabel(share))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.top, 4)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        // Plain buttons only hit what is drawn. The empty part of the row, such as beside a short title, counts too.
+        .contentShape(.rect)
     }
 
-    /// Earlier slots stack above. The last slot shares its row with the counts.
-    /// The counts end where the attendance bar ends. The star stays on the recorded count’s edge.
-    private func scheduleAndCounts(_ course: Course, share: RecordedShare?) -> some View {
+    /// Up to two slots, on the right of the name. The nearest sits above.
+    /// The last slot shares its line with the three counts, which stay at the trailing corner.
+    /// A course with fewer than two still keeps the height of two, so every row is the same length.
+    private func scheduleAndCounts(_ course: Course) -> some View {
         let lines = scheduleLines(course)
         let earlier = Array(lines.dropLast())
         let lastIsNearest = earlier.isEmpty
         return VStack(alignment: .leading, spacing: 2) {
-            ForEach(Array(earlier.enumerated()), id: \.offset) { index, line in
-                scheduleLine(line, nearest: index == 0)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            if let share {
-                Grid(alignment: .leading, horizontalSpacing: 6, verticalSpacing: 6) {
-                    GridRow(alignment: .center) {
-                        countRow(course, last: lines.last, nearest: lastIsNearest)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        favoriteStar(course)
-                            .gridColumnAlignment(.trailing)
-                    }
-                    GridRow(alignment: .center) {
-                        ProgressView(value: Double(share.recorded), total: Double(share.past))
-                            .progressViewStyle(AttendanceGlassProgressStyle(tint: course.color))
-                            .accessibilityElement(children: .ignore)
-                            .accessibilityLabel(recordedAccessLabel(share))
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        recordedCount(share)
-                            .accessibilityHidden(true)
-                            .gridColumnAlignment(.trailing)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
+            if let first = earlier.first {
+                scheduleLine(first, nearest: true)
             } else {
-                HStack(alignment: .center, spacing: 10) {
-                    countRow(course, last: lines.last, nearest: lastIsNearest)
-                    favoriteStar(course)
+                reservedScheduleLine()
+            }
+            HStack(alignment: .center, spacing: 10) {
+                if let last = lines.last {
+                    scheduleLine(last, nearest: lastIsNearest)
+                } else {
+                    reservedScheduleLine()
                 }
+                total(course.lectures.count, "waveform", "Recordings")
+                total(course.assignments.count, "checklist", "Assignments")
+                total(course.sittings.count, "calendar", "Exams")
             }
         }
+        .fixedSize(horizontal: true, vertical: true)
+        .layoutPriority(1)
     }
 
     /// One weekly slot, with a list bullet in front. The nearest slot is primary. The rest are secondary.
@@ -764,51 +961,17 @@ struct TodayPage: View {
             Text(verbatim: line)
                 .lineLimit(1)
         }
-        .appFont(.subheadline)
+        .appFont(.footnote)
         .foregroundStyle(nearest ? Color.primary : Color.secondary)
     }
 
-    /// The last slot on the leading side, and the three course totals on the trailing side.
-    private func countRow(_ course: Course, last: String?, nearest: Bool) -> some View {
-        HStack(alignment: .center, spacing: 10) {
-            if let last {
-                scheduleLine(last, nearest: nearest)
-            }
-            Spacer(minLength: 10)
-            total(course.lectures.count, "waveform", "Recordings")
-            total(course.assignments.count, "checklist", "Assignments")
-            total(course.sittings.count, "calendar", "Exams")
-        }
-    }
-
-    /// The star on every course row. A tap opens the same kind of menu as the ellipsis, with one choice.
-    /// A favourite is a filled star. One that is not is an outline. Both are secondary.
-    private func favoriteStar(_ course: Course) -> some View {
-        Menu {
-            Button(
-                course.isFavorite ? "Remove from favorites" : "Add to favorites",
-                systemImage: course.isFavorite ? "star.slash" : "star"
-            ) {
-                course.isFavorite.toggle()
-            }
-        } label: {
-            Image(systemName: course.isFavorite ? "star.fill" : "star")
-                .appFont(.subheadline)
-                .foregroundStyle(.secondary)
-                // The same trailing pull as the ellipsis, so both glyphs share one screen edge.
-                .padding(.trailing, -Self.trailingSymbolNudge)
-        }
-        .buttonStyle(.borderless)
-        .menuIndicator(.hidden)
-    }
-
-    /// The count at the end of the attendance bar, such as "2 recorded".
-    private func recordedCount(_ share: RecordedShare) -> some View {
-        Text(verbatim: String(format: String(localized: "%lld recorded"), share.recorded))
-            .appFont(.caption2)
-            .foregroundStyle(share.recorded > 0 ? Color.primary : Color.secondary)
-            .lineLimit(1)
-            .fixedSize(horizontal: true, vertical: false)
+    /// The height of one slot, with nothing to read. The width stays out of the row, so a short date column does not grow.
+    private func reservedScheduleLine() -> some View {
+        scheduleLine("00:00–00:00", nearest: false)
+            .hidden()
+            .accessibilityHidden(true)
+            .fixedSize(horizontal: true, vertical: true)
+            .frame(width: 0, alignment: .leading)
     }
 
     private func recordedAccessLabel(_ share: RecordedShare) -> Text {
@@ -917,66 +1080,11 @@ struct TodayPage: View {
             Image(systemName: symbol)
             Text(count, format: .number)
         }
-        .appFont(size: courseTotalSize, weight: .medium)
+        .appFont(size: courseTotalSize)
         .foregroundStyle(count > 0 ? Color.primary : Color.secondary)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text(name))
         .accessibilityValue(Text(count, format: .number))
-    }
-
-    /// The next exam of the course that is today or later: "Midterm · 12 days later". Nil when there is none.
-    private func nextExamText(for course: Course) -> String? {
-        let calendar = Calendar.current
-        let today = calendar.startOfDay(for: .now)
-        let upcoming = course.sittings
-            .compactMap { sitting -> (sitting: ExamSitting, date: Date)? in
-                guard let date = sitting.date, calendar.startOfDay(for: date) >= today else { return nil }
-                return (sitting, date)
-            }
-            .min { $0.date < $1.date }
-        guard let upcoming else { return nil }
-        let days = calendar.dateComponents([.day], from: today, to: calendar.startOfDay(for: upcoming.date)).day ?? 0
-        let when: String
-        switch days {
-        case 0: when = String(localized: "Today")
-        case 1: when = String(localized: "Tomorrow")
-        default: when = String(format: String(localized: "%lld days later"), days)
-        }
-        return "\(examName(upcoming.sitting)) · \(when)"
-    }
-
-    /// The title the student gave the exam, or the name of its kind.
-    private func examName(_ sitting: ExamSitting) -> String {
-        let title = sitting.title.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !title.isEmpty { return title }
-        switch ExamKind(rawValue: sitting.kind) {
-        case .midterm: return String(localized: "Midterm")
-        case .final: return String(localized: "Final")
-        case .other, nil: return String(localized: "Exam")
-        }
-    }
-
-    /// The assignments that are not done and not cancelled, the same count as "Pending" on the course page.
-    private func openAssignmentsText(for course: Course) -> String {
-        let open = course.assignments.filter { !$0.done && !$0.cancelled }.count
-        return String(format: String(localized: "Pending assignments: %lld"), open)
-    }
-
-    /// The newest recording of the course: today, yesterday, or its date. Empty courses say there is none yet.
-    private func lastRecordingText(for course: Course) -> String {
-        guard let last = course.lectures.max(by: { $0.startedAt < $1.startedAt }) else {
-            return String(localized: "No recording yet")
-        }
-        let calendar = Calendar.current
-        let when: String
-        if calendar.isDateInToday(last.startedAt) {
-            when = String(localized: "Today")
-        } else if calendar.isDateInYesterday(last.startedAt) {
-            when = String(localized: "Yesterday")
-        } else {
-            when = last.startedAt.formatted(.dateTime.day().month(.abbreviated))
-        }
-        return String(format: String(localized: "Last recording: %@"), when)
     }
 
     /// The minutes until the class ends, only while it is going on now. Otherwise nil.
@@ -1120,6 +1228,101 @@ private struct AttendanceGlassProgressStyle: ProgressViewStyle {
 
     private var glass: Glass {
         .regular.tint(tint.opacity(colorScheme == .dark ? 0.5 : 0.28))
+    }
+}
+
+extension View {
+    /// The plain list keeps the hairline between rows. Hiding it is not enough, so the line is also given no length. Row insets stay as they are.
+    fileprivate func homeListRowWithoutSeparator() -> some View {
+        listRowSeparator(.hidden, edges: .all)
+            .alignmentGuide(.listRowSeparatorLeading) { $0[.trailing] }
+            .alignmentGuide(.listRowSeparatorTrailing) { $0[.trailing] }
+    }
+}
+
+/// The course rows are one reorderable collection. Exams in the same list are not part of it.
+private enum HomeCourseList: Hashable, Sendable {
+    case courses
+}
+
+/// How far the course list has moved. The hero reads `distance`. The list does not, so a scroll does not rebuild the rows.
+@Observable
+private final class HeroScroll {
+    var distance: CGFloat = 0
+    /// True when the last movement was upward, which closes the hero.
+    @ObservationIgnored private(set) var closing = false
+    @ObservationIgnored private var last: CGFloat = 0
+
+    func update(distance: CGFloat) {
+        guard abs(distance - last) > 0.5 else { return }
+        closing = distance > last
+        last = distance
+        self.distance = distance
+    }
+}
+
+/// One finish request. `id` changes when the finger lifts between open and closed.
+private struct HeroSnapCommand: Equatable {
+    var id = 0
+    var delta: CGFloat = 0
+}
+
+/// Holds the list’s scroll view. The finder and the page share this, so a row refresh does not forget it.
+@MainActor
+private final class HeroSnapGate {
+    var applied = 0
+    weak var scrollView: UIScrollView?
+}
+
+/// Finds the list scroll view from the first course row and applies one finish.
+private struct HeroScrollFinder: UIViewRepresentable {
+    var gate: HeroSnapGate
+    var command: HeroSnapCommand
+
+    func makeUIView(context: Context) -> UIView {
+        let view = UIView(frame: .zero)
+        view.isUserInteractionEnabled = false
+        view.backgroundColor = .clear
+        return view
+    }
+
+    func updateUIView(_ view: UIView, context: Context) {
+        if gate.scrollView == nil || gate.scrollView?.window == nil {
+            gate.scrollView = Self.scrollView(from: view)
+        }
+        guard command.id != gate.applied else { return }
+        guard let scroll = gate.scrollView else { return }
+        gate.applied = command.id
+        let delta = command.delta
+        // The next turn, so this is not inside the scroll view’s own end callback, which ignores a new offset.
+        DispatchQueue.main.async {
+            var offset = scroll.contentOffset
+            offset.y += delta
+            scroll.setContentOffset(offset, animated: true)
+        }
+    }
+
+    private static func scrollView(from view: UIView) -> UIScrollView? {
+        var current: UIView? = view.superview
+        while let next = current {
+            if let scroll = next as? UIScrollView { return scroll }
+            current = next.superview
+        }
+        // A row background is sometimes hosted beside the list, not inside it.
+        guard let window = view.window else { return nil }
+        let point = view.convert(CGPoint(x: view.bounds.midX, y: view.bounds.midY), to: window)
+        return collectionView(in: window, containing: point)
+    }
+
+    private static func collectionView(in view: UIView, containing point: CGPoint) -> UIScrollView? {
+        if let collection = view as? UICollectionView, let window = collection.window {
+            let local = window.convert(point, to: collection)
+            if collection.bounds.contains(local) { return collection }
+        }
+        for child in view.subviews.reversed() {
+            if let found = collectionView(in: child, containing: point) { return found }
+        }
+        return nil
     }
 }
 
@@ -1318,5 +1521,21 @@ private struct HeroDetailLine: View {
         withTransaction(transaction) {
             position.scrollTo(x: x)
         }
+    }
+}
+
+/// Draws the open hero and collapses it from the list’s scroll distance.
+private struct OpenHero<Content: View>: View {
+    var scroll: HeroScroll
+    var lowerSpan: CGFloat
+    @ViewBuilder var content: (CGFloat) -> Content
+
+    private var collapse: CGFloat {
+        guard lowerSpan > 1 else { return 0 }
+        return min(1, max(0, scroll.distance / lowerSpan))
+    }
+
+    var body: some View {
+        content(collapse)
     }
 }

@@ -406,26 +406,103 @@ enum LecturePipeline {
         lecture.blocks = source.filter { $0.role != SpeakerRole.room.rawValue }
     }
 
-    /// Writes the AI correction: the lecturer's words with correct spelling, punctuation and
-    /// word order, important parts marked. Homework is collected from cue-bearing sentences in that
-    /// text, then from gated `ASSIGNMENT:` lines. Apple's raw text stays untouched in the blocks.
-    /// If a model is missing or its answer drifts, the raw words are kept and still scanned for cues.
-    private static func finishPage(_ lecture: Lecture, course: Course, context: ModelContext) async {
+    /// Writes the AI correction again from the raw text as it is now. Blocks are not rebuilt.
+    /// Homework is left as it is. A title the student typed stays.
+    static func rewriteCorrection(lecture: Lecture, context: ModelContext) async {
+        await rerun(lecture: lecture, context: context, writingPage: true)
+    }
+
+    /// Finds homework again from the raw text as it is now. The AI correction is left as it is.
+    /// A task already marked done stays done when the same words come back.
+    static func rewriteAssignments(lecture: Lecture, context: ModelContext) async {
+        await rerun(lecture: lecture, context: context, writingPage: false)
+    }
+
+    /// One pass over the current raw blocks. `writingPage` stores the correction. Otherwise only homework is stored.
+    private static func rerun(lecture: Lecture, context: ModelContext, writingPage: Bool) async {
+        let activity = PipelineActivity.shared
+        guard !activity.isRunning(lecture), let course = lecture.course else { return }
+        activity.set(.page, for: lecture)
+        let info = writingPage
+            ? String(localized: "The AI correction is written again from the raw text.")
+            : String(localized: "Assignments are taken again from the raw text.")
+        activity.setDetail(
+            PipelineActivity.Step(fraction: PipelineStage.page.fraction, title: PipelineStage.page.title, info: info),
+            for: lecture
+        )
+        defer { activity.clear(for: lecture) }
+        let work = Task {
+            let source = spokenSource(lecture)
+            do {
+                let pass = try await correctSource(source, lecture: lecture, course: course)
+                try Task.checkCancellation()
+                if writingPage {
+                    lecture.summary = pass.paragraphs.joined(separator: "\n\n")
+                    await finishHeadline(lecture)
+                    log.info("Correction rewritten characters=\(lecture.summary.count)")
+                } else {
+                    replaceAssignments(pass.tasks, lecture: lecture, course: course, source: source, context: context)
+                    log.info("Assignments rewritten tasks=\(pass.tasks.count)")
+                }
+                try context.save()
+            } catch is CancellationError {
+                log.info("Rewrite stopped page=\(writingPage)")
+            } catch {
+                log.error("Rewrite failed page=\(writingPage) message=\(error.localizedDescription, privacy: .public)")
+            }
+        }
+        activity.register(work, for: lecture)
+        await work.value
+    }
+
+    /// The blocks the correction and the homework read. Room noise is left out. When a lecturer was
+    /// found, only that speaker is read. Otherwise every remaining block is read.
+    private static func spokenSource(_ lecture: Lecture) -> [Block] {
         let spoken = lecture.blocks
             .sorted { $0.second < $1.second }
             .filter { $0.role != SpeakerRole.room.rawValue }
             .filter { !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
         let lecturer = spoken.filter { $0.role == SpeakerRole.narrator.rawValue }
-        let source = lecturer.isEmpty ? spoken : lecturer
-        log.info("Correction source blocks=\(source.count) lecturerOnly=\(!lecturer.isEmpty)")
+        return lecturer.isEmpty ? spoken : lecturer
+    }
+
+    /// Writes the AI correction: the lecturer's words with correct spelling, punctuation and
+    /// word order, important parts marked. Homework is collected from cue-bearing sentences in that
+    /// text, then from gated `ASSIGNMENT:` lines. The raw text stays untouched in the blocks.
+    /// If a model is missing or its answer drifts, the raw words are kept and still scanned for cues.
+    private static func finishPage(_ lecture: Lecture, course: Course, context: ModelContext) async {
+        let source = spokenSource(lecture)
+        let lecturerOnly = source.allSatisfy { $0.role == SpeakerRole.narrator.rawValue } && !source.isEmpty
+        log.info("Correction source blocks=\(source.count) lecturerOnly=\(lecturerOnly)")
+        let pass: SpokenCorrection
+        do {
+            pass = try await correctSource(source, lecture: lecture, course: course)
+        } catch {
+            log.info("Correction stopped before it was stored")
+            return
+        }
+        lecture.summary = pass.paragraphs.joined(separator: "\n\n")
+        log.info("Correction final characters=\(lecture.summary.count) paragraphs=\(pass.paragraphs.count) tasks=\(pass.tasks.count)")
+        addAssignments(pass.tasks, lecture: lecture, course: course, source: source, context: context)
+    }
+
+    private struct SpokenCorrection {
+        var paragraphs: [String]
+        var tasks: [String]
+    }
+
+    /// Reads the current raw blocks. Each chunk is corrected, and homework is taken from that same text.
+    /// Nothing is stored here. A stop throws before a half result is returned.
+    private static func correctSource(_ source: [Block], lecture: Lecture, course: Course) async throws -> SpokenCorrection {
         var paragraphs: [String] = []
         var tasks: [String] = []
         let chunks = CorrectionText.chunks(source.map(\.text))
         let stageStarted = Date()
         log.info("Correction begin chunks=\(chunks.count) characters=\(chunks.reduce(0) { $0 + $1.count }) \(MemoryProbe.summary())")
         for (index, chunk) in chunks.enumerated() {
+            try Task.checkCancellation()
+            if PipelineActivity.shared.isStopping(lecture) { throw CancellationError() }
             let chunkStarted = Date()
-            // One line per chunk when it ends, whether it passed, was rejected or failed.
             defer {
                 log.info("Correction chunk \(index + 1) of \(chunks.count) seconds=\(Int(Date().timeIntervalSince(chunkStarted))) totalSeconds=\(Int(Date().timeIntervalSince(stageStarted))) \(MemoryProbe.summary())")
             }
@@ -445,9 +522,6 @@ enum LecturePipeline {
                 log.info("Correction body=\(parts.body, privacy: .public)")
                 if faithful {
                     paragraphs.append(parts.body)
-                    // Primary: sentences that already hold a homework cue. Secondary: ASSIGNMENT lines from the
-                    // model, kept only when their words are from the text and a cue stands near them. On overlap
-                    // the rule sentence wins, so a rewritten or merged model task does not replace the teacher.
                     let ruleTasks = CorrectionText.homeworkSentences(in: parts.body)
                     let spokenTasks = parts.assignments.filter { task in
                         let overlap = CorrectionText.overlap(task, chunk)
@@ -474,6 +548,8 @@ enum LecturePipeline {
                     }
                     tasks.append(contentsOf: ruleTasks)
                 }
+            } catch is CancellationError {
+                throw CancellationError()
             } catch {
                 log.error("Correction failed, keeping the raw words message=\(error.localizedDescription, privacy: .public)")
                 paragraphs.append(chunk)
@@ -485,9 +561,7 @@ enum LecturePipeline {
                 tasks.append(contentsOf: ruleTasks)
             }
         }
-        lecture.summary = paragraphs.joined(separator: "\n\n")
-        log.info("Correction final characters=\(lecture.summary.count) paragraphs=\(paragraphs.count) tasks=\(tasks.count) seconds=\(Int(Date().timeIntervalSince(stageStarted)))")
-        addAssignments(tasks, lecture: lecture, course: course, source: source, context: context)
+        return SpokenCorrection(paragraphs: paragraphs, tasks: tasks)
     }
 
     /// Writes the headline of the lecture from its AI correction. A title the student typed is kept.
@@ -535,6 +609,52 @@ enum LecturePipeline {
             ))
             known.append(task)
             log.info("Assignment added text=\(task, privacy: .public)")
+        }
+    }
+
+    /// Replaces the homework of this recording with tasks taken from the current raw text.
+    /// A task that is the same job as one already stored keeps its done and cancelled marks.
+    private static func replaceAssignments(
+        _ tasks: [String],
+        lecture: Lecture,
+        course: Course,
+        source: [Block],
+        context: ModelContext
+    ) {
+        let tokens = Set(lecture.blocks.map(\.token))
+        let existing = course.assignments.filter { tokens.contains($0.sourceBlockID) }
+        var kept: Set<PersistentIdentifier> = []
+        var seen: [String] = []
+        for task in tasks {
+            guard !seen.contains(where: { CorrectionText.overlap(task, $0) >= 0.6 }) else { continue }
+            seen.append(task)
+            guard let block = source.max(by: {
+                CorrectionText.overlap(task, $0.text) < CorrectionText.overlap(task, $1.text)
+            }) else { continue }
+            if let old = existing.first(where: {
+                !kept.contains($0.persistentModelID) && CorrectionText.overlap(task, $0.text) >= 0.6
+            }) {
+                old.text = task
+                old.sourceBlockID = block.token
+                old.sourceSecond = block.second
+                old.due = Assignment.dueDate(for: task, lecture: lecture)
+                    ?? Assignment.dueDate(for: block.text, lecture: lecture)
+                kept.insert(old.persistentModelID)
+                log.info("Assignment kept text=\(task, privacy: .public)")
+            } else {
+                context.insert(Assignment(
+                    course: course,
+                    text: task,
+                    due: Assignment.dueDate(for: task, lecture: lecture)
+                        ?? Assignment.dueDate(for: block.text, lecture: lecture),
+                    sourceBlockID: block.token,
+                    sourceSecond: block.second
+                ))
+                log.info("Assignment added text=\(task, privacy: .public)")
+            }
+        }
+        for old in existing where !kept.contains(old.persistentModelID) {
+            context.delete(old)
         }
     }
 

@@ -125,6 +125,57 @@ enum SlotPlace: String, Codable, Sendable, CaseIterable {
     case remote
 }
 
+/// The named place of a class. School and home are fixed. Other keeps the words the student types.
+enum PlacePreset: String, CaseIterable, Identifiable, Sendable {
+    case school
+    case home
+    case other
+
+    var id: String { rawValue }
+
+    /// The catalog key for the picker row.
+    var menuTitle: String {
+        switch self {
+        case .school: "School"
+        case .home: "Place home"
+        case .other: "Other"
+        }
+    }
+
+    /// What is stored on the slot. A preset keeps a stable word. Other keeps the typed name.
+    func storedName(custom: String) -> String {
+        switch self {
+        case .school: "school"
+        case .home: "home"
+        case .other: custom.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+    }
+
+    /// The words shown for a stored place. An empty place stays empty. A typed name is shown as typed.
+    static func displayName(for stored: String) -> String {
+        let (preset, custom) = resolved(from: stored)
+        switch preset {
+        case .school: return String(localized: "School")
+        case .home: return String(localized: "Place home")
+        case .other: return custom
+        }
+    }
+
+    /// A saved place, including names typed before these choices existed.
+    static func resolved(from stored: String) -> (PlacePreset, String) {
+        let trimmed = stored.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty { return (.other, "") }
+        switch trimmed.lowercased() {
+        case "school", "okul":
+            return (.school, "")
+        case "home", "ev":
+            return (.home, "")
+        default:
+            return (.other, trimmed)
+        }
+    }
+}
+
 enum ReminderKind: String, Codable, Sendable, CaseIterable {
     case none
     case notification

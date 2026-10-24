@@ -262,6 +262,7 @@ actor LocalModelRuntime {
         question: String,
         tags: [WindowTag],
         history: [(role: String, text: String)] = [],
+        replyLanguage: Locale,
         maximumResponseTokens: Int = 120,
         temperature: Double? = nil
     ) async throws -> String {
@@ -269,7 +270,8 @@ actor LocalModelRuntime {
         defer { endCall() }
         let role = try composeRole()
         let started = Date()
-        Self.log.info("Answer begin tags=\(tags.count) history=\(history.count) maxTokens=\(maximumResponseTokens) role=\(role.rawValue, privacy: .public) footprintMB=\(MemoryProbe.footprintMB())")
+        let languageName = Self.replyLanguageName(replyLanguage)
+        Self.log.info("Answer begin tags=\(tags.count) history=\(history.count) maxTokens=\(maximumResponseTokens) replyLanguage=\(languageName, privacy: .public) role=\(role.rawValue, privacy: .public) footprintMB=\(MemoryProbe.footprintMB())")
         // The model call is silent while it reads the notes. This line says every 15 seconds that it still runs,
         // how much memory it uses and how warm the phone is.
         let heartbeat = Task.detached {
@@ -285,7 +287,7 @@ actor LocalModelRuntime {
             try await ensure(role)
             try Task.checkCancellation()
             Self.log.info("Answer model ready seconds=\(Int(Date().timeIntervalSince(started))) footprintMB=\(MemoryProbe.footprintMB())")
-            let session = try makeSession(role: role, instructions: answerInstructions)
+            let session = try makeSession(role: role, instructions: answerInstructions(replyLanguage: languageName))
             // Generation path loads weights; mark ready so Talk can skip preparing next time.
             composeReady = true
             let source = tags.map(\.text).joined(separator: "\n")
@@ -301,7 +303,7 @@ actor LocalModelRuntime {
                 }
                 assembled += "\n"
             }
-            assembled += "Question: \(question)\nShort answer:"
+            assembled += "Reply language: \(languageName). Write every word of the answer in \(languageName).\nQuestion: \(question)"
             let prompt = assembled
             Self.log.info(
                 "Answer question=\(question, privacy: .public) clock=\(clock, privacy: .public) notesCharacters=\(source.count) notesHead=\(String(source.prefix(200)), privacy: .public)"
@@ -609,7 +611,15 @@ actor LocalModelRuntime {
         """
     }
 
-    private var answerInstructions: String {
+    /// Settings language, named in English so the prompt stays one language. A course line
+    /// such as `language tr_TR` is the recording’s language, not this.
+    private static func replyLanguageName(_ locale: Locale) -> String {
+        let code = locale.language.languageCode?.identifier ?? ""
+        if code.hasPrefix("tr") { return "Turkish" }
+        return "English"
+    }
+
+    private func answerInstructions(replyLanguage: String) -> String {
         """
         Answer the question using only the notes and the Device clock block. \
         The Device clock is the phone’s real local date and time; use it for relative days \
@@ -617,7 +627,9 @@ actor LocalModelRuntime {
         The notes may include an app catalogue (terms, courses, timetable, assignments, exams, settings) \
         and timestamped lecture lines. When a lecture line names a term, course, date or minute, \
         you may use those to say where and when something was said. \
-        Reply with the answer alone, in one or two short sentences, in the language of the question. \
+        A course language in the notes is the language of that recording. It is not the reply language. \
+        Reply with the answer alone, in one or two short sentences, in \(replyLanguage). \
+        \(replyLanguage) is the language chosen in Settings. Do not answer in any other language. \
         Never repeat or list the notes. \
         If the notes do not contain the answer, reply exactly: NOT_IN_NOTES
         """

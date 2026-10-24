@@ -50,8 +50,11 @@ final class Course {
     var name: String
     var localeIdentifier: String
     var createdAt: Date
-    /// Favourite courses come first on Home. The default value lets stores from before this field open.
+    /// Kept from before Home used drag order. It does not sort the list. The default value lets stores from before this field open.
     var isFavorite: Bool = false
+    /// The student’s order on Home. Lower comes first. The default lets stores from before this field open.
+    /// Courses that still share 0 sort by the latest lecture, then by name, until the student drags one.
+    var homeOrder: Int = 0
     /// The place of the course color in the palette. It is picked when the course is made, so two courses of one
     /// term do not share a color while there are free colors. -1 means no color yet (a course from before this
     /// field); `Term.fillMissingCourseColors()` gives it one. The default value lets old stores open.
@@ -92,6 +95,7 @@ final class Course {
         self.localeIdentifier = localeIdentifier
         self.createdAt = Date()
         self.isFavorite = false
+        self.homeOrder = 0
         // Picked from the colors the other courses of this term do not use yet. Every term starts over.
         self.colorIndex = term?.nextCourseColorIndex() ?? -1
         self.term = term

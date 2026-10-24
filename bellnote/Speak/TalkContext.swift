@@ -105,7 +105,8 @@ enum TalkContext {
             }
             for slot in daySlots {
                 let courseName = slot.course?.name ?? "no course"
-                let place = slot.placeName.isEmpty ? "no place" : slot.placeName
+                let shownPlace = PlacePreset.displayName(for: slot.placeName)
+                let place = shownPlace.isEmpty ? "no place" : shownPlace
                 lines.append(
                     "Timetable \(label): \(day) \(ReminderScheduler.clock(slot.startMinutes))–"
                         + "\(ReminderScheduler.clock(slot.endMinutes)); course \(courseName); place \(place)."

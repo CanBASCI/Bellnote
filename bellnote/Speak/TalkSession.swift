@@ -390,6 +390,9 @@ final class TalkSession {
     private func answer(question: String) async -> TalkReply {
         let answerStarted = Date()
         if Task.isCancelled { return TalkReply(text: "") }
+        if let blocked = unethicalReply(for: question) {
+            return blocked
+        }
         if let social = socialReply(for: question) {
             return social
         }
@@ -411,6 +414,10 @@ final class TalkSession {
         if let lecturer = lecturerReply(for: question) {
             Self.log.info("Talk lecturer short-circuit text=\(lecturer.text, privacy: .public)")
             return lecturer
+        }
+        if let speaker = speakerReply(for: question) {
+            Self.log.info("Talk speaker short-circuit text=\(speaker.text, privacy: .public)")
+            return speaker
         }
         if let covered = coveredThenReply(for: question) {
             Self.log.info("Talk covered short-circuit text=\(covered.text, privacy: .public)")
@@ -448,6 +455,12 @@ final class TalkSession {
         Self.log.info(
             "Talk retrieve ms=\(retrieveMs) poolNotes=\(self.cachedNotes.count) poolCharacters=\(poolCharacters) catalogLines=\(self.cachedCatalog.count) catalogCharacters=\(catalogCharacters) picked=\(pick.blocks.count) pickedCharacters=\(pickedCharacters) question=\(question, privacy: .public)"
         )
+        // Aptal, manyak, slang, or any other words that are not in a note. No word list, no model, no Source.
+        if !catalogAsk, !topicKeys.isEmpty,
+           pick.blocks.allSatisfy({ Self.topicScore(of: $0, keys: topicKeys) == 0 }) {
+            Self.log.info("Talk answer skipped no topic hit question=\(question, privacy: .public)")
+            return TalkReply(text: String(localized: "The lectures do not contain that."))
+        }
         if let source = pick.source {
             Self.log.info(
                 "Talk source second=\(source.second) kind=\(source.kind.rawValue, privacy: .public) characters=\(source.text.count) head=\(String(source.text.prefix(120)), privacy: .public)"
@@ -503,12 +516,17 @@ final class TalkSession {
                 question: question,
                 tags: tags,
                 history: history,
+                replyLanguage: locale,
                 maximumResponseTokens: 72,
                 temperature: 0
             )
             let modelMs = Int(Date().timeIntervalSince(modelStarted) * 1000)
             let totalMs = Int(Date().timeIntervalSince(answerStarted) * 1000)
+            let foldedReply = Self.asciiFold(reply)
             let missing = reply.contains("NOT_IN_NOTES") || reply.isEmpty
+                || foldedReply.contains("not contain")
+                || foldedReply.contains("do not contain")
+                || foldedReply.contains("notes do not")
             Self.log.info(
                 "Talk answer done modelMs=\(modelMs) totalMs=\(totalMs) retrieveMs=\(retrieveMs) notInNotes=\(missing) characters=\(reply.count) text=\(reply, privacy: .public)"
             )
@@ -567,25 +585,8 @@ final class TalkSession {
         Self.log.info(
             "Talk source keys count=\(keys.count) keys=\(keys.joined(separator: ","), privacy: .public) question=\(question, privacy: .public)"
         )
-        func stems(in hay: String) -> Set<String> {
-            Set(
-                hay.split { !$0.isLetter }
-                    .map { String($0.prefix(4)) }
-                    .filter { $0.count >= 4 }
-            )
-        }
-        func hayHits(_ hay: String, key: String) -> Bool {
-            if hay.contains(key) { return true }
-            let stem = String(key.prefix(4))
-            guard stem.count >= 4 else { return false }
-            return stems(in: hay).contains(stem)
-        }
         func score(_ block: StudyBlock) -> Int {
-            guard !keys.isEmpty else { return 0 }
-            let hay = Self.asciiFold(block.text)
-            return keys.reduce(0) { partial, key in
-                partial + (hayHits(hay, key: key) ? max(key.count, 1) : 0)
-            }
+            Self.topicScore(of: block, keys: keys)
         }
         let primary = pick.source
         let topicBest = pick.blocks.max { score($0) < score($1) }
@@ -595,7 +596,8 @@ final class TalkSession {
             // Whole-library BM25 often ranks a “nedir / anlat” neighbour first; prefer topic hit.
             chosen = score(topicBest) > primaryScore ? topicBest : (primary ?? topicBest)
         } else {
-            chosen = primary ?? pick.blocks.first
+            // No topic word from the question is in these notes. Do not cite an unrelated minute.
+            return []
         }
         guard let chosen else { return [] }
         Self.log.info(
@@ -620,7 +622,8 @@ final class TalkSession {
             "pardon", "tamam", "ok", "okay", "lutfen", "please",
             "evet", "hayir", "yok", "yes", "yeah", "nope",
             "selam", "merhaba", "hello", "hiya", "hey",
-            "bana", "bizi", "beni", "sana", "size", "seni",
+            "bana", "bizi", "beni", "sana", "size", "seni", "senin",
+            "benim", "onun", "bizim", "sizin", "bunu", "sunu",
             "detay", "detayli", "kisa", "kisaca", "biraz",
         ]
         return asciiFold(text)
@@ -635,6 +638,24 @@ final class TalkSession {
                     && !token.hasPrefix("soyle")
                     && !token.hasPrefix("ders")
             }
+    }
+
+    /// How strongly a note matches the question’s topic words. Zero means those words are not in the note.
+    private static func topicScore(of block: StudyBlock, keys: [String]) -> Int {
+        guard !keys.isEmpty else { return 0 }
+        let hay = asciiFold(block.text)
+        let stems = Set(
+            hay.split { !$0.isLetter }
+                .map { String($0.prefix(5)) }
+                .filter { $0.count >= 5 }
+        )
+        return keys.reduce(0) { partial, key in
+            if hay.contains(key) { return partial + max(key.count, 1) }
+            // Four letters is enough for “sıcak” to look like an unrelated word. Five keeps real endings such as “türev” / “türevini”.
+            let stem = String(key.prefix(5))
+            guard stem.count >= 5, stems.contains(stem) else { return partial }
+            return partial + max(key.count, 1)
+        }
     }
 
     /// Day yes/no and weekly duration are read from the slots. The model was inventing a class on an empty day and refusing to add the clocks.
@@ -1039,6 +1060,271 @@ final class TalkSession {
                 || token == "info" || token == "details" || token == "detail"
         }
         return asksAll ? .all : nil
+    }
+
+    /// A name the student typed on Raw. The on-screen Speaker / Konuşmacı label is not one.
+    private struct NamedSpeaker {
+        var name: String
+        var tokens: [String]
+    }
+
+    /// Any typed name, not one example. “How many recordings does this name have” lists them.
+    /// “What did this name say this week” and “what did they say two weeks ago” read that
+    /// name’s raw lines in the span. An empty span says there is no recording. The model is not called.
+    private func speakerReply(for question: String) -> TalkReply? {
+        let tokens = Self.asciiFold(question).split { !$0.isLetter }.map(String.init)
+        guard let speaker = namedSpeaker(in: tokens) else { return nil }
+        guard let kind = speakerAsk(in: tokens) else { return nil }
+        let span = coveredSpan(in: question)
+        let turns = speakerTurns(named: speaker, span: span)
+        switch kind {
+        case .recordings:
+            return speakerRecordingReply(name: speaker.name, turns: turns, span: span)
+        case .words:
+            return speakerWordsReply(name: speaker.name, turns: turns, span: span)
+        }
+    }
+
+    private enum SpeakerAsk {
+        case recordings
+        case words
+    }
+
+    /// A recording count, or a question about what that person said. A bare name is not enough.
+    private func speakerAsk(in tokens: [String]) -> SpeakerAsk? {
+        let speech = tokens.contains { token in
+            token.hasPrefix("anlat") || token.hasPrefix("dedi") || token.hasPrefix("demis")
+                || token.hasPrefix("soyle") || token.hasPrefix("konus")
+                || token == "said" || token == "say" || token.hasPrefix("spoke") || token.hasPrefix("spoken")
+                || token.hasPrefix("tell") || token == "cover" || token.hasPrefix("covered")
+        }
+        if speech { return .words }
+        let count = tokens.contains("kac") || tokens.contains("many")
+        let recordings = tokens.contains { token in
+            token.hasPrefix("kayit") || token.hasPrefix("kayd") || token.hasPrefix("record")
+        }
+        if count || recordings { return .recordings }
+        return nil
+    }
+
+    /// Longest stored name whose tokens sit in the question. The last token may carry a Turkish suffix.
+    private func namedSpeaker(in question: [String]) -> NamedSpeaker? {
+        let hits = namedSpeakers().filter { Self.mentionsSpeaker($0.tokens, in: question) }
+        return hits.max { lhs, rhs in
+            if lhs.tokens.count != rhs.tokens.count { return lhs.tokens.count < rhs.tokens.count }
+            let left = lhs.tokens.joined().count
+            let right = rhs.tokens.joined().count
+            return left < right
+        }
+    }
+
+    private func namedSpeakers() -> [NamedSpeaker] {
+        var byKey: [String: NamedSpeaker] = [:]
+        for term in terms {
+            for course in term.courses {
+                for lecture in course.lectures {
+                    for line in lecture.speakerNames {
+                        guard let name = Self.storedSpeakerName(line), !Self.isDefaultSpeakerLabel(name) else { continue }
+                        let tokens = Self.asciiFold(name)
+                            .split { !$0.isLetter }
+                            .map(String.init)
+                            .filter { $0.count >= 3 }
+                        guard !tokens.isEmpty else { continue }
+                        let key = tokens.joined(separator: " ")
+                        if byKey[key] == nil {
+                            byKey[key] = NamedSpeaker(name: name, tokens: tokens)
+                        }
+                    }
+                }
+            }
+        }
+        return Array(byKey.values)
+    }
+
+    /// `speakerNames` stores `cluster` + tab + the typed name.
+    private static func storedSpeakerName(_ line: String) -> String? {
+        guard let tab = line.firstIndex(of: "\t") else { return nil }
+        let name = line[line.index(after: tab)...].trimmingCharacters(in: .whitespacesAndNewlines)
+        return name.isEmpty ? nil : String(name)
+    }
+
+    /// The raw row’s own label: “Speaker 4”, “Konuşmacı 1”. A typed name is something else.
+    private static func isDefaultSpeakerLabel(_ name: String) -> Bool {
+        let tokens = asciiFold(name).split { !$0.isLetter }.map(String.init)
+        guard tokens.count == 1 else { return false }
+        return tokens[0] == "speaker" || tokens[0] == "konusmaci"
+    }
+
+    private static func mentionsSpeaker(_ nameTokens: [String], in question: [String]) -> Bool {
+        guard !nameTokens.isEmpty, question.count >= nameTokens.count else { return false }
+        let last = nameTokens.count - 1
+        for start in 0...(question.count - nameTokens.count) {
+            var matched = true
+            for offset in 0..<nameTokens.count {
+                let token = question[start + offset]
+                let name = nameTokens[offset]
+                let same = offset == last ? speakerToken(token, is: name) : token == name
+                if !same {
+                    matched = false
+                    break
+                }
+            }
+            if matched { return true }
+        }
+        return false
+    }
+
+    /// Exact token, or the name plus a folded Turkish case ending.
+    private static func speakerToken(_ token: String, is name: String) -> Bool {
+        if token == name { return true }
+        guard token.hasPrefix(name), name.count >= 3 else { return false }
+        let rest = String(token.dropFirst(name.count))
+        let suffixes: Set<String> = [
+            "in", "un", "nin", "nun",
+            "i", "u", "e", "a",
+            "yi", "yu", "ye", "ya",
+            "de", "da", "te", "ta", "den", "dan", "ten", "tan",
+            "le", "la",
+        ]
+        return suffixes.contains(rest)
+    }
+
+    /// Raw lines whose stored speaker name is this one. A span keeps lectures that started in it.
+    private func speakerTurns(named speaker: NamedSpeaker, span: DateInterval?) -> [(lecture: Lecture, block: Block)] {
+        let key = speaker.tokens.joined(separator: " ")
+        var turns: [(lecture: Lecture, block: Block)] = []
+        for term in terms {
+            for course in term.courses {
+                for lecture in course.lectures {
+                    if let span, !span.contains(lecture.startedAt) { continue }
+                    let ordered = lecture.blocks.sorted { $0.second < $1.second }
+                    for block in ordered {
+                        guard let stored = lecture.speakerName(for: block.speaker),
+                              !Self.isDefaultSpeakerLabel(stored) else { continue }
+                        let tokens = Self.asciiFold(stored)
+                            .split { !$0.isLetter }
+                            .map(String.init)
+                            .filter { $0.count >= 3 }
+                        guard tokens.joined(separator: " ") == key else { continue }
+                        let text = block.text.trimmingCharacters(in: .whitespacesAndNewlines)
+                        guard !text.isEmpty else { continue }
+                        turns.append((lecture, block))
+                    }
+                }
+            }
+        }
+        return turns.sorted { lhs, rhs in
+            if lhs.lecture.startedAt != rhs.lecture.startedAt {
+                return lhs.lecture.startedAt < rhs.lecture.startedAt
+            }
+            return lhs.block.second < rhs.block.second
+        }
+    }
+
+    private func speakerRecordingReply(
+        name: String,
+        turns: [(lecture: Lecture, block: Block)],
+        span: DateInterval?
+    ) -> TalkReply {
+        let lectures = uniqueLectures(in: turns)
+        if lectures.isEmpty {
+            let key: String.LocalizationValue = span == nil
+                ? "%@ has no recordings."
+                : "%@ has no recording from then."
+            return TalkReply(text: String(format: String(localized: key), name))
+        }
+        let stamp = Date.FormatStyle(date: .abbreviated, time: .omitted).locale(locale)
+        let body = lectures.map { lecture in
+            lectureLabel(lecture, stamp: stamp)
+        }.joined(separator: ", ")
+        let sources = lectures.map { lecture in
+            TalkSourceItem(
+                title: lectureLabel(lecture, stamp: stamp),
+                target: .recording(lectureID: lecture.persistentModelID)
+            )
+        }
+        let text = String(
+            format: String(localized: "%1$@ is in %2$lld recordings: %3$@."),
+            name,
+            lectures.count,
+            body
+        )
+        return TalkReply(text: text, sources: sources)
+    }
+
+    private func speakerWordsReply(
+        name: String,
+        turns: [(lecture: Lecture, block: Block)],
+        span: DateInterval?
+    ) -> TalkReply {
+        if turns.isEmpty {
+            let key: String.LocalizationValue = span == nil
+                ? "%@ has no recordings."
+                : "%@ has no recording from then."
+            return TalkReply(text: String(format: String(localized: key), name))
+        }
+        let stamp = Date.FormatStyle(date: .abbreviated, time: .omitted).locale(locale)
+        var pieces: [String] = []
+        var sources: [TalkSourceItem] = []
+        var seen: [PersistentIdentifier] = []
+        for turn in turns {
+            let id = turn.lecture.persistentModelID
+            let text = turn.block.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !seen.contains(id) {
+                seen.append(id)
+                pieces.append("\(lectureLabel(turn.lecture, stamp: stamp)): \(text)")
+                sources.append(
+                    TalkSourceItem(
+                        title: lectureLabel(turn.lecture, stamp: stamp),
+                        target: .note(blockID: turn.block.token, second: turn.block.second)
+                    )
+                )
+            } else if let index = pieces.indices.last {
+                pieces[index] += " \(text)"
+            }
+        }
+        let spoken = pieces.joined(separator: " ")
+        let clipped = Self.clippedSpeakerText(spoken)
+        let key: String.LocalizationValue = clipped.trimmed
+            ? "%1$@ said: %2$@ The rest is in the recording."
+            : "%1$@ said: %2$@"
+        return TalkReply(
+            text: String(format: String(localized: key), name, clipped.text),
+            sources: sources
+        )
+    }
+
+    /// Spoken replies stay short enough to say. The Source still opens the first raw line.
+    private static func clippedSpeakerText(_ text: String) -> (text: String, trimmed: Bool) {
+        let limit = 1200
+        guard text.count > limit else { return (text, false) }
+        let end = text.index(text.startIndex, offsetBy: limit)
+        var clipped = String(text[..<end])
+        if let space = clipped.lastIndex(of: " "), clipped.distance(from: clipped.startIndex, to: space) > limit / 2 {
+            clipped = String(clipped[..<space])
+        }
+        return (clipped.trimmingCharacters(in: .whitespacesAndNewlines), true)
+    }
+
+    private func uniqueLectures(in turns: [(lecture: Lecture, block: Block)]) -> [Lecture] {
+        var lectures: [Lecture] = []
+        var seen: [PersistentIdentifier] = []
+        for turn in turns {
+            let id = turn.lecture.persistentModelID
+            guard !seen.contains(id) else { continue }
+            seen.append(id)
+            lectures.append(turn.lecture)
+        }
+        return lectures
+    }
+
+    private func lectureLabel(_ lecture: Lecture, stamp: Date.FormatStyle) -> String {
+        let course = lecture.course?.name ?? ""
+        let day = lecture.startedAt.formatted(stamp)
+        let title = lecture.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        if course.isEmpty { return title.isEmpty ? day : "\(day) \(title)" }
+        if title.isEmpty { return "\(course) \(day)" }
+        return "\(course) \(day) \(title)"
     }
 
     /// What was covered in a past span, from lectures dated in that span.
@@ -1821,10 +2107,6 @@ final class TalkSession {
 
         if matchesHelp(tokens) { return .help }
         if matchesHearCheck(tokens) { return .hearCheck }
-        if matchesRepeat(tokens) { return .repeatAsk }
-        if matchesCancel(tokens) { return .cancel }
-        if matchesApology(tokens) { return .apology }
-        if matchesThanks(tokens) { return .thanks }
         if matchesFarewell(tokens) { return .farewell }
         if matchesHowAreYou(tokens) { return .howAreYou }
         if matchesGreeting(tokens) { return .greeting }
@@ -2126,6 +2408,87 @@ final class TalkSession {
         return tokens.allSatisfy { token in
             filler.contains(token) || token.hasPrefix("duyuyor") || token.hasPrefix("dinliyor")
         }
+    }
+
+    /// Sexual talk, swearing, and the same kind of turn. Not a lecture question: no model and no Source.
+    /// A question about what was said in class still uses the note.
+    private func unethicalReply(for text: String) -> TalkReply? {
+        let tokens = Self.foldedTokens(text)
+        guard !tokens.isEmpty else { return nil }
+        if Self.matchesSwearing(tokens) {
+            Self.log.info("Talk unethical short-circuit kind=swearing")
+            return TalkReply(text: String(localized: "I can't swear."))
+        }
+        guard Self.isUnethicalTurn(tokens) else { return nil }
+        Self.log.info("Talk unethical short-circuit kind=refused")
+        return TalkReply(text: String(localized: "I don't answer that."))
+    }
+
+    private static func foldedTokens(_ text: String) -> [String] {
+        asciiFold(text)
+            .replacingOccurrences(of: "'", with: "")
+            .split { !$0.isLetter }
+            .map(String.init)
+            .filter { !$0.isEmpty }
+    }
+
+    /// Category roots, not every insult and not words such as aptal or manyak.
+    /// “Küfür” itself is not the only swear: the profanity family is refused before the model.
+    private static func isUnethicalRoot(_ token: String) -> Bool {
+        token.hasPrefix("kufur") || token.hasPrefix("kufret") || token.hasPrefix("hakaret")
+            || token.hasPrefix("swear") || token.hasPrefix("curs") || token.hasPrefix("insult")
+            || token.hasPrefix("seks") || token == "sex" || token.hasPrefix("sexual")
+            || token.hasPrefix("cinsel") || token.hasPrefix("cinsell")
+            || token.hasPrefix("porno") || token.hasPrefix("porn")
+            || token == "nude" || token == "naked" || token.hasPrefix("ciplak")
+            || token.hasPrefix("amina") || token.hasPrefix("amcik") || token.hasPrefix("amcig")
+            || token.hasPrefix("orospu") || token.hasPrefix("yarrak") || token == "yarak"
+            || token.hasPrefix("tasak")
+            // Not the bare root: “sıkıntı” and “şikayet” fold to the same letters.
+            || token.hasPrefix("siker") || token.hasPrefix("sikik") || token.hasPrefix("siktir")
+            || token.hasPrefix("sikey") || token.hasPrefix("sikim") || token.hasPrefix("siktig")
+            || token.hasPrefix("fuck") || token.hasPrefix("shit") || token.hasPrefix("bitch")
+            || token.hasPrefix("asshole") || token.hasPrefix("cunt")
+            // “piç”, not “picture” or “pick”.
+            || token == "pic" || token.hasPrefix("pici") || token.hasPrefix("picl")
+    }
+
+    private static func isLectureMarker(_ token: String) -> Bool {
+        token.hasPrefix("ders") || token.hasPrefix("hoca") || token.hasPrefix("kayit")
+            || token.hasPrefix("lectur") || token == "class" || token == "classes"
+            || token.hasPrefix("odev") || token.hasPrefix("sinav")
+            || token.hasPrefix("exam") || token.hasPrefix("assign")
+    }
+
+    private static func isUnethicalTurn(_ tokens: [String]) -> Bool {
+        guard tokens.contains(where: isUnethicalRoot) else { return false }
+        if tokens.contains(where: isLectureMarker) { return false }
+        let asksWhatWasSaid =
+            (tokens.contains("ne") && tokens.contains { $0.hasPrefix("dedi") || $0.hasPrefix("soyle") })
+            || (tokens.contains("what") && tokens.contains("did"))
+        return !asksWhatWasSaid
+    }
+
+    /// “Can you swear?” and “Can I swear at you?” are about Bellnote, not a lecture.
+    private static func matchesSwearing(_ tokens: [String]) -> Bool {
+        let swear = tokens.contains { token in
+            token.hasPrefix("kufur") || token.hasPrefix("kufret")
+                || token.hasPrefix("swear") || token.hasPrefix("curs")
+                || token.hasPrefix("insult")
+        }
+        guard swear else { return false }
+        let aboutNotes = tokens.contains { token in
+            token.hasPrefix("ders") || token.hasPrefix("kayit") || token.hasPrefix("not")
+                || token.hasPrefix("hoca")
+                || ["lecture", "lectures", "class", "classes", "notes", "lecturer"].contains(token)
+        }
+        guard !aboutNotes else { return false }
+        let addressed =
+            tokens.contains { ["musun", "misin", "misiniz", "you", "sana", "bana", "seni"].contains($0) }
+            || tokens.contains("can")
+            || tokens.contains { $0.hasPrefix("edebil") || $0 == "eder" || $0.hasPrefix("eder") }
+        guard addressed else { return false }
+        return tokens.count <= 8
     }
 
     /// Lossy ASCII fold for social matching. ASR and typed Turkish both land on the same
