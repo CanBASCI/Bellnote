@@ -115,7 +115,7 @@ private enum CabinetSegment: String, CaseIterable, Identifiable {
 }
 
 /// Files and stickies for one course. The picker is this course only.
-private struct CourseCabinetPage: View {
+struct CourseCabinetPage: View {
     @Bindable var course: Course
     @Environment(\.modelContext) private var modelContext
     @Environment(\.locale) private var locale
@@ -124,13 +124,22 @@ private struct CourseCabinetPage: View {
     @State private var importing = false
     @State private var pickingPhoto = false
     @State private var photoItem: PhotosPickerItem?
-    @State private var previewURL: URL?
+    @State private var openPreview: FilePreview?
     @State private var pendingFile: CourseFile?
+    @State private var renamingFile: CourseFile?
     @State private var pendingSticky: StickyNote?
     @State private var creatingSticky = false
     @State private var editingSticky: StickyNote?
     @State private var selectedSticky: UUID?
     @State private var fileNotice: String?
+
+    init(course: Course, openSticky token: UUID? = nil) {
+        self.course = course
+        if let token {
+            _segment = State(initialValue: .stickies)
+            _selectedSticky = State(initialValue: token)
+        }
+    }
 
     private var files: [CourseFile] {
         course.files.sorted { lhs, rhs in
@@ -211,18 +220,18 @@ private struct CourseCabinetPage: View {
             photoItem = nil
             Task { await importPhoto(item) }
         }
-        .fullScreenCover(isPresented: Binding(
-            get: { previewURL != nil },
-            set: { if !$0 { previewURL = nil } }
-        )) {
-            if let url = previewURL {
-                StoredFilePreview(url: url) { error in
-                    report(error, notice: String(localized: "The change could not be saved."))
-                } onEdited: {
-                    markFileUpdated(at: url)
-                } onDismiss: {
-                    previewURL = nil
-                }
+        .fullScreenCover(item: $openPreview) { preview in
+            StoredFilePreview(url: preview.url, title: preview.title) { error in
+                report(error, notice: String(localized: "The change could not be saved."))
+            } onEdited: {
+                markFileUpdated(at: preview.url)
+            } onDismiss: {
+                openPreview = nil
+            }
+        }
+        .sheet(item: $renamingFile) { file in
+            FileNameEditor(name: file.displayName) { typed in
+                rename(file, to: typed)
             }
         }
         .sheet(isPresented: $creatingSticky) {
@@ -371,6 +380,14 @@ private struct CourseCabinetPage: View {
                     .listRowInsets(.vertical, 8)
                     .listRowBackground(Color(.systemGroupedBackground))
                     .fileEdgeSeparators(first: isFirst, last: isLast)
+                    // Same gray pencil as a course on the home list. A full swipe opens the name.
+                    .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                        Button { renamingFile = file } label: {
+                            Image(systemName: "pencil")
+                        }
+                        .tint(Color(.systemGray))
+                        .accessibilityLabel(Text("Edit file"))
+                    }
                     .askToDeleteSwipe { pendingFile = file }
                 }
                 .reorderable(collectionID: CourseFileList.files)
@@ -497,7 +514,7 @@ private struct CourseCabinetPage: View {
                 fileNotice = String(localized: "The file could not be opened.")
                 return
             }
-            previewURL = url
+            openPreview = FilePreview(url: url, title: file.displayName)
         } catch {
             report(error, notice: String(localized: "The file could not be opened."))
         }
@@ -567,6 +584,21 @@ private struct CourseCabinetPage: View {
         commitCabinet()
     }
 
+    /// The list name changes. The stored file keeps its path. An extension that was already on the name stays when the new name has none, so the kind line stays.
+    private func rename(_ file: CourseFile, to typed: String) {
+        let next = Self.displayName(keepingExtensionOf: file.displayName, typed: typed)
+        guard !next.isEmpty, next != file.displayName else { return }
+        file.displayName = next
+        commitCabinet()
+    }
+
+    private static func displayName(keepingExtensionOf current: String, typed: String) -> String {
+        let trimmed = typed.trimmingCharacters(in: .whitespacesAndNewlines)
+        let ext = URL(fileURLWithPath: current).pathExtension
+        guard !ext.isEmpty, URL(fileURLWithPath: trimmed).pathExtension.isEmpty else { return trimmed }
+        return "\(trimmed).\(ext)"
+    }
+
     private func delete(_ file: CourseFile) {
         do {
             try Vault.removeStoredFile(relativePath: file.relativePath)
@@ -589,6 +621,44 @@ private struct CourseCabinetPage: View {
     private func report(_ error: Error, notice: String) {
         logFileFailure(error, step: notice)
         fileNotice = notice
+    }
+}
+
+/// Renames the copy shown in the file list. The stored file keeps its path.
+private struct FileNameEditor: View {
+    @Environment(\.dismiss) private var dismiss
+    @State private var name: String
+    var onSave: (String) -> Void
+
+    init(name: String, onSave: @escaping (String) -> Void) {
+        _name = State(initialValue: name)
+        self.onSave = onSave
+    }
+
+    private var trimmed: String {
+        name.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                TextField("Name", text: $name)
+            }
+            .navigationTitle("Edit file")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        onSave(name)
+                        dismiss()
+                    }
+                    .disabled(trimmed.isEmpty)
+                }
+            }
+        }
     }
 }
 
@@ -1201,16 +1271,50 @@ private final class StickyInkCanvas: PKCanvasView {
     }
 }
 
+/// The list name shown in the preview’s title. The stored file keeps its own name.
+private struct FilePreview: Identifiable {
+    var id: String { url.path }
+    var url: URL
+    var title: String
+}
+
+/// Quick Look uses the file’s own name unless a title is set. The title is the name in the list.
+private final class NamedPreviewItem: NSObject, QLPreviewItem {
+    nonisolated let previewItemURL: URL?
+    nonisolated let previewItemTitle: String?
+
+    init(url: URL, title: String) {
+        previewItemURL = url
+        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        previewItemTitle = trimmed.isEmpty ? url.lastPathComponent : trimmed
+        super.init()
+    }
+}
+
 /// The system preview. Any edit made there is written back into the file the course keeps:
-/// a pencil mark, typed text, or another markup tool. The arrow at the top still shares a separate copy out. It is not this save.
+/// a pencil mark, typed text, or another markup tool. Share sends a separate copy out. It is not this save.
+/// The same preview the file list opens. An edit is written back into that copy.
+struct CourseFilePreview: View {
+    let url: URL
+    var title: String
+    var onFailure: (Error) -> Void
+    var onEdited: () -> Void
+    var onDismiss: () -> Void
+
+    var body: some View {
+        StoredFilePreview(url: url, title: title, onFailure: onFailure, onEdited: onEdited, onDismiss: onDismiss)
+    }
+}
+
 private struct StoredFilePreview: UIViewControllerRepresentable {
     let url: URL
+    var title: String
     var onFailure: (Error) -> Void
     var onEdited: () -> Void
     var onDismiss: () -> Void
 
     func makeCoordinator() -> StoredFilePreviewCoordinator {
-        StoredFilePreviewCoordinator(url: url, onFailure: onFailure, onEdited: onEdited, onDismiss: onDismiss)
+        StoredFilePreviewCoordinator(url: url, title: title, onFailure: onFailure, onEdited: onEdited, onDismiss: onDismiss)
     }
 
     func makeUIViewController(context: Context) -> PreviewHostController {
@@ -1222,6 +1326,7 @@ private struct StoredFilePreview: UIViewControllerRepresentable {
 
     func updateUIViewController(_ host: PreviewHostController, context: Context) {
         context.coordinator.url = url
+        context.coordinator.title = title
         context.coordinator.onFailure = onFailure
         context.coordinator.onEdited = onEdited
         context.coordinator.onDismiss = onDismiss
@@ -1234,6 +1339,10 @@ private struct StoredFilePreview: UIViewControllerRepresentable {
 /// because the system then deletes its copy. Anything that touches the screen hops to the main actor afterwards.
 private final class StoredFilePreviewCoordinator: NSObject, QLPreviewControllerDataSource, QLPreviewControllerDelegate {
     nonisolated(unsafe) var url: URL
+    nonisolated(unsafe) var title: String
+    /// Quick Look shares the open file’s name. This copy uses the list name. The stored file keeps its own name.
+    nonisolated(unsafe) var previewLink: URL?
+    nonisolated(unsafe) var previewFolder: URL?
     var onFailure: (Error) -> Void
     var onEdited: () -> Void
     var onDismiss: () -> Void
@@ -1242,11 +1351,13 @@ private final class StoredFilePreviewCoordinator: NSObject, QLPreviewControllerD
 
     init(
         url: URL,
+        title: String,
         onFailure: @escaping (Error) -> Void,
         onEdited: @escaping () -> Void,
         onDismiss: @escaping () -> Void
     ) {
         self.url = url
+        self.title = title
         self.onFailure = onFailure
         self.onEdited = onEdited
         self.onDismiss = onDismiss
@@ -1255,7 +1366,48 @@ private final class StoredFilePreviewCoordinator: NSObject, QLPreviewControllerD
     func numberOfPreviewItems(in controller: QLPreviewController) -> Int { 1 }
 
     func previewController(_ controller: QLPreviewController, previewItemAt index: Int) -> any QLPreviewItem {
-        url as NSURL
+        NamedPreviewItem(url: openableURL(), title: title)
+    }
+
+    /// The share sheet uses the open file’s name. A temporary copy carries the list name for that sheet.
+    private func openableURL() -> URL {
+        if let previewLink, FileManager.default.fileExists(atPath: previewLink.path) {
+            return previewLink
+        }
+        do {
+            let folder = FileManager.default.temporaryDirectory
+                .appendingPathComponent("bellnote-preview", isDirectory: true)
+                .appendingPathComponent(UUID().uuidString, isDirectory: true)
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            let destination = folder.appendingPathComponent(Self.shareFileName(title: title, stored: url))
+            try FileManager.default.copyItem(at: url, to: destination)
+            previewFolder = folder
+            previewLink = destination
+            return destination
+        } catch {
+            logFileFailure(error, step: "preview name")
+            return url
+        }
+    }
+
+    private static func shareFileName(title: String, stored: URL) -> String {
+        let storedExt = stored.pathExtension
+        var name = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        name = name.replacingOccurrences(of: "/", with: "-")
+        name = name.replacingOccurrences(of: "\0", with: "")
+        if name.isEmpty || name == "." || name == ".." {
+            name = stored.lastPathComponent
+        }
+        if URL(fileURLWithPath: name).pathExtension.isEmpty, !storedExt.isEmpty {
+            name += ".\(storedExt)"
+        }
+        guard name.count > 180 else { return name }
+        let urlName = URL(fileURLWithPath: name)
+        let ext = urlName.pathExtension
+        var stem = urlName.deletingPathExtension().lastPathComponent
+        let limit = ext.isEmpty ? 180 : max(1, 180 - ext.count - 1)
+        if stem.count > limit { stem = String(stem.prefix(limit)) }
+        return ext.isEmpty ? stem : "\(stem).\(ext)"
     }
 
     /// Finished edits replace the bytes at this file’s own path. Text and the other tools are included.
@@ -1267,6 +1419,18 @@ private final class StoredFilePreviewCoordinator: NSObject, QLPreviewControllerD
     }
 
     nonisolated func previewController(_ controller: QLPreviewController, didUpdateContentsOf previewItem: any QLPreviewItem) {
+        let stored = url
+        if let opened = previewItem.previewItemURL, opened.standardizedFileURL != stored.standardizedFileURL {
+            do {
+                try Vault.replaceStoredFile(at: stored, with: opened)
+            } catch {
+                logFileFailure(error, step: "preview name copy")
+                onMainActor {
+                    self.onFailure(error)
+                }
+                return
+            }
+        }
         updatedInPlace = true
         Logger(subsystem: "app.bellnote", category: "files").info("Preview wrote the open file in place")
         onMainActor {
@@ -1281,6 +1445,7 @@ private final class StoredFilePreviewCoordinator: NSObject, QLPreviewControllerD
         at modifiedContentsURL: URL
     ) {
         let stored = url
+        let named = previewLink
         do {
             try Vault.replaceStoredFile(at: stored, with: modifiedContentsURL)
         } catch {
@@ -1300,6 +1465,13 @@ private final class StoredFilePreviewCoordinator: NSObject, QLPreviewControllerD
             }
             return
         }
+        if let named, named.standardizedFileURL != stored.standardizedFileURL {
+            do {
+                try Vault.replaceStoredFile(at: named, with: modifiedContentsURL)
+            } catch {
+                logFileFailure(error, step: "preview name refresh")
+            }
+        }
         onMainActor {
             controller.refreshCurrentPreviewItem()
             self.onEdited()
@@ -1307,7 +1479,15 @@ private final class StoredFilePreviewCoordinator: NSObject, QLPreviewControllerD
     }
 
     nonisolated func previewControllerDidDismiss(_ controller: QLPreviewController) {
+        let folder = previewFolder
         onMainActor {
+            if let folder {
+                do {
+                    try FileManager.default.removeItem(at: folder)
+                } catch {
+                    logFileFailure(error, step: "preview name remove")
+                }
+            }
             self.onDismiss()
         }
     }

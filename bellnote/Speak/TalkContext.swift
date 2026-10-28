@@ -1,9 +1,9 @@
 import Foundation
 import SwiftData
 
-/// Builds the Talk assistant’s readable facts: every ready note with where it came from, plus a catalogue
-/// of terms, courses, timetable, tasks, exams, and inventory — so the student can ask about the library,
-/// not only spoken lecture text. Settings are not in this catalogue.
+/// Builds the Talk assistant’s readable facts from the terms it is given.
+/// The session passes the term selected on the home page.
+/// Settings are not in this catalogue.
 @MainActor
 enum TalkContext {
     private static let catalogBudget = 4_500

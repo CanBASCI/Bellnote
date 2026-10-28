@@ -18,7 +18,8 @@ enum TalkPhase: Equatable {
 
 /// One tappable Source row under a Talk reply.
 /// Note → Raw minute. Timetable slot → that weekday. Assignment → that task’s week.
-/// Exam → the week of its date. Inventory → that row.
+/// Exam → the week of its date. Inventory → that row. A course file → that copy.
+/// A written sticky → that note on the board.
 struct TalkSourceItem: Identifiable, Equatable, Hashable {
     enum Target: Equatable, Hashable {
         case note(blockID: UUID, second: Int)
@@ -30,6 +31,10 @@ struct TalkSourceItem: Identifiable, Equatable, Hashable {
         case recording(lectureID: PersistentIdentifier)
         /// The lecturer stored on the course. Opens that course’s lecturer sheet.
         case lecturer(courseID: PersistentIdentifier)
+        /// A file in the course cabinet. Opens that copy. The page text is not read.
+        case file(courseID: PersistentIdentifier, fileID: PersistentIdentifier)
+        /// A sticky the student wrote. Opens that note on the course board. A drawing is not described.
+        case sticky(courseID: PersistentIdentifier, token: UUID)
     }
 
     let id: UUID
@@ -87,9 +92,11 @@ final class TalkSession {
     private var terms: [Term] = []
     private var locale = Locale.current
     private weak var session: AppSession?
-    /// Rebuilt when Talk opens or the term list changes — not on every question.
+    /// Rebuilt when Talk opens, the term list changes, or the home page selects another term.
     private var cachedNotes: [StudyBlock] = []
     private var cachedCatalog: [WindowTag] = []
+    /// The home-page term the cache was built from.
+    private var cachedTermID: PersistentIdentifier?
 
     init() {
         reader.ownsAudioSession = true
@@ -142,14 +149,27 @@ final class TalkSession {
         statusLine = ""
     }
 
+    /// The term chosen on the home page. When none is marked open, this is the same term the home page shows.
+    private var selectedTerm: Term? {
+        terms.first { $0.isOpen } ?? terms.last
+    }
+
+    /// Talk reads this term only.
+    private var selectedTerms: [Term] {
+        guard let selectedTerm else { return [] }
+        return [selectedTerm]
+    }
+
     private func refreshCache() {
+        let chosen = selectedTerms
+        cachedTermID = selectedTerm?.persistentModelID
         guard let session else {
-            cachedNotes = TalkContext.noteBlocks(from: terms)
+            cachedNotes = TalkContext.noteBlocks(from: chosen)
             cachedCatalog = []
             return
         }
-        cachedNotes = TalkContext.noteBlocks(from: terms)
-        cachedCatalog = TalkContext.catalogTags(terms: terms, session: session)
+        cachedNotes = TalkContext.noteBlocks(from: chosen)
+        cachedCatalog = TalkContext.catalogTags(terms: chosen, session: session)
         Self.log.info("Talk cache notes=\(self.cachedNotes.count) catalog=\(self.cachedCatalog.count)")
     }
 
@@ -429,7 +449,16 @@ final class TalkSession {
             Self.log.info("Talk covered short-circuit text=\(covered.text, privacy: .public)")
             return covered
         }
-        if cachedNotes.isEmpty && cachedCatalog.isEmpty {
+        if let files = fileReply(for: question) {
+            Self.log.info("Talk file short-circuit text=\(files.text, privacy: .public)")
+            return files
+        }
+        if let stickies = stickyReply(for: question, keys: nil) {
+            Self.log.info("Talk sticky short-circuit text=\(stickies.text, privacy: .public)")
+            return stickies
+        }
+        if cachedTermID != selectedTerm?.persistentModelID
+            || (cachedNotes.isEmpty && cachedCatalog.isEmpty) {
             refreshCache()
         }
         // Fewer blocks + lower token cap = faster on-device replies for live talk.
@@ -461,6 +490,16 @@ final class TalkSession {
         Self.log.info(
             "Talk retrieve ms=\(retrieveMs) poolNotes=\(self.cachedNotes.count) poolCharacters=\(poolCharacters) catalogLines=\(self.cachedCatalog.count) catalogCharacters=\(catalogCharacters) picked=\(pick.blocks.count) pickedCharacters=\(pickedCharacters) question=\(question, privacy: .public)"
         )
+        // A lecture that shares one word is not the source of a fact that lives on a sticky.
+        if !catalogAsk, !topicKeys.isEmpty, !Self.spokenLectureInstead(Self.asciiFold(question)) {
+            let lectureCovers = pick.blocks.contains { block in
+                topicKeys.allSatisfy { Self.topicScore(of: block, keys: [$0]) > 0 }
+            }
+            if !lectureCovers, let stickies = stickyReply(for: question, keys: topicKeys, requireAll: true) {
+                Self.log.info("Talk sticky covers question text=\(stickies.text, privacy: .public)")
+                return stickies
+            }
+        }
         // Aptal, manyak, slang, or any other words that are not in a note. No word list, no model, no Source.
         if !catalogAsk, !topicKeys.isEmpty,
            pick.blocks.allSatisfy({ Self.topicScore(of: $0, keys: topicKeys) == 0 }) {
@@ -578,6 +617,14 @@ final class TalkSession {
         }
         if isInventoryCatalogQuestion(question) {
             return inventorySources(for: question)
+        }
+        let quotedFile = filesQuoted(in: reply)
+        if !quotedFile.isEmpty {
+            return quotedFile
+        }
+        let quotedSticky = stickiesQuoted(in: reply)
+        if !quotedSticky.isEmpty {
+            return quotedSticky
         }
         return noteSources(question: question, pick: pick)
     }
@@ -741,9 +788,7 @@ final class TalkSession {
         let asked = Self.asciiFold(question)
         let named = namesOpenCourse(asked)
         var facts: [SlotFact] = []
-        let pool = terms.filter(\.isOpen)
-        let termsToScan = pool.isEmpty ? terms : pool
-        for term in termsToScan {
+        for term in selectedTerms {
             for slot in term.slots.sorted(by: { ($0.weekday, $0.startMinutes) < ($1.weekday, $1.startMinutes) }) {
                 guard let course = slot.course else { continue }
                 if let onlyWeekday, slot.weekday != onlyWeekday { continue }
@@ -812,9 +857,7 @@ final class TalkSession {
         let named = namesOpenCourse(asked)
         let day = recordingDay(in: question)
         var lectures: [Lecture] = []
-        let pool = terms.filter(\.isOpen)
-        let termsToScan = pool.isEmpty ? terms : pool
-        for term in termsToScan {
+        for term in selectedTerms {
             for course in term.courses {
                 let courseName = Self.asciiFold(course.name)
                 if named, courseName.count >= 3, !asked.contains(courseName) { continue }
@@ -1153,7 +1196,7 @@ final class TalkSession {
 
     private func namedSpeakers() -> [NamedSpeaker] {
         var byKey: [String: NamedSpeaker] = [:]
-        for term in terms {
+        for term in selectedTerms {
             for course in term.courses {
                 for lecture in course.lectures {
                     for line in lecture.speakerNames {
@@ -1226,7 +1269,7 @@ final class TalkSession {
     private func speakerTurns(named speaker: NamedSpeaker, span: DateInterval?) -> [(lecture: Lecture, block: Block)] {
         let key = speaker.tokens.joined(separator: " ")
         var turns: [(lecture: Lecture, block: Block)] = []
-        for term in terms {
+        for term in selectedTerms {
             for course in term.courses {
                 for lecture in course.lectures {
                     if let span, !span.contains(lecture.startedAt) { continue }
@@ -1464,14 +1507,341 @@ final class TalkSession {
         }
     }
 
-    /// Courses named in the question, or every course of the open term when none is named.
+    /// A question about a file in the cabinet. The answer is the name. The page is not read.
+    /// Source is that copy. A question about what was said in class stays on the lecture.
+    private func fileReply(for question: String) -> TalkReply? {
+        let folded = Self.asciiFold(question)
+        let courses = catalogueCourses(in: question)
+        guard !courses.isEmpty else { return nil }
+        let cabinet = Self.mentionsFileCabinet(folded)
+        let namesAFile = Self.questionNamesFile(folded, courses: courses)
+        if Self.spokenLectureInstead(folded) { return nil }
+        if !cabinet, !namesAFile { return nil }
+
+        let kind = Self.fileKind(in: folded)
+        let tokens = Self.specificFileTokens(in: folded)
+        let namedCourse = namesOpenCourse(folded)
+        var lines: [String] = []
+        var sources: [TalkSourceItem] = []
+        for course in courses {
+            let pool = Self.orderedFiles(course.files).filter { file in
+                kind == nil || CourseFileKind(rawValue: file.kind) == kind
+            }
+            let hits = fileHits(in: pool, course: course, cabinet: cabinet, folded: folded, tokens: tokens)
+            if hits.isEmpty {
+                if namedCourse || courses.count == 1 {
+                    if course.files.isEmpty {
+                        lines.append(String(format: String(localized: "There are no files on %@."), course.name))
+                    } else {
+                        lines.append(String(format: String(localized: "No file on %@ matches that name."), course.name))
+                    }
+                }
+                continue
+            }
+            let names = hits.map { Self.shownFileName($0) }.joined(separator: ", ")
+            if hits.count == 1 {
+                lines.append(String(format: String(localized: "The file on %@ is %@."), course.name, names))
+            } else {
+                lines.append(String(format: String(localized: "Files on %@ are %@."), course.name, names))
+            }
+            for file in hits {
+                sources.append(
+                    TalkSourceItem(
+                        title: "\(course.name) · \(Self.shownFileName(file))",
+                        target: .file(courseID: course.persistentModelID, fileID: file.persistentModelID)
+                    )
+                )
+            }
+        }
+        if !cabinet, sources.isEmpty { return nil }
+        if lines.isEmpty {
+            let label = courses.map(\.name).joined(separator: ", ")
+            guard !label.isEmpty else { return nil }
+            lines.append(String(format: String(localized: "There are no files on %@."), label))
+        }
+        return TalkReply(text: lines.joined(separator: " "), sources: sources)
+    }
+
+    /// Every file when the question only asks for the cabinet. Otherwise the names the question actually says.
+    private func fileHits(
+        in pool: [CourseFile],
+        course: Course,
+        cabinet: Bool,
+        folded: String,
+        tokens: [String]
+    ) -> [CourseFile] {
+        if cabinet, tokens.isEmpty { return pool }
+        if cabinet {
+            return pool.filter { Self.fileMatches($0, folded: folded, tokens: tokens) }
+        }
+        let courseName = Self.asciiFold(course.name)
+        let matched = pool.filter { file in
+            let stem = Self.fileStem(file.displayName)
+            return stem.count >= 4 && stem != courseName && folded.contains(stem)
+        }
+        return Self.longestNames(matched)
+    }
+
+    private static func orderedFiles(_ files: [CourseFile]) -> [CourseFile] {
+        files.sorted { lhs, rhs in
+            if lhs.listOrder != rhs.listOrder { return lhs.listOrder < rhs.listOrder }
+            return lhs.addedAt > rhs.addedAt
+        }
+    }
+
+    private static func shownFileName(_ file: CourseFile) -> String {
+        let name = file.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        return name.isEmpty ? file.displayName : name
+    }
+
+    private static func fileStem(_ name: String) -> String {
+        let url = URL(fileURLWithPath: name)
+        let stem = url.pathExtension.isEmpty ? name : url.deletingPathExtension().lastPathComponent
+        return asciiFold(stem)
+    }
+
+    /// The question says a file’s name. “Nerede” is not required.
+    private static func questionNamesFile(_ folded: String, courses: [Course]) -> Bool {
+        for course in courses {
+            let courseName = asciiFold(course.name)
+            for file in course.files {
+                let stem = fileStem(file.displayName)
+                if stem.count >= 4, stem != courseName, folded.contains(stem) { return true }
+            }
+        }
+        return false
+    }
+
+    /// A shorter name that sits inside a longer matching name is left out.
+    private static func longestNames(_ files: [CourseFile]) -> [CourseFile] {
+        files.filter { file in
+            let stem = fileStem(file.displayName)
+            return !files.contains { other in
+                let otherStem = fileStem(other.displayName)
+                return other !== file && otherStem.count > stem.count && otherStem.contains(stem)
+            }
+        }
+    }
+
+    /// The reply is a file’s name. That copy is the source, not a Raw minute.
+    private func filesQuoted(in reply: String) -> [TalkSourceItem] {
+        let replyFlat = Self.flat(reply)
+        guard replyFlat.count >= 4 else { return [] }
+        var items: [TalkSourceItem] = []
+        for course in catalogueCourses(in: "") {
+            let courseName = Self.asciiFold(course.name)
+            let hits = course.files.filter { file in
+                let stem = Self.flat(Self.fileStem(file.displayName))
+                return stem.count >= 4 && stem != courseName && replyFlat.contains(stem)
+            }
+            for file in Self.longestNames(hits) {
+                items.append(
+                    TalkSourceItem(
+                        title: "\(course.name) · \(Self.shownFileName(file))",
+                        target: .file(courseID: course.persistentModelID, fileID: file.persistentModelID)
+                    )
+                )
+            }
+        }
+        return items
+    }
+
+    private static func fileMatches(_ file: CourseFile, folded: String, tokens: [String]) -> Bool {
+        let stem = fileStem(file.displayName)
+        if stem.count >= 4, folded.contains(stem) { return true }
+        return tokens.contains { stem.contains($0) }
+    }
+
+    /// dosya, pdf, resim, fotoğraf, slayt, and the same words in English. A whole word, so “profile” is not a file.
+    private static func mentionsFileCabinet(_ folded: String) -> Bool {
+        folded.split { !$0.isLetter }.contains { fileCue(String($0)) }
+    }
+
+    private static func fileCue(_ token: String) -> Bool {
+        if token.hasPrefix("dosya") || token.hasPrefix("pdf") || token.hasPrefix("resim")
+            || token.hasPrefix("foto") || token.hasPrefix("slayt") || token.hasPrefix("gorsel")
+        {
+            return true
+        }
+        switch token {
+        case "file", "files", "photo", "photos", "image", "images", "picture", "pictures", "slide", "slides":
+            return true
+        default:
+            return false
+        }
+    }
+
+    /// pdf, slide, or image when the question names that kind. Nil lists every file in the cabinet.
+    private static func fileKind(in folded: String) -> CourseFileKind? {
+        let tokens = folded.split { !$0.isLetter }.map(String.init)
+        if tokens.contains(where: { $0.hasPrefix("pdf") }) { return .pdf }
+        if tokens.contains(where: { $0.hasPrefix("slayt") || $0 == "slide" || $0 == "slides" }) { return .slide }
+        if tokens.contains(where: {
+            $0.hasPrefix("resim") || $0.hasPrefix("foto")
+                || $0 == "photo" || $0 == "photos"
+                || $0 == "image" || $0 == "images"
+                || $0 == "picture" || $0 == "pictures"
+        }) { return .image }
+        return nil
+    }
+
+    /// Words that point at a file name, after the cabinet words and “where” are taken out.
+    private static func specificFileTokens(in folded: String) -> [String] {
+        contentTokens(for: folded).filter { !fileCue($0) && !whereCue($0) }
+    }
+
+    private static func asksWhere(_ folded: String) -> Bool {
+        folded.split { !$0.isLetter }.contains { whereCue(String($0)) }
+    }
+
+    private static func whereCue(_ token: String) -> Bool {
+        token == "nerede" || token == "where" || token == "show" || token == "open" || token == "ac"
+            || token.hasPrefix("goster")
+    }
+
+    /// “What did the lecturer say” stays on the lecture, even if a file name is nearby.
+    private static func spokenLectureInstead(_ folded: String) -> Bool {
+        if folded.contains("notlar") || folded.contains("notlarda") || folded.contains("notes") { return true }
+        if folded.contains("anlat") || folded.contains("soyled")
+            || folded.contains("explain") || folded.contains("what did") || folded.contains("said about")
+        {
+            return true
+        }
+        let tokens = folded.split { !$0.isLetter }.map(String.init)
+        if tokens.contains(where: {
+            $0 == "dedi" || $0.hasPrefix("dediler") || $0.hasPrefix("dedim") || $0.hasPrefix("dedin") || $0 == "dedik"
+        }) { return true }
+        return folded.contains("ne demis")
+    }
+
+    /// A written sticky is the student’s note. A drawing is not read.
+    /// Naming a sticky lists them. Otherwise a sticky answers only when the lectures do not contain the question.
+    private func stickyReply(for question: String, keys: [String]?, requireAll: Bool = false) -> TalkReply? {
+        let folded = Self.asciiFold(question)
+        let asked = Self.mentionsSticky(folded)
+        if !asked {
+            guard let keys, !keys.isEmpty, !Self.spokenLectureInstead(folded) else { return nil }
+        }
+        let courses = catalogueCourses(in: question)
+        guard !courses.isEmpty else { return nil }
+        let namedCourse = namesOpenCourse(folded)
+        var lines: [String] = []
+        var sources: [TalkSourceItem] = []
+        for course in courses {
+            let notes = course.stickies.sorted { $0.updatedAt > $1.updatedAt }
+            let written = notes.filter { !Self.stickyText($0).isEmpty }
+            let drawings = notes.filter { Self.stickyText($0).isEmpty && Self.isDrawn($0) }
+            let chosen: [StickyNote]
+            if asked {
+                chosen = written
+            } else if requireAll {
+                chosen = written.filter { Self.stickyCovers($0, keys: keys ?? []) }
+            } else {
+                chosen = written.filter { Self.stickyHits($0, keys: keys ?? []) }
+            }
+            if chosen.isEmpty, !(asked && !drawings.isEmpty) {
+                if asked, notes.isEmpty, namedCourse || courses.count == 1 {
+                    lines.append(String(format: String(localized: "There are no stickies on %@."), course.name))
+                }
+                continue
+            }
+            if !chosen.isEmpty {
+                let body = chosen.map { Self.stickyText($0) }.joined(separator: "; ")
+                if chosen.count == 1 {
+                    lines.append(String(format: String(localized: "Your sticky on %@ says %@."), course.name, body))
+                } else {
+                    lines.append(String(format: String(localized: "Your stickies on %@ say %@."), course.name, body))
+                }
+                for note in chosen {
+                    sources.append(stickySource(note, course: course))
+                }
+            }
+            if asked, !drawings.isEmpty {
+                lines.append(String(format: String(localized: "You drew a sticky on %@. It is not described."), course.name))
+                for note in drawings {
+                    sources.append(stickySource(note, course: course))
+                }
+            }
+        }
+        if !asked, sources.isEmpty { return nil }
+        if lines.isEmpty {
+            let label = courses.map(\.name).joined(separator: ", ")
+            guard !label.isEmpty else { return nil }
+            lines.append(String(format: String(localized: "There are no stickies on %@."), label))
+        }
+        return TalkReply(text: lines.joined(separator: " "), sources: sources)
+    }
+
+    private func stickySource(_ note: StickyNote, course: Course) -> TalkSourceItem {
+        let text = Self.stickyText(note).replacingOccurrences(of: "\n", with: " ")
+        let head: String
+        if text.isEmpty {
+            head = String(localized: "A drawing")
+        } else if text.count > 42 {
+            head = String(text.prefix(42))
+        } else {
+            head = text
+        }
+        return TalkSourceItem(
+            title: "\(course.name) · \(head)",
+            target: .sticky(courseID: course.persistentModelID, token: note.token)
+        )
+    }
+
+    private static func stickyText(_ note: StickyNote) -> String {
+        note.text.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func isDrawn(_ note: StickyNote) -> Bool {
+        note.drawingData?.isEmpty == false
+    }
+
+    private static func stickyHits(_ note: StickyNote, keys: [String]) -> Bool {
+        let folded = asciiFold(stickyText(note))
+        guard !folded.isEmpty else { return false }
+        return keys.contains { folded.contains($0) }
+    }
+
+    /// Every question word is on this note. One shared word is not enough.
+    private static func stickyCovers(_ note: StickyNote, keys: [String]) -> Bool {
+        let folded = asciiFold(stickyText(note))
+        guard !folded.isEmpty, !keys.isEmpty else { return false }
+        return keys.allSatisfy { folded.contains($0) }
+    }
+
+    /// The reply repeats a written sticky. That note is the source, not a Raw minute that shared a word.
+    private func stickiesQuoted(in reply: String) -> [TalkSourceItem] {
+        let replyFlat = Self.flat(reply)
+        guard replyFlat.count >= 4 else { return [] }
+        var items: [TalkSourceItem] = []
+        for course in catalogueCourses(in: "") {
+            for note in course.stickies where !Self.stickyText(note).isEmpty {
+                let flat = Self.flat(Self.stickyText(note))
+                guard flat.count >= 4, replyFlat.contains(flat) else { continue }
+                items.append(stickySource(note, course: course))
+            }
+        }
+        return items
+    }
+
+    private static func flat(_ text: String) -> String {
+        asciiFold(text).split { !$0.isLetter && !$0.isNumber }.map(String.init).joined(separator: " ")
+    }
+
+    /// yapışkan, sticky. A lecture “not” is not a sticky.
+    private static func mentionsSticky(_ folded: String) -> Bool {
+        folded.split { !$0.isLetter }.contains { token in
+            let word = String(token)
+            return word.hasPrefix("yapiskan") || word.hasPrefix("sticky")
+        }
+    }
+
+    /// Courses named in the question, or every course of the selected term when none is named.
     private func catalogueCourses(in question: String) -> [Course] {
         let folded = Self.asciiFold(question)
         let named = namesOpenCourse(folded)
-        let pool = terms.filter(\.isOpen)
-        let termsToScan = pool.isEmpty ? terms : pool
         var courses: [Course] = []
-        for term in termsToScan {
+        for term in selectedTerms {
             let ordered = term.courses.sorted {
                 $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
             }
@@ -1842,11 +2212,9 @@ final class TalkSession {
         return false
     }
 
-    /// True when the question names a course stored on an open term.
+    /// True when the question names a course stored on the selected term.
     private func namesOpenCourse(_ folded: String) -> Bool {
-        let pool = terms.filter(\.isOpen)
-        let termsToScan = pool.isEmpty ? terms : pool
-        for term in termsToScan {
+        for term in selectedTerms {
             for course in term.courses {
                 let name = Self.asciiFold(course.name)
                 if name.count >= 3, folded.contains(name) { return true }
@@ -1917,7 +2285,7 @@ final class TalkSession {
         let folded = Self.asciiFold(text)
         let hasInv =
             folded.contains("kitap") || folded.contains("book") || folded.contains("inventory")
-            || folded.contains("envanter") || folded.contains("dosya") || folded.contains("file")
+            || folded.contains("envanter")
             || (folded.contains("chapter") && (folded.contains("book") || folded.contains("kitap")))
         guard hasInv else { return false }
         if asksForLectureNotes(folded) { return false }
@@ -1927,7 +2295,7 @@ final class TalkSession {
         {
             return true
         }
-        return folded.contains("kitaplar") || folded.contains("books") || folded.contains("files")
+        return folded.contains("kitaplar") || folded.contains("books")
     }
 
     /// Student wants lecture / Raw content, not the assignment or exam table.

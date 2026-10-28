@@ -318,6 +318,22 @@
     "+ %@" : {
 
     },
+    "A drawing" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A drawing"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bir çizim"
+          }
+        }
+      }
+    },
     "A model is not available." : {
       "localizations" : {
         "en" : {
@@ -1833,6 +1849,22 @@
         }
       }
     },
+    "Edit file" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edit file"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dosyayı düzenle"
+          }
+        }
+      }
+    },
     "Edit slot" : {
       "localizations" : {
         "en" : {
@@ -2142,6 +2174,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Dosyalar"
+          }
+        }
+      }
+    },
+    "Files on %@ are %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Files on %@ are %@."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ dosyaları: %@."
           }
         }
       }
@@ -3368,6 +3416,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ için soyadı yazılmamış."
+          }
+        }
+      }
+    },
+    "No file on %@ matches that name." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No file on %@ matches that name."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ için bu adda dosya yok."
           }
         }
       }
@@ -5884,6 +5948,22 @@
         }
       }
     },
+    "The file on %@ is %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The file on %@ is %@."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ dosyası: %@."
+          }
+        }
+      }
+    },
     "The given name for %@ is %@." : {
       "localizations" : {
         "en" : {
@@ -6236,6 +6316,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Transkript kalite kontrolünden geçemedi."
+          }
+        }
+      }
+    },
+    "There are no files on %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "There are no files on %@."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ için dosya yok."
+          }
+        }
+      }
+    },
+    "There are no stickies on %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "There are no stickies on %@."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ için yapışkan not yok."
           }
         }
       }
@@ -7016,6 +7128,22 @@
         }
       }
     },
+    "You drew a sticky on %@. It is not described." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You drew a sticky on %@. It is not described."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ tahtasına bir yapışkan çizdin. Anlatılmaz."
+          }
+        }
+      }
+    },
     "You have no class on %@." : {
       "localizations" : {
         "en" : {
@@ -7124,6 +7252,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Derslerin toplamı %lld saat %lld dakika."
+          }
+        }
+      }
+    },
+    "Your stickies on %@ say %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your stickies on %@ say %@."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ yapışkanların: %@."
+          }
+        }
+      }
+    },
+    "Your sticky on %@ says %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your sticky on %@ says %@."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ yapışkanın: %@."
           }
         }
       }

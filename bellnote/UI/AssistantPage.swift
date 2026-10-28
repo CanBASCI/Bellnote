@@ -57,6 +57,30 @@ private struct TalkCourseJump: Identifiable, Hashable {
     }
 }
 
+/// A file Source. Opens the copy the course keeps.
+private struct TalkFilePreview: Identifiable {
+    var id: String
+    var url: URL
+    var title: String
+    var courseID: PersistentIdentifier
+    var fileID: PersistentIdentifier
+}
+
+/// Sticky Source. Opens that note on the course board.
+private struct TalkStickyJump: Identifiable, Hashable {
+    var id: String
+    var course: Course
+    var token: UUID
+
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.id == rhs.id
+    }
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+    }
+}
+
 /// Assistant tab: live voice assistant over every ready lecture, session memory only.
 /// Stays off while any recording is processed so the pipeline keeps the model and memory.
 struct AssistantPage: View {
@@ -69,6 +93,9 @@ struct AssistantPage: View {
     @State private var sourceJump: TalkSourceJump?
     @State private var timetableJump: TalkTimetableJump?
     @State private var courseJump: TalkCourseJump?
+    @State private var filePreview: TalkFilePreview?
+    @State private var stickyJump: TalkStickyJump?
+    @State private var fileNotice: String?
     @State private var sourceMenu: [TalkSourceItem] = []
     @State private var showSourceMenu = false
     private var processingBusy: Bool { PipelineActivity.shared.isBusy }
@@ -103,6 +130,9 @@ struct AssistantPage: View {
         .navigationDestination(item: $courseJump) { jump in
             CoursePage(course: jump.course, weekStart: jump.weekStart, focus: jump.focus)
         }
+        .navigationDestination(item: $stickyJump) { jump in
+            CourseCabinetPage(course: jump.course, openSticky: jump.token)
+        }
         .onAppear {
             Self.log.info("Assistant appear busy=\(self.processingBusy) terms=\(self.terms.count) phase=\(String(describing: self.talk.phase), privacy: .public)")
             syncTalk()
@@ -132,6 +162,35 @@ struct AssistantPage: View {
         .onChange(of: courseJump) { previous, jump in
             guard previous != nil, jump == nil else { return }
             resumeTalkAfterSource()
+        }
+        .onChange(of: stickyJump) { previous, jump in
+            guard previous != nil, jump == nil else { return }
+            resumeTalkAfterSource()
+        }
+        .onChange(of: filePreview?.id) { previous, next in
+            guard previous != nil, next == nil else { return }
+            resumeTalkAfterSource()
+        }
+        .fullScreenCover(item: $filePreview) { preview in
+            CourseFilePreview(url: preview.url, title: preview.title) { error in
+                Self.log.error(
+                    "Talk preview save failed \(error.localizedDescription, privacy: .public)"
+                )
+                fileNotice = String(localized: "The change could not be saved.")
+            } onEdited: {
+                markOpenedFileEdited(courseID: preview.courseID, fileID: preview.fileID)
+            } onDismiss: {
+                filePreview = nil
+            }
+        }
+        .alert(
+            fileNotice ?? "",
+            isPresented: Binding(
+                get: { fileNotice != nil },
+                set: { if !$0 { fileNotice = nil } }
+            )
+        ) {
+            Button("OK", role: .cancel) { fileNotice = nil }
         }
     }
 
@@ -412,6 +471,48 @@ struct AssistantPage: View {
                 weekStart: nil,
                 focus: .lecturer
             )
+        case .file(let courseID, let fileID):
+            guard let file = storedFile(courseID: courseID, fileID: fileID) else {
+                Self.log.error("Talk source file missing")
+                fileNotice = String(localized: "The file could not be opened.")
+                return
+            }
+            let url: URL
+            do {
+                url = try Vault.documents().appendingPathComponent(file.relativePath)
+            } catch {
+                Self.log.error("Talk source file path failed \(error.localizedDescription, privacy: .public)")
+                fileNotice = String(localized: "The file could not be opened.")
+                return
+            }
+            guard FileManager.default.fileExists(atPath: url.path) else {
+                Self.log.error("Talk source file missing on disk")
+                fileNotice = String(localized: "The file could not be opened.")
+                return
+            }
+            Self.log.info("Talk source open file title=\(file.displayName, privacy: .public)")
+            talk.stop()
+            filePreview = TalkFilePreview(
+                id: String(describing: fileID),
+                url: url,
+                title: file.displayName,
+                courseID: courseID,
+                fileID: fileID
+            )
+        case .sticky(let courseID, let token):
+            guard let course = course(id: courseID),
+                  course.stickies.contains(where: { $0.token == token })
+            else {
+                Self.log.error("Talk source sticky missing")
+                return
+            }
+            Self.log.info("Talk source open sticky")
+            talk.stop()
+            stickyJump = TalkStickyJump(
+                id: "sticky-\(token.uuidString)",
+                course: course,
+                token: token
+            )
         case .recording(let lectureID):
             guard let lecture = lecture(id: lectureID) else {
                 Self.log.error("Talk source recording missing")
@@ -455,6 +556,27 @@ struct AssistantPage: View {
 
     private func course(id: PersistentIdentifier) -> Course? {
         modelContext.model(for: id) as? Course
+    }
+
+    private func storedFile(courseID: PersistentIdentifier, fileID: PersistentIdentifier) -> CourseFile? {
+        guard let course = course(id: courseID) else { return nil }
+        return course.files.first { $0.persistentModelID == fileID }
+    }
+
+    /// A preview edit was written into this copy. The row then shows that day above the day it was added.
+    private func markOpenedFileEdited(courseID: PersistentIdentifier, fileID: PersistentIdentifier) {
+        guard let file = storedFile(courseID: courseID, fileID: fileID) else {
+            Self.log.error("Talk edited file was not on the course")
+            return
+        }
+        file.updatedAt = .now
+        guard modelContext.hasChanges else { return }
+        do {
+            try modelContext.save()
+        } catch {
+            Self.log.error("Talk file save failed \(error.localizedDescription, privacy: .public)")
+            fileNotice = String(localized: "The change could not be saved.")
+        }
     }
 
     private func syncTalk() {
