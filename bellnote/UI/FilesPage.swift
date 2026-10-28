@@ -671,11 +671,8 @@ private struct StickyPaper: View {
         let drawn = stored?.isEmpty == false
         return ZStack(alignment: .topLeading) {
             if drawn, let data = stored {
-                StickyInk(
-                    data: data,
-                    paper: UIColor(CourseStyle.color(at: note.colorIndex, fallbackName: courseName))
-                )
-                .allowsHitTesting(false)
+                StickyInk(data: data, paper: .white)
+                    .allowsHitTesting(false)
             } else {
                 Text(verbatim: note.text)
                     .appFont(.body)
@@ -689,13 +686,13 @@ private struct StickyPaper: View {
         }
         .frame(width: width, height: height)
         .background(
-            CourseStyle.color(at: note.colorIndex, fallbackName: courseName),
+            drawn ? Color.white : CourseStyle.color(at: note.colorIndex, fallbackName: courseName),
             in: RoundedRectangle(cornerRadius: 4, style: .continuous)
         )
         .overlay {
             if selected {
                 RoundedRectangle(cornerRadius: 4, style: .continuous)
-                    .strokeBorder(.white.opacity(0.92), lineWidth: 2)
+                    .strokeBorder(drawn ? Color.primary : Color.white.opacity(0.92), lineWidth: 2)
             }
         }
         .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
@@ -902,7 +899,7 @@ private struct StickyEditor: View {
             VStack(spacing: 0) {
                 ZStack(alignment: .topLeading) {
                     if drawingMode {
-                        StickyCanvas(drawing: $drawing, canvasSize: $drawingSize, paper: UIColor(paperColor))
+                        StickyCanvas(drawing: $drawing, canvasSize: $drawingSize, pen: UIColor(paperColor))
                     } else {
                         // The same line range as before the draw control. The control sits in an overlay, so it
                         // does not take part in this height.
@@ -920,7 +917,7 @@ private struct StickyEditor: View {
                         Button(action: closeDrawing) {
                             Image(systemName: "keyboard")
                                 .font(.body)
-                                .foregroundStyle(.white)
+                                .foregroundStyle(.primary)
                                 .frame(width: 44, height: 44)
                         }
                         .buttonStyle(.plain)
@@ -938,7 +935,7 @@ private struct StickyEditor: View {
                 }
                 .background {
                     RoundedRectangle(cornerRadius: drawingMode ? 4 : 12, style: .continuous)
-                        .fill(drawingMode ? paperColor : Color(.secondarySystemBackground))
+                        .fill(drawingMode ? Color.white : Color(.secondarySystemBackground))
                 }
                 .clipShape(RoundedRectangle(cornerRadius: drawingMode ? 4 : 12, style: .continuous))
                 .padding(.horizontal, 16)
@@ -1058,11 +1055,12 @@ private struct StickyEditor: View {
     }
 }
 
-/// One page of ink. Finger or pencil draws in white. The page does not scroll, so the strokes stay on the sticky.
+/// One page of ink. The page is white. The pen is the color chosen below, and a stroke keeps that color.
+/// The page does not scroll, so the strokes stay on the sticky.
 private struct StickyCanvas: UIViewRepresentable {
     @Binding var drawing: PKDrawing
     @Binding var canvasSize: CGSize
-    var paper: UIColor
+    var pen: UIColor
 
     func makeCoordinator() -> Coordinator {
         Coordinator(drawing: $drawing, canvasSize: $canvasSize)
@@ -1071,9 +1069,9 @@ private struct StickyCanvas: UIViewRepresentable {
     func makeUIView(context: Context) -> PKCanvasView {
         let canvas = PKCanvasView()
         canvas.drawing = drawing
-        canvas.backgroundColor = paper
+        canvas.backgroundColor = .white
         canvas.isOpaque = true
-        canvas.tool = PKInkingTool(.pen, color: .white, width: 6)
+        canvas.tool = PKInkingTool(.pen, color: pen, width: 6)
         canvas.drawingPolicy = .anyInput
         canvas.isScrollEnabled = false
         canvas.delegate = context.coordinator
@@ -1084,8 +1082,8 @@ private struct StickyCanvas: UIViewRepresentable {
         context.coordinator.drawing = $drawing
         context.coordinator.canvasSize = $canvasSize
         canvas.delegate = context.coordinator
-        canvas.backgroundColor = paper
-        canvas.tool = PKInkingTool(.pen, color: .white, width: 6)
+        canvas.backgroundColor = .white
+        canvas.tool = PKInkingTool(.pen, color: pen, width: 6)
         // Only the first pass copies a stored drawing in. Later refreshes must not replace the strokes
         // the student is drawing, or the save would keep an empty page.
         // The delegate is off for that copy. Setting the drawing otherwise writes the binding during this update.
