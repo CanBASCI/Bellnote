@@ -59,6 +59,8 @@ struct TermHomeView: View {
                     }
                     .tabItem { Label("Files", systemImage: "folder") }
                     .tag(HomeTab.files)
+                    // Off until the term has a course. A file belongs to a course.
+                    .disabled(term.courses.isEmpty)
 
                     NavigationStack {
                         AssistantPage()
@@ -77,6 +79,9 @@ struct TermHomeView: View {
                     .disabled(PipelineActivity.shared.isBusy)
                 }
                 .tabBarMinimizeBehavior(.onScrollDown)
+                .onChange(of: term.courses.isEmpty) { _, empty in
+                    if empty, tab == .files { tab = .home }
+                }
                 .tabViewBottomAccessory(isEnabled: session.player != nil) {
                     if let player = session.player {
                         PlayerAccessory(audio: player)

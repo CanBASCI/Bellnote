@@ -41,7 +41,7 @@ struct FilesPage: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(.systemBackground))
+        .background(Color(.systemGroupedBackground))
         .navigationTitle("Files")
         .navigationBarTitleDisplayMode(.inline)
     }
@@ -332,31 +332,50 @@ private struct CourseCabinetPage: View {
     }
 
     private var fileList: some View {
-        List {
+        Group {
             if files.isEmpty {
-                ContentUnavailableView("No files yet", systemImage: "doc")
-                    .listRowSeparator(.hidden)
-                    .listRowBackground(Color.clear)
+                emptyCabinetLine("No files yet", systemImage: "doc")
             } else {
-                Section {
-                    ForEach(files) { file in
-                        let isFirst = file.persistentModelID == files.first?.persistentModelID
-                        let isLast = file.persistentModelID == files.last?.persistentModelID
-                        Button {
-                            open(file)
-                        } label: {
-                            fileRow(file)
-                        }
-                        .buttonStyle(.plain)
-                        .listRowInsets(.vertical, 8)
-                        .listRowBackground(Color(.systemGroupedBackground))
-                        .fileEdgeSeparators(first: isFirst, last: isLast)
-                        .askToDeleteSwipe { pendingFile = file }
-                    }
-                    .reorderable(collectionID: CourseFileList.files)
-                }
-                .listSectionSeparator(.hidden, edges: .all)
+                fileRows
             }
+        }
+    }
+
+    /// A secondary icon above a secondary title, centered. The title matches an unprocessed recording.
+    private func emptyCabinetLine(_ title: LocalizedStringKey, systemImage: String) -> some View {
+        VStack(spacing: 14) {
+            Image(systemName: systemImage)
+                .font(.system(size: 44))
+                .foregroundStyle(.secondary)
+                .accessibilityHidden(true)
+            Text(title)
+                .appFont(.title3, weight: .semibold)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var fileRows: some View {
+        List {
+            Section {
+                ForEach(files) { file in
+                    let isFirst = file.persistentModelID == files.first?.persistentModelID
+                    let isLast = file.persistentModelID == files.last?.persistentModelID
+                    Button {
+                        open(file)
+                    } label: {
+                        fileRow(file)
+                    }
+                    .buttonStyle(.plain)
+                    .listRowInsets(.vertical, 8)
+                    .listRowBackground(Color(.systemGroupedBackground))
+                    .fileEdgeSeparators(first: isFirst, last: isLast)
+                    .askToDeleteSwipe { pendingFile = file }
+                }
+                .reorderable(collectionID: CourseFileList.files)
+            }
+            .listSectionSeparator(.hidden, edges: .all)
         }
         .reorderContainer(for: CourseFile.self, in: CourseFileList.self) { difference in
             applyFileOrder(difference)
@@ -365,6 +384,7 @@ private struct CourseCabinetPage: View {
         .scrollContentBackground(.hidden)
         .listSectionSeparator(.hidden, edges: .all)
         .environment(\.defaultMinListHeaderHeight, 0)
+        .background(Color(.systemGroupedBackground))
         .background(FileListChrome())
         // The list starts closer to the bar. Only the list moves; the bar and the tabs stay as they are.
         .contentMargins(.top, 0, for: .scrollContent)
@@ -377,7 +397,7 @@ private struct CourseCabinetPage: View {
                     .contentShape(Rectangle())
                     .onTapGesture { selectedSticky = nil }
                 if stickies.isEmpty {
-                    ContentUnavailableView("No stickies yet", systemImage: "note.text")
+                    emptyCabinetLine("No stickies yet", systemImage: "note.text")
                         .allowsHitTesting(false)
                 }
                 ForEach(stickies) { note in

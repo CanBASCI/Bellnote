@@ -200,6 +200,7 @@
 				DE0183CF307D921C007402E2 /* Frameworks */,
 				DE0183D0307D921C007402E2 /* Resources */,
 				DEA39D183085132E004E5ECF /* Embed Foundation Extensions */,
+				DE0D570012F00000000000B1 /* Generate vendor dSYMs */,
 			);
 			buildRules = (
 			);
@@ -366,6 +367,46 @@
 			);
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		DE0D570012F00000000000B1 /* Generate vendor dSYMs */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			name = "Generate vendor dSYMs";
+			shellPath = /bin/sh;
+			shellScript = (
+				"if [ \"$${ACTION}\" != \"install\" ]; then",
+				"  exit 0",
+				"fi",
+				"frameworks_dir=\"$${TARGET_BUILD_DIR}/$${FRAMEWORKS_FOLDER_PATH}\"",
+				"dsym_dir=\"$${DWARF_DSYM_FOLDER_PATH}\"",
+				"if [ -z \"$${dsym_dir}\" ]; then",
+				"  echo \"error: DWARF_DSYM_FOLDER_PATH is empty, so vendor symbols cannot be written\"",
+				"  exit 1",
+				"fi",
+				"mkdir -p \"$${dsym_dir}\"",
+				"missing=0",
+				"for name in SherpaOnnxC onnxruntime; do",
+				"  binary=\"$${frameworks_dir}/$${name}.framework/$${name}\"",
+				"  if [ ! -f \"$${binary}\" ]; then",
+				"    echo \"error: $${binary} is not in the app, so its dSYM cannot be written\"",
+				"    missing=1",
+				"    continue",
+				"  fi",
+				"  dsymutil \"$${binary}\" -o \"$${dsym_dir}/$${name}.framework.dSYM\"",
+				"  status=$$?",
+				"  if [ \"$${status}\" -ne 0 ]; then",
+				"    echo \"error: dsymutil failed for $${name} with status $${status}\"",
+				"    exit \"$${status}\"",
+				"  fi",
+				"done",
+				"if [ \"$${missing}\" -ne 0 ]; then",
+				"  exit 1",
+				"fi",
+				"",
+			);
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		DE0183CE307D921C007402E2 /* Sources */ = {
@@ -547,6 +588,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = bellnote/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Bellnote;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.education";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Takes a board photo or reads a schedule you choose, on this device.";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "Unlocks notes stored on this device.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Records a class you are permitted to record, for personal notes, on this device.";
@@ -606,6 +648,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = bellnote/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Bellnote;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.education";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Takes a board photo or reads a schedule you choose, on this device.";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "Unlocks notes stored on this device.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Records a class you are permitted to record, for personal notes, on this device.";
