@@ -17,16 +17,50 @@ enum LectureStarter {
         course.lectures.append(lecture)
         return lecture
     }
+
+    /// Stores a file the student already recorded as a lecture that was just stopped. Process reads it the same way.
+    @MainActor
+    static func importAudio(course: Course, faceID: Bool, from source: URL, context: ModelContext) throws {
+        let lecture = make(course: course, faceID: faceID, context: context)
+        do {
+            let stored = try Vault.importLectureAudio(courseID: course.token, startedAt: lecture.startedAt, from: source)
+            lecture.audioRelativePath = stored.relativePath
+            lecture.recordedSeconds = stored.seconds
+            lecture.state = LectureState.paused.rawValue
+            lecture.stage = PipelineStage.idle.rawValue
+            try context.save()
+        } catch {
+            if let path = lecture.audioRelativePath {
+                do {
+                    try Vault.removeStoredFile(relativePath: path)
+                } catch {
+                    Logger(subsystem: "app.bellnote", category: "capture").error(
+                        "Imported audio could not be removed: \(error.localizedDescription, privacy: .public)"
+                    )
+                }
+            }
+            context.delete(lecture)
+            do {
+                try context.save()
+            } catch {
+                Logger(subsystem: "app.bellnote", category: "capture").error(
+                    "Imported lecture could not be removed: \(error.localizedDescription, privacy: .public)"
+                )
+            }
+            throw error
+        }
+    }
 }
 
 /// One line under a count tile. The symbol and the word lead. The value sits at the trailing end.
-/// A zero count is quiet. An exam line is the sitting itself, so it is never quiet.
+/// A zero count is quiet. A past exam strikes the day and time. The kind stays plain.
 private struct StatDetail: Identifiable, Hashable {
     let id: String
     let symbol: String
     let label: String
     let value: String
     let quiet: Bool
+    var struck: Bool = false
 }
 
 /// Ask → Source hand-off: recording plus the Raw block to open, kept in one value for the push.
@@ -486,30 +520,34 @@ struct CoursePage: View {
                     symbol: "calendar",
                     label: examKindName(sitting),
                     value: examWhen(sitting),
-                    quiet: false
+                    quiet: false,
+                    struck: examIsPast(sitting)
                 )
             }
     }
 
-    /// Today or later, soonest first. Dates already past follow, the latest of those first. No date goes last.
+    /// The same order as the home exam list: today or later, soonest first, then past dates, the latest of those first.
     private func nearestFirst(_ sittings: [ExamSitting]) -> [ExamSitting] {
-        let calendar = Calendar.current
-        let today = calendar.startOfDay(for: .now)
-        return sittings.sorted { lhs, rhs in
-            let left = lhs.date.map { calendar.startOfDay(for: $0) }
-            let right = rhs.date.map { calendar.startOfDay(for: $0) }
-            switch (left, right) {
-            case (nil, _):
-                return false
-            case (_, nil):
-                return true
-            case let (left?, right?):
-                let leftPast = left < today
-                let rightPast = right < today
-                if leftPast != rightPast { return !leftPast }
-                return leftPast ? left > right : left < right
-            }
+        let rows = sittings.map { sitting in
+            ExamRow(
+                id: sitting.token,
+                courseName: course.name,
+                kind: sitting.kind,
+                title: sitting.title,
+                date: sitting.date,
+                startMinutes: sitting.startMinutes,
+                endMinutes: sitting.endMinutes
+            )
         }
+        let byToken = Dictionary(uniqueKeysWithValues: sittings.map { ($0.token, $0) })
+        return ExamSort.ordered(rows).compactMap { byToken[$0.id] }
+    }
+
+    /// A sitting whose day is before today. Today stays open.
+    private func examIsPast(_ sitting: ExamSitting) -> Bool {
+        guard let date = sitting.date else { return false }
+        let calendar = Calendar.current
+        return calendar.startOfDay(for: date) < calendar.startOfDay(for: .now)
     }
 
     /// Day and month, then the start time when one is set. No year, so the kind still fits on the line.
@@ -673,6 +711,8 @@ struct CoursePage: View {
             Text(verbatim: line.value)
                 .appFont(.footnote, digits: true)
                 .layoutPriority(1)
+                .strikethrough(line.struck)
+                .foregroundStyle(line.quiet || line.struck ? Color.secondary : Color.primary)
         }
         .appFont(.footnote)
         .foregroundStyle(line.quiet ? Color.secondary : Color.primary)

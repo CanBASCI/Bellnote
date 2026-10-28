@@ -157,7 +157,14 @@ enum TalkContext {
         for sitting in course.sittings {
             let when = sitting.date?.formatted(dateFormat) ?? "no date"
             let title = sitting.title.isEmpty ? sitting.kind : sitting.title
-            let score = sitting.scoreText.isEmpty ? "no score" : "score \(sitting.scoreText)"
+            let score: String
+            if sitting.scoreText.isEmpty {
+                score = "no score"
+            } else if let grade = ExamGrade.mark(for: sitting.scoreText) {
+                score = "score \(sitting.scoreText) out of 100, letter \(grade.letter), \(grade.result.catalogue)"
+            } else {
+                score = "score \(sitting.scoreText) out of 100"
+            }
             let place = sitting.place.isEmpty ? "no place" : sitting.place
             lines.append(
                 "Exam in \(course.name) (\(termLabel)): \(title); \(when); \(place); \(score)."
@@ -166,6 +173,27 @@ enum TalkContext {
         for item in course.inventory {
             lines.append(
                 "Inventory in \(course.name) (\(termLabel)): \(item.title) (\(item.kind))."
+            )
+        }
+        for file in course.files {
+            let name = file.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+            let shown = name.isEmpty ? "untitled file" : name
+            lines.append("File on \(course.name) (\(termLabel)): \(shown).")
+        }
+        for note in course.stickies {
+            let text = note.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            let drawn = note.drawingData?.isEmpty == false
+            if text.isEmpty {
+                if drawn {
+                    lines.append(
+                        "Student sticky on \(course.name) (\(termLabel)): a drawing the student made. It is not described. It is not a lecture."
+                    )
+                }
+                continue
+            }
+            let picture = drawn ? " The student also drew on it. The drawing is not described." : ""
+            lines.append(
+                "Student sticky on \(course.name) (\(termLabel)): \(text). The student wrote this.\(picture) It is not a lecture."
             )
         }
         return lines

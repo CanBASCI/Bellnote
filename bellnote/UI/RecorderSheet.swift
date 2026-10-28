@@ -8,6 +8,7 @@ import UIKit
 struct ConsentSheet: View {
     var course: Course
     var onConfirm: (Bool) -> Void
+    var onLoad: () -> Void
     @Environment(\.dismiss) private var dismiss
     @State private var allowed = false
     @State private var permitted = false
@@ -23,6 +24,11 @@ struct ConsentSheet: View {
                 Text("This is your confirmation, not proof that the lecturer consented.")
                     .appFont(.footnote)
                     .foregroundStyle(.secondary)
+                Button("Load recording", systemImage: "square.and.arrow.down") {
+                    onLoad()
+                    dismiss()
+                }
+                .disabled(!ConsentGate(allowed: allowed, permitted: permitted).canStart)
             }
             .navigationTitle("Recording")
             .navigationBarTitleDisplayMode(.inline)

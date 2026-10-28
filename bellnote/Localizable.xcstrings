@@ -367,6 +367,38 @@
         }
       }
     },
+    "Add file" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add file"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dosya ekle"
+          }
+        }
+      }
+    },
+    "Add photo" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add photo"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fotoğraf ekle"
+          }
+        }
+      }
+    },
     "Add slot" : {
       "localizations" : {
         "en" : {
@@ -498,6 +530,7 @@
       }
     },
     "All recordings, notes, assignments and exams of this course will be deleted. This cannot be undone." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -509,6 +542,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Bu dersin tüm kayıtları, notları, ödevleri ve sınavları silinecek. Bu geri alınamaz."
+          }
+        }
+      }
+    },
+    "All recordings, notes, assignments, exams, files and stickies of this course will be deleted. This cannot be undone." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All recordings, notes, assignments, exams, files and stickies of this course will be deleted. This cannot be undone."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bu dersin tüm kayıtları, notları, ödevleri, sınavları, dosyaları ve yapışkan notları silinecek. Bu geri alınamaz."
           }
         }
       }
@@ -931,6 +980,38 @@
         }
       }
     },
+    "Choose Supertonic under Read aloud, then pick a voice." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose Supertonic under Read aloud, then pick a voice."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sesli okuma’da Supertonic’i seç, sonra bir ses seç."
+          }
+        }
+      }
+    },
+    "Choose Whisper under Transcript." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose Whisper under Transcript."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Transkript’te Whisper’ı seç."
+          }
+        }
+      }
+    },
     "Close" : {
       "localizations" : {
         "en" : {
@@ -959,6 +1040,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Renk"
+          }
+        }
+      }
+    },
+    "Conditional" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Conditional"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Şartlı"
           }
         }
       }
@@ -1236,6 +1334,38 @@
         }
       }
     },
+    "Delete this exam?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete this exam?"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bu sınav silinsin mi?"
+          }
+        }
+      }
+    },
+    "Delete this file?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete this file?"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bu dosya silinsin mi?"
+          }
+        }
+      }
+    },
     "Delete this item?" : {
       "localizations" : {
         "en" : {
@@ -1264,6 +1394,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Bu kayıt silinsin mi?"
+          }
+        }
+      }
+    },
+    "Delete this sticky?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete this sticky?"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bu yapışkan not silinsin mi?"
           }
         }
       }
@@ -1360,6 +1506,70 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "İndir"
+          }
+        }
+      }
+    },
+    "Download FluidAudio. It tells the speakers apart." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Download FluidAudio. It tells the speakers apart."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "FluidAudio’yu indir. Konuşmacıları ayırır."
+          }
+        }
+      }
+    },
+    "Download Supertonic, choose it under Read aloud, then pick a voice." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Download Supertonic, choose it under Read aloud, then pick a voice."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Supertonic’i indir, Sesli okuma’da onu seç, sonra bir ses seç."
+          }
+        }
+      }
+    },
+    "Download Whisper, then choose it under Transcript." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Download Whisper, then choose it under Transcript."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Whisper’ı indir, sonra Transkript’te onu seç."
+          }
+        }
+      }
+    },
+    "Download a text model" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Download a text model"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bir metin modeli indir"
           }
         }
       }
@@ -1494,6 +1704,38 @@
         }
       }
     },
+    "Draw" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Draw"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Çiz"
+          }
+        }
+      }
+    },
+    "Drawing" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drawing"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Çizim"
+          }
+        }
+      }
+    },
     "Due date" : {
       "localizations" : {
         "en" : {
@@ -1603,6 +1845,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Saati düzenle"
+          }
+        }
+      }
+    },
+    "Edit sticky" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edit sticky"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yapışkan notu düzenle"
           }
         }
       }
@@ -1872,6 +2130,22 @@
         }
       }
     },
+    "Files" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Files"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dosyalar"
+          }
+        }
+      }
+    },
     "Final" : {
       "localizations" : {
         "en" : {
@@ -1884,6 +2158,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Final"
+          }
+        }
+      }
+    },
+    "Finals" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Finals"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Finaller"
           }
         }
       }
@@ -2596,6 +2886,22 @@
         }
       }
     },
+    "Load recording" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Load recording"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kayıt yükle"
+          }
+        }
+      }
+    },
     "Loading Whisper" : {
       "localizations" : {
         "en" : {
@@ -2657,6 +2963,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Vize"
+          }
+        }
+      }
+    },
+    "Midterms" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Midterms"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vizeler"
           }
         }
       }
@@ -2819,6 +3141,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Yeni konuşmacı"
+          }
+        }
+      }
+    },
+    "New sticky" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New sticky"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yeni yapışkan not"
           }
         }
       }
@@ -3034,6 +3372,22 @@
         }
       }
     },
+    "No files yet" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No files yet"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Henüz dosya yok"
+          }
+        }
+      }
+    },
     "No given name is stored for %@." : {
       "localizations" : {
         "en" : {
@@ -3179,6 +3533,22 @@
         }
       }
     },
+    "No stickies yet" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No stickies yet"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Henüz yapışkan not yok"
+          }
+        }
+      }
+    },
     "No title is stored for %@." : {
       "localizations" : {
         "en" : {
@@ -3207,6 +3577,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Yok"
+          }
+        }
+      }
+    },
+    "Not passed" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not passed"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kaldı"
           }
         }
       }
@@ -3540,6 +3927,22 @@
         }
       }
     },
+    "Out of 100" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Out of 100"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "100 üzerinden"
+          }
+        }
+      }
+    },
     "Overlaps another sitting." : {
       "localizations" : {
         "en" : {
@@ -3552,6 +3955,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Başka bir oturumla çakışıyor."
+          }
+        }
+      }
+    },
+    "Passed" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Passed"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Geçti"
           }
         }
       }
@@ -3651,6 +4071,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Telefon"
+          }
+        }
+      }
+    },
+    "Photo" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Photo"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fotoğraf"
           }
         }
       }
@@ -4335,6 +4771,22 @@
     "Resume the lecture recording" : {
 
     },
+    "Resize" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Resize"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Boyutlandır"
+          }
+        }
+      }
+    },
     "Retry" : {
       "localizations" : {
         "en" : {
@@ -4347,6 +4799,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Yeniden dene"
+          }
+        }
+      }
+    },
+    "Rotate" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rotate"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Döndür"
           }
         }
       }
@@ -4427,6 +4895,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Okul"
+          }
+        }
+      }
+    },
+    "Score" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Score"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not"
+          }
+        }
+      }
+    },
+    "Score %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Score %@"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not %@"
           }
         }
       }
@@ -4802,6 +5302,22 @@
         }
       }
     },
+    "Start here" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Start here"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Buradan başla"
+          }
+        }
+      }
+    },
     "Start recording" : {
       "localizations" : {
         "en" : {
@@ -4865,6 +5381,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Çelik mavisi"
+          }
+        }
+      }
+    },
+    "Stickies" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stickies"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yapışkanlar"
+          }
+        }
+      }
+    },
+    "Sticky" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sticky"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yapışkan not"
           }
         }
       }
@@ -5080,6 +5628,22 @@
         }
       }
     },
+    "The 2B or 4B model writes the notes, the assignments and the answers. Download one and it is selected." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The 2B or 4B model writes the notes, the assignments and the answers. Download one and it is selected."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "2B veya 4B notları, ödevleri ve cevapları yazar. Birini indir, o seçilir."
+          }
+        }
+      }
+    },
     "The AI correction is written again from the raw text as it is now. The raw text stays." : {
       "localizations" : {
         "en" : {
@@ -5272,6 +5836,54 @@
         }
       }
     },
+    "The file could not be added." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The file could not be added."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dosya eklenemedi."
+          }
+        }
+      }
+    },
+    "The file could not be deleted." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The file could not be deleted."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dosya silinemedi."
+          }
+        }
+      }
+    },
+    "The file could not be opened." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The file could not be opened."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dosya açılamadı."
+          }
+        }
+      }
+    },
     "The given name for %@ is %@." : {
       "localizations" : {
         "en" : {
@@ -5444,6 +6056,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ham metin, AI düzeltme, ödevler ve başlık hemen silinir. İşlemi iptal etsen bile geri gelmezler. Ses kaydı kalır."
+          }
+        }
+      }
+    },
+    "The recording could not be added." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The recording could not be added."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kayıt eklenemedi."
           }
         }
       }
@@ -5628,6 +6256,22 @@
         }
       }
     },
+    "These stay on this device. Tap Download on each row. Nothing is uploaded." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "These stay on this device. Tap Download on each row. Nothing is uploaded."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bunlar bu cihazda kalır. Her satırda İndir’e bas. Hiçbir şey yüklenmez."
+          }
+        }
+      }
+    },
     "Thinking…" : {
       "localizations" : {
         "en" : {
@@ -5643,6 +6287,25 @@
           }
         }
       }
+    },
+    "This copy will be deleted. The original file stays. This cannot be undone." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This copy will be deleted. The original file stays. This cannot be undone."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bu kopya silinecek. Asıl dosya durur. Bu geri alınamaz."
+          }
+        }
+      }
+    },
+    "This exam will be deleted. This cannot be undone." : {
+
     },
     "This is your confirmation, not proof that the lecturer consented." : {
       "localizations" : {
@@ -5706,6 +6369,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Bu konuşmacının metni silinir. Kayıt durur."
+          }
+        }
+      }
+    },
+    "This sticky will be deleted. This cannot be undone." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This sticky will be deleted. This cannot be undone."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bu yapışkan not silinecek. Bu geri alınamaz."
           }
         }
       }
@@ -6205,6 +6884,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Bu kim?"
+          }
+        }
+      }
+    },
+    "Write" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Write"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yaz"
           }
         }
       }

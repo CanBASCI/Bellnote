@@ -237,7 +237,41 @@ struct PendingSheet: View {
     }
 }
 
+/// What is still missing on the Models page. The app opens that page while `shouldGuide` is true.
+struct ModelSetup: Equatable {
+    var needsText: Bool
+    var needsWhisperDownload: Bool
+    var needsWhisperChoice: Bool
+    var needsFluid: Bool
+    var needsSupertonic: Bool
+    var needsReadAloud: Bool
+
+    /// A missing text model, Whisper neither installed nor chosen, or FluidAudio or Supertonic missing. One of the two voice models is enough.
+    var shouldGuide: Bool {
+        needsText
+            || (needsWhisperDownload && needsWhisperChoice)
+            || needsFluid
+            || needsSupertonic
+            || needsReadAloud
+    }
+
+    @MainActor
+    static func current(session: AppSession) async -> ModelSetup {
+        let runtime = LocalModelRuntime.shared
+        let whisper = await runtime.isInstalled(.whisper)
+        return ModelSetup(
+            needsText: await runtime.hasTextModel() == false,
+            needsWhisperDownload: !whisper,
+            needsWhisperChoice: session.speechEngine != .whisper,
+            needsFluid: !SpeakerPass.modelsAreInstalled(),
+            needsSupertonic: !SupertonicSpeech.isInstalled,
+            needsReadAloud: session.readAloud != .supertonic
+        )
+    }
+}
+
 struct SettingsPage: View {
+    @Binding var openModels: Bool
     @Environment(AppSession.self) private var session
     @State private var choice: AppLanguage = {
         let stored = UserDefaults.standard.string(forKey: AppPreferences.languageKey) ?? AppLanguage.system.rawValue
@@ -332,6 +366,9 @@ struct SettingsPage: View {
             }
         }
         .navigationTitle("Settings")
+        .navigationDestination(isPresented: $openModels) {
+            ModelsPage()
+        }
     }
 }
 
@@ -360,11 +397,16 @@ struct ModelsPage: View {
     @State private var supertonicStatus: String?
     @State private var pendingDelete: ModelsPageDeletePrompt?
     @State private var voicePreview = SpeechReader()
+    /// False until the first look at disk, so the guide does not flash every row as missing.
+    @State private var checkedModels = false
 
     var body: some View {
+        ScrollViewReader { proxy in
         List {
+            setupGuide(using: proxy)
             Section("AI models") {
                 modelRow(.tagger, title: Self.modelTitle(.tagger), bytes: ModelCatalog.taggerBytes, locked: ModelLock.taggerLocked(budget))
+                    .id(ModelSpot.text)
                 modelRow(.page, title: Self.modelTitle(.page), bytes: ModelCatalog.pageBytes, locked: ModelLock.pageLocked(budget))
                 if !installedTextModels.isEmpty {
                     Picker("AI model", selection: Binding(
@@ -383,6 +425,7 @@ struct ModelsPage: View {
             }
             Section("Speech to text") {
                 modelRow(.whisper, title: Self.modelTitle(.whisper), bytes: ModelCatalog.whisperBytes, locked: ModelLock.whisperLocked(budget))
+                    .id(ModelSpot.whisper)
                 Picker("Transcript", selection: Binding(
                     get: { session.speechEngine },
                     set: { session.setSpeechEngine($0) }
@@ -393,13 +436,16 @@ struct ModelsPage: View {
                     }
                 }
                 .pickerStyle(.menu)
+                .id(ModelSpot.transcript)
                 Text(transcriptHint)
                     .appFont(.caption)
                     .foregroundStyle(.secondary)
             }
             Section("Audio") {
                 fluidAudioRow()
+                    .id(ModelSpot.fluid)
                 supertonicRow()
+                    .id(ModelSpot.supertonic)
                 Picker("Read aloud", selection: Binding(
                     get: { session.readAloud },
                     set: { session.setReadAloud($0) }
@@ -410,6 +456,7 @@ struct ModelsPage: View {
                     }
                 }
                 .pickerStyle(.menu)
+                .id(ModelSpot.readAloud)
                 Text(session.readAloud == .supertonic
                     ? "Supertonic reads the notes."
                     : "Apple Dictation reads the notes.")
@@ -437,6 +484,7 @@ struct ModelsPage: View {
                     }
                 }
             }
+        }
         }
         .navigationTitle("Models")
         .onDisappear { voicePreview.stop() }
@@ -611,12 +659,14 @@ struct ModelsPage: View {
                         downloadProgress = 0
                         supertonicStatus = nil
                         Task {
+                            var finished = false
                             do {
                                 try await SupertonicSpeech.download { fraction in
                                     Task { @MainActor in
                                         downloadProgress = max(downloadProgress, min(max(fraction, 0), 1))
                                     }
                                 }
+                                finished = true
                                 supertonicStatus = String(localized: "Download finished.")
                                 Self.log.info("UI download ok supertonic")
                             } catch {
@@ -627,6 +677,10 @@ struct ModelsPage: View {
                             downloadingSupertonic = false
                             downloadProgress = 0
                             await refreshInstalled()
+                            // The file is on disk before the picker changes. Apple Dictation stays only if the download did not finish.
+                            if finished, SupertonicSpeech.isInstalled {
+                                session.setReadAloud(.supertonic)
+                            }
                         }
                     }
                     .buttonStyle(.borderless)
@@ -765,6 +819,89 @@ struct ModelsPage: View {
         await refreshInstalled()
     }
 
+    /// A row in Start here. Tapping it scrolls to that model.
+    private enum ModelSpot: Hashable {
+        case text
+        case whisper
+        case transcript
+        case fluid
+        case supertonic
+        case readAloud
+    }
+
+    @ViewBuilder
+    private func setupGuide(using proxy: ScrollViewProxy) -> some View {
+        let guide = ModelSetup(
+            needsText: installed[.tagger] != true && installed[.page] != true,
+            needsWhisperDownload: installed[.whisper] != true,
+            needsWhisperChoice: session.speechEngine != .whisper,
+            needsFluid: !fluidInstalled,
+            needsSupertonic: !supertonicInstalled,
+            needsReadAloud: session.readAloud != .supertonic
+        )
+        if checkedModels, guide.shouldGuide {
+            Section {
+                if guide.needsText {
+                    guideLink(proxy, spot: .text) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Download a text model")
+                            Text("The 2B or 4B model writes the notes, the assignments and the answers. Download one and it is selected.")
+                                .appFont(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+                if guide.needsWhisperDownload {
+                    guideLink(proxy, spot: .whisper) {
+                        Text("Download Whisper, then choose it under Transcript.")
+                    }
+                } else if guide.needsWhisperChoice {
+                    guideLink(proxy, spot: .transcript) {
+                        Text("Choose Whisper under Transcript.")
+                    }
+                }
+                if guide.needsFluid {
+                    guideLink(proxy, spot: .fluid) {
+                        Text("Download FluidAudio. It tells the speakers apart.")
+                    }
+                }
+                if guide.needsSupertonic {
+                    guideLink(proxy, spot: .supertonic) {
+                        Text("Download Supertonic, choose it under Read aloud, then pick a voice.")
+                    }
+                } else if guide.needsReadAloud {
+                    guideLink(proxy, spot: .readAloud) {
+                        Text("Choose Supertonic under Read aloud, then pick a voice.")
+                    }
+                }
+            } header: {
+                Text("Start here")
+            } footer: {
+                Text("These stay on this device. Tap Download on each row. Nothing is uploaded.")
+            }
+        }
+    }
+
+    private func guideLink<Label: View>(
+        _ proxy: ScrollViewProxy,
+        spot: ModelSpot,
+        @ViewBuilder label: () -> Label
+    ) -> some View {
+        Button {
+            proxy.scrollTo(spot, anchor: .center)
+        } label: {
+            HStack(alignment: .center, spacing: 12) {
+                label()
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Image(systemName: "chevron.down")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+                    .accessibilityHidden(true)
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
     private func refreshBudget() {
         let home = URL(fileURLWithPath: NSHomeDirectory())
         let values = try? home.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey])
@@ -787,6 +924,7 @@ struct ModelsPage: View {
         fluidInstalled = SpeakerPass.modelsAreInstalled()
         supertonicInstalled = SupertonicSpeech.isInstalled
         supertonicPartial = SupertonicSpeech.hasPartial
+        checkedModels = true
         if session.readAloud == .supertonic, !supertonicInstalled {
             session.setReadAloud(.apple)
         }

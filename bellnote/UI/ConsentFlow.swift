@@ -1,4 +1,7 @@
+import OSLog
+import SwiftData
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// The step before a recording starts.
 /// The first recording of a course asks for the two attestations in a sheet.
@@ -9,6 +12,15 @@ private struct ConsentFlow: ViewModifier {
     var asPopover: Bool
     @Binding var isPresented: Bool
     var onConfirm: (Course, Bool) -> Void
+
+    @Environment(\.modelContext) private var modelContext
+    /// The course kept until the document picker closes. The recording is created only after a file is chosen.
+    @State private var pendingLoad: PendingLoad?
+    @State private var importingAudio = false
+    @State private var importNotice: String?
+    /// The first sheet can load a file instead of starting the microphone. Cleared when that sheet finishes closing.
+    @State private var loadInstead = false
+    private static let log = Logger(subsystem: "app.bellnote", category: "capture")
 
     private var isLater: Bool {
         course?.lectures.contains { $0.attestation != nil } ?? false
@@ -41,8 +53,14 @@ private struct ConsentFlow: ViewModifier {
 
     private func startAfterConsentSheet() {
         guard let answered else { return }
+        let loading = loadInstead
         self.answered = nil
-        onConfirm(answered.course, answered.faceID)
+        loadInstead = false
+        if loading {
+            beginImport(answered.course, faceID: answered.faceID, wait: false)
+        } else {
+            onConfirm(answered.course, answered.faceID)
+        }
     }
 
     /// For the alert and the popover. They have no callback for the end of their closing, so the recording starts
@@ -64,6 +82,57 @@ private struct ConsentFlow: ViewModifier {
         }
     }
 
+    /// Closes the confirm, then opens the document picker. A popover has no dismiss callback, so that one waits.
+    private func load(_ course: Course, faceID: Bool) {
+        isPresented = false
+        beginImport(course, faceID: faceID, wait: true)
+    }
+
+    private func beginImport(_ course: Course, faceID: Bool, wait: Bool) {
+        pendingLoad = PendingLoad(course: course, faceID: faceID)
+        guard wait else {
+            importingAudio = true
+            return
+        }
+        Task { @MainActor in
+            do {
+                try await Task.sleep(for: .milliseconds(450))
+            } catch {
+                return
+            }
+            importingAudio = true
+        }
+    }
+
+    private func finishImport(_ result: Result<URL, Error>) {
+        guard let pendingLoad else { return }
+        self.pendingLoad = nil
+        switch result {
+        case .failure(let error):
+            let ns = error as NSError
+            if ns.domain == NSCocoaErrorDomain, ns.code == CocoaError.userCancelled.rawValue { return }
+            Self.log.error(
+                "Recording import failed: \(String(describing: error), privacy: .public) [\(ns.domain, privacy: .public) \(ns.code)] \(ns.localizedDescription, privacy: .public)"
+            )
+            importNotice = String(localized: "The recording could not be added.")
+        case .success(let url):
+            do {
+                try LectureStarter.importAudio(
+                    course: pendingLoad.course,
+                    faceID: pendingLoad.faceID,
+                    from: url,
+                    context: modelContext
+                )
+            } catch {
+                let ns = error as NSError
+                Self.log.error(
+                    "Recording import failed: \(String(describing: error), privacy: .public) [\(ns.domain, privacy: .public) \(ns.code)] \(ns.localizedDescription, privacy: .public)"
+                )
+                importNotice = String(localized: "The recording could not be added.")
+            }
+        }
+    }
+
     func body(content: Content) -> some View {
         content
             .sheet(isPresented: sheetBinding, onDismiss: startAfterConsentSheet) {
@@ -72,7 +141,12 @@ private struct ConsentFlow: ViewModifier {
                         // Closed first, and the recording starts in `onDismiss`, not here. Starting adds a lecture
                         // with an attestation, and from then on `isLater` is true, which would open the confirm
                         // alert while the sheet is still open.
+                        loadInstead = false
                         answered = (course, faceID)
+                        isPresented = false
+                    } onLoad: {
+                        loadInstead = true
+                        answered = (course, false)
                         isPresented = false
                     }
                 }
@@ -82,6 +156,9 @@ private struct ConsentFlow: ViewModifier {
                 isPresented: alertBinding
             ) {
                 Button("Cancel", role: .cancel) {}
+                Button("Load recording") {
+                    if let course { load(course, faceID: false) }
+                }
                 // The system gives an alert button no custom colour. The destructive role is the only red it offers.
                 Button("Start recording", role: .destructive) {
                     if let course { start(course, faceID: false) }
@@ -104,13 +181,38 @@ private struct ConsentFlow: ViewModifier {
                         .buttonStyle(.glassProminent)
                         .controlSize(.large)
                         .tint(.red)
+                        Button {
+                            load(course, faceID: false)
+                        } label: {
+                            Label("Load recording", systemImage: "square.and.arrow.down")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.glass)
+                        .controlSize(.large)
                     }
                     .padding(20)
                     .frame(width: 280)
                     .presentationCompactAdaptation(.popover)
                 }
             }
+            .fileImporter(isPresented: $importingAudio, allowedContentTypes: [.audio]) { result in
+                finishImport(result)
+            }
+            .alert(
+                importNotice ?? "",
+                isPresented: Binding(
+                    get: { importNotice != nil },
+                    set: { if !$0 { importNotice = nil } }
+                )
+            ) {
+                Button("OK", role: .cancel) { importNotice = nil }
+            }
     }
+}
+
+private struct PendingLoad {
+    var course: Course
+    var faceID: Bool
 }
 
 extension View {

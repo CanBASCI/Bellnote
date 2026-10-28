@@ -23,6 +23,8 @@ struct ExamEditor: View {
     @State private var placeCustom = ""
     @State private var reminder: ReminderKind = .none
     @State private var leadDays = 1
+    /// A whole number from 0 to 100, or empty until the result is out.
+    @State private var scoreText = ""
 
     init(term: Term, course: Course, editing: ExamSitting? = nil) {
         self.term = term
@@ -109,6 +111,15 @@ struct ExamEditor: View {
                         Text(String(format: String(localized: "%lld days before"), leadDays))
                     }
                 }
+                LabeledContent("Score") {
+                    TextField("Out of 100", text: $scoreText)
+                        .keyboardType(.numberPad)
+                        .multilineTextAlignment(.trailing)
+                        .onChange(of: scoreText) { _, newValue in
+                            let clipped = Self.clippedScore(newValue)
+                            if clipped != newValue { scoreText = clipped }
+                        }
+                }
             }
             .onChange(of: hasTime) { _, on in
                 if on { applyDefaultTime() }
@@ -162,6 +173,7 @@ struct ExamEditor: View {
             sitting.endMinutes = nil
         }
         sitting.place = placePreset.storedName(custom: placeCustom)
+        sitting.scoreText = Self.storedScore(scoreText)
         sitting.leadDays = leadDays
         if reminder == .none {
             sitting.reminderKind = ReminderKind.none.rawValue
@@ -226,6 +238,20 @@ struct ExamEditor: View {
     private func minutes(_ date: Date) -> Int {
         let parts = Calendar.current.dateComponents([.hour, .minute], from: date)
         return (parts.hour ?? 0) * 60 + (parts.minute ?? 0)
+    }
+
+    /// Digits only, at most 100. Anything past that stops at 100. Empty stays empty.
+    private static func clippedScore(_ raw: String) -> String {
+        let digits = raw.filter(\.isNumber)
+        let clipped = String(digits.prefix(3))
+        guard let number = Int(clipped) else { return "" }
+        return number > 100 ? "100" : clipped
+    }
+
+    /// The stored score is the number itself, with no leading zeros. Empty means no result yet.
+    private static func storedScore(_ raw: String) -> String {
+        guard let number = Int(clippedScore(raw)), (0...100).contains(number) else { return "" }
+        return String(number)
     }
 }
 

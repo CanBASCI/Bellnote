@@ -22,6 +22,7 @@ enum AppSchema {
         ExamPaperPhoto.self,
         InventoryItem.self,
         CourseFile.self,
+        StickyNote.self,
         PagePair.self,
         BoardPhoto.self,
         LectureGap.self,

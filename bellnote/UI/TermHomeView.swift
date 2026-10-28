@@ -4,9 +4,18 @@ import SwiftData
 import SwiftUI
 import UIKit
 
+private enum HomeTab: Hashable {
+    case home
+    case timetable
+    case files
+    case assistant
+    case settings
+}
+
 struct TermHomeView: View {
     @Environment(AppSession.self) private var session
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.scenePhase) private var scenePhase
     @Query(sort: \Term.createdAt) private var terms: [Term]
     @Query(sort: \Lecture.startedAt, order: .reverse) private var lectures: [Lecture]
 
@@ -14,13 +23,17 @@ struct TermHomeView: View {
     @State private var showSlot = false
     @State private var showPending = false
     @State private var openedByDate = false
+    @State private var tab = HomeTab.home
+    @State private var openModels = false
+    /// One look per launch. A later launch asks again while a model is still missing.
+    @State private var offeredModels = false
 
     private var term: Term? { terms.first { $0.isOpen } ?? terms.last }
 
     var body: some View {
         Group {
             if let term {
-                TabView {
+                TabView(selection: $tab) {
                     NavigationStack {
                         TodayPage(
                             term: term,
@@ -31,25 +44,35 @@ struct TermHomeView: View {
                         )
                     }
                     .tabItem { Label("Home", systemImage: "text.rectangle.page") }
+                    .tag(HomeTab.home)
 
                     NavigationStack {
                         ProgramPage(term: term)
                     }
                     .tabItem { Label("Timetable", systemImage: "calendar.day.timeline.left") }
+                    .tag(HomeTab.timetable)
                     // Off while a recording is processed — keep focus on the run.
                     .disabled(PipelineActivity.shared.isBusy)
+
+                    NavigationStack {
+                        FilesPage(term: term)
+                    }
+                    .tabItem { Label("Files", systemImage: "folder") }
+                    .tag(HomeTab.files)
 
                     NavigationStack {
                         AssistantPage()
                     }
                     .tabItem { Label("Assistant", systemImage: "waveform.and.mic") }
+                    .tag(HomeTab.assistant)
                     // Off while a recording is processed — Talk and the pipeline share the text model and memory.
                     .disabled(PipelineActivity.shared.isBusy)
 
                     NavigationStack {
-                        SettingsPage()
+                        SettingsPage(openModels: $openModels)
                     }
                     .tabItem { Label("Settings", systemImage: "gearshape") }
+                    .tag(HomeTab.settings)
                     // Off while a recording is processed — model changes must not race the pipeline.
                     .disabled(PipelineActivity.shared.isBusy)
                 }
@@ -78,6 +101,17 @@ struct TermHomeView: View {
             openCurrentTermOnLaunch()
             // Courses from before the color was stored get one, so no two courses of a term share a color.
             for item in terms { item.fillMissingCourseColors() }
+            await offerModelsIfNeeded()
+        }
+        .onChange(of: term?.persistentModelID) { _, _ in
+            Task { await offerModelsIfNeeded() }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            // Leaving the app clears the one-look flag, so the next open checks the models again.
+            if phase == .background { offeredModels = false }
+            if phase == .active {
+                Task { await offerModelsIfNeeded() }
+            }
         }
         .sheet(isPresented: $showTerm) { TermEditor(terms: terms) }
         .sheet(isPresented: $showSlot) {
@@ -104,6 +138,29 @@ struct TermHomeView: View {
             .max { ($0.startsOn, $0.createdAt) < ($1.startsOn, $1.createdAt) }
         guard let current, !current.isOpen else { return }
         for item in terms { item.isOpen = item.persistentModelID == current.persistentModelID }
+    }
+
+    /// Opens Models when a text model, Whisper, or the voice models are still unset. Download stays a tap on that page.
+    private func offerModelsIfNeeded() async {
+        guard term != nil else { return }
+        guard !offeredModels else { return }
+        guard !PipelineActivity.shared.isBusy else { return }
+        offeredModels = true
+        let guide = await ModelSetup.current(session: session)
+        guard guide.shouldGuide else { return }
+        // The Models page is inside the Settings tab. Select that tab first, or the push is dropped.
+        // The push waits until that move has finished, and it does not animate, so two moves do not run on the same layer.
+        tab = .settings
+        do {
+            try await Task.sleep(for: .milliseconds(500))
+        } catch {
+            return
+        }
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            openModels = true
+        }
     }
 
     private var pending: [Lecture] {
@@ -135,6 +192,10 @@ struct TodayPage: View {
     @State private var showConsent = false
     @State private var activeLecture: Lecture?
     @State private var pendingCourse: Course?
+    @State private var pendingExam: ExamSitting?
+    @State private var editingExam: ExamSitting?
+    /// Which exam group the home list shows. Midterms open first. A missing group falls back to one that exists.
+    @State private var examKind: ExamKind = .midterm
     @State private var pendingTermDelete = false
     @State private var showEditTerm = false
     /// The side of the badge. It matches one line of the course name plus the lecturer, and it grows
@@ -234,21 +295,31 @@ struct TodayPage: View {
             }
             if !examRows.isEmpty {
                 Section {
-                    ForEach(ExamSort.markingOverlaps(examRows)) { row in
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(row.courseName)
-                            Text(examLine(row))
-                                .appFont(.subheadline)
-                                .foregroundStyle(.secondary)
-                            if row.overlaps {
-                                Text("Overlaps another sitting.")
-                                    .appFont(.footnote)
+                    if groupedExamRows.count > 1 {
+                        Picker("Exams", selection: examKindSelection) {
+                            ForEach(groupedExamRows, id: \.kind) { group in
+                                Text(verbatim: group.kind.groupTitle).tag(group.kind)
                             }
                         }
-                        .homeListRowWithoutSeparator()
+                        .pickerStyle(.segmented)
+                        .labelsHidden()
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
                     }
-                } header: {
-                    Text("Exams")
+                    ForEach(shownExamRows) { row in
+                        examCard(row)
+                            .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                                Button {
+                                    editingExam = sitting(for: row)
+                                } label: {
+                                    Image(systemName: "pencil")
+                                }
+                                .tint(Color(.systemGray))
+                                .accessibilityLabel(Text("Edit exam"))
+                            }
+                            .askToDeleteSwipe { pendingExam = sitting(for: row) }
+                            .homeListRowWithoutSeparator()
+                    }
                 }
                 .listSectionSeparator(.hidden, edges: .all)
             }
@@ -322,6 +393,11 @@ struct TodayPage: View {
         .sheet(item: $editingCourse) { course in
             CourseEditor(course: course, term: term)
         }
+        .sheet(item: $editingExam) { sitting in
+            if let course = sitting.course {
+                ExamEditor(term: term, course: course, editing: sitting)
+            }
+        }
         .sheet(item: $activeLecture) { lecture in
             RecorderSheet(lecture: lecture)
         }
@@ -338,7 +414,22 @@ struct TodayPage: View {
             }
             Button("Cancel", role: .cancel) { pendingCourse = nil }
         } message: {
-            Text("All recordings, notes, assignments and exams of this course will be deleted. This cannot be undone.")
+            Text("All recordings, notes, assignments, exams, files and stickies of this course will be deleted. This cannot be undone.")
+        }
+        .alert(
+            "Delete this exam?",
+            isPresented: Binding(
+                get: { pendingExam != nil },
+                set: { if !$0 { pendingExam = nil } }
+            )
+        ) {
+            Button("Delete", role: .destructive) {
+                if let sitting = pendingExam { deleteExam(sitting) }
+                pendingExam = nil
+            }
+            Button("Cancel", role: .cancel) { pendingExam = nil }
+        } message: {
+            Text("This exam will be deleted. This cannot be undone.")
         }
         .alert("Delete this term?", isPresented: $pendingTermDelete) {
             Button("Delete", role: .destructive) { deleteTerm() }
@@ -596,12 +687,43 @@ struct TodayPage: View {
                     id: sitting.token,
                     courseName: course.name,
                     kind: sitting.kind,
+                    title: sitting.title,
                     date: sitting.date,
                     startMinutes: sitting.startMinutes,
-                    endMinutes: sitting.endMinutes
+                    endMinutes: sitting.endMinutes,
+                    place: sitting.place,
+                    score: sitting.scoreText
                 )
             }
         }
+    }
+
+    /// Midterms, then finals, then any other kind. A kind with no sitting is left out.
+    /// The nearest-first order stays inside each group, and an overlap can still cross groups.
+    private var groupedExamRows: [(kind: ExamKind, rows: [ExamRow])] {
+        let marked = ExamSort.markingOverlaps(examRows)
+        return ExamKind.allCases.compactMap { kind in
+            let rows = marked.filter { (ExamKind(rawValue: $0.kind) ?? .other) == kind }
+            return rows.isEmpty ? nil : (kind, rows)
+        }
+    }
+
+    /// The group on screen. A chosen kind that has no sitting falls back to the first group that does.
+    private var shownExamRows: [ExamRow] {
+        let groups = groupedExamRows
+        let kind = groups.contains(where: { $0.kind == examKind }) ? examKind : (groups.first?.kind ?? .midterm)
+        return groups.first { $0.kind == kind }?.rows ?? []
+    }
+
+    private var examKindSelection: Binding<ExamKind> {
+        Binding(
+            get: {
+                let groups = groupedExamRows
+                if groups.contains(where: { $0.kind == examKind }) { return examKind }
+                return groups.first?.kind ?? .midterm
+            },
+            set: { examKind = $0 }
+        )
     }
 
     /// An icon and a text with a narrow gap of 4 pt. `Label` puts a wider gap of its own between them.
@@ -1146,10 +1268,130 @@ struct TodayPage: View {
         return Array(lines.prefix(2))
     }
 
-    private func examLine(_ row: ExamRow) -> String {
-        let date = row.date?.formatted(date: .abbreviated, time: .omitted) ?? String(localized: "Date not set")
-        let time = row.startMinutes.map { ReminderScheduler.clock($0) } ?? String(localized: "Time not set")
-        return "\(row.kind) · \(date) · \(time)"
+    /// One sitting, in the same arrangement as a course row. The kind leads. The day and the time sit on the right.
+    /// A typed score sits in the horizontal middle and on the bottom edge, with Gedik’s letter and result beside it.
+    /// A past day strikes that day and time.
+    private func examCard(_ row: ExamRow) -> some View {
+        let tint = term.courses.first { $0.name == row.courseName }?.color ?? CourseStyle.color(for: row.courseName)
+        let place = PlacePreset.displayName(for: row.place)
+        let courseLine = place.isEmpty ? row.courseName : "\(row.courseName) · \(place)"
+        let score = row.score.trimmingCharacters(in: .whitespacesAndNewlines)
+        let past = examIsPast(row)
+        let nameSize = UIFont.preferredFont(forTextStyle: .subheadline).pointSize * courseIdentityScale
+        let detailSize = UIFont.preferredFont(forTextStyle: .caption2).pointSize * courseIdentityScale
+        return VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .bottom, spacing: 10) {
+                CourseBadge(
+                    name: row.courseName,
+                    color: tint,
+                    size: Self.courseBadgeSize * courseIdentityScale,
+                    outlined: true,
+                    borderColor: .secondary
+                )
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(verbatim: examKindTitle(row))
+                        .appFont(size: nameSize, weight: .semibold)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                    Text(verbatim: courseLine)
+                        .appFont(size: detailSize)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                if let grade = ExamGrade.mark(for: score) {
+                    let result = String(localized: String.LocalizationValue(grade.result.rawValue))
+                    HStack(alignment: .firstTextBaseline, spacing: 0) {
+                        Text(verbatim: score)
+                            .appFont(.footnote, weight: .semibold, digits: true)
+                            .foregroundStyle(CourseStyle.scoreTint(grade.result))
+                        Text(verbatim: " · \(grade.letter) · \(result)")
+                            .appFont(.footnote)
+                            .foregroundStyle(.primary)
+                    }
+                    .lineLimit(1)
+                    .fixedSize()
+                    .accessibilityLabel(
+                        Text(verbatim: "\(String(format: String(localized: "Score %@"), score)) \(grade.letter) \(result)")
+                    )
+                }
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text(verbatim: examDay(row))
+                        .appFont(.footnote, weight: .semibold)
+                        .foregroundStyle(past ? Color.secondary : Color.primary)
+                        .strikethrough(past)
+                        .lineLimit(1)
+                    Text(verbatim: examClock(row))
+                        .appFont(.footnote)
+                        .foregroundStyle(.secondary)
+                        .strikethrough(past)
+                        .lineLimit(1)
+                }
+                .fixedSize(horizontal: true, vertical: false)
+                .frame(maxWidth: score.isEmpty ? nil : .infinity, alignment: .trailing)
+            }
+            if let approach = examApproach(row) {
+                ProgressView(value: approach)
+                    .progressViewStyle(AttendanceGlassProgressStyle(tint: tint))
+                    .accessibilityHidden(true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.top, 4)
+            }
+            if row.overlaps {
+                Text("Overlaps another sitting.")
+                    .appFont(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.vertical, 4)
+        .accessibilityElement(children: .combine)
+    }
+
+    /// A sitting whose day is before today. Today stays open. No date is not past.
+    private func examIsPast(_ row: ExamRow) -> Bool {
+        guard let date = row.date else { return false }
+        let calendar = Calendar.current
+        return calendar.startOfDay(for: date) < calendar.startOfDay(for: .now)
+    }
+
+    /// How far the term has come toward this exam. 0 at the term’s start, 1 on the exam day and after.
+    /// Nil when the sitting has no date.
+    private func examApproach(_ row: ExamRow) -> Double? {
+        guard let date = row.date else { return nil }
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: .now)
+        let exam = calendar.startOfDay(for: date)
+        if today >= exam { return 1 }
+        let start = calendar.startOfDay(for: term.startsOn)
+        let span = calendar.dateComponents([.day], from: start, to: exam).day ?? 0
+        guard span > 0 else { return 0 }
+        let elapsed = calendar.dateComponents([.day], from: start, to: today).day ?? 0
+        return min(1, max(0, Double(elapsed) / Double(span)))
+    }
+
+    /// Midterm, final, or the name typed for another exam.
+    private func examKindTitle(_ row: ExamRow) -> String {
+        let title = row.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        if ExamKind(rawValue: row.kind) == .other, !title.isEmpty { return title }
+        switch ExamKind(rawValue: row.kind) {
+        case .midterm: return String(localized: "Midterm")
+        case .final: return String(localized: "Final")
+        case .other: return String(localized: "Other")
+        case nil: return String(localized: "Exam")
+        }
+    }
+
+    private func examDay(_ row: ExamRow) -> String {
+        row.date?.formatted(.dateTime.day().month(.abbreviated).locale(session.locale))
+            ?? String(localized: "Date not set")
+    }
+
+    private func examClock(_ row: ExamRow) -> String {
+        guard let start = row.startMinutes else { return String(localized: "Time not set") }
+        if let end = row.endMinutes, end > start {
+            return "\(ReminderScheduler.clock(start))–\(ReminderScheduler.clock(end))"
+        }
+        return ReminderScheduler.clock(start)
     }
 
     private func askDelete(_ course: Course) {
@@ -1158,6 +1400,25 @@ struct TodayPage: View {
             return
         }
         pendingCourse = course
+    }
+
+    private func sitting(for row: ExamRow) -> ExamSitting? {
+        term.courses.flatMap(\.sittings).first { $0.token == row.id }
+    }
+
+    /// Removes one sitting and its reminder. The course and its recordings stay.
+    private func deleteExam(_ sitting: ExamSitting) {
+        let name = sitting.course?.name ?? ""
+        sitting.reminderKind = ReminderKind.none.rawValue
+        ReminderScheduler.replaceExam(sitting, courseName: name)
+        modelContext.delete(sitting)
+        do {
+            try modelContext.save()
+        } catch {
+            Logger(subsystem: "app.bellnote", category: "delete").error(
+                "Exam delete failed: \(error.localizedDescription, privacy: .public)"
+            )
+        }
     }
 
     /// Deletes the term that is open now, with everything under it.

@@ -104,8 +104,8 @@ import Testing
         ExamRow(id: UUID(), courseName: "C", kind: "other", date: day, startMinutes: 30, endMinutes: 60),
         ExamRow(id: UUID(), courseName: "D", kind: "other", date: nil, startMinutes: nil, endMinutes: nil)
     ]
-    let ordered = ExamSort.ordered(rows)
-    #expect(ordered.map(\.courseName) == ["A", "C", "B", "D"])
+    let ordered = ExamSort.ordered(rows, now: day)
+    #expect(ordered.map(\.courseName) == ["C", "B", "A", "D"])
     let marked = ExamSort.markingOverlaps([
         ExamRow(id: UUID(), courseName: "A", kind: "midterm", date: day, startMinutes: 60, endMinutes: 120),
         ExamRow(id: UUID(), courseName: "B", kind: "final", date: day, startMinutes: 90, endMinutes: 150)

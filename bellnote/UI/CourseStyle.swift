@@ -68,6 +68,16 @@ enum CourseStyle {
     static let assignmentsTint = rgb(63, 156, 140)
     static let examsTint = rgb(194, 112, 138)
 
+    /// Soft coral, terracotta, and olive from the course palette.
+    /// Not passed is 0–39, conditional is 40–54, and passed is 55–100.
+    static func scoreTint(_ result: ExamGrade.Result) -> Color {
+        switch result {
+        case .passed: return rgb(111, 143, 68)
+        case .conditional: return rgb(196, 122, 87)
+        case .notPassed: return rgb(194, 91, 83)
+        }
+    }
+
     static func initial(of name: String) -> String {
         name.trimmingCharacters(in: .whitespaces).first.map { String($0).uppercased() } ?? "?"
     }
@@ -226,38 +236,6 @@ struct DateCover: View {
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text(verbatim: date.formatted(.dateTime.day().month(.wide).locale(locale))))
-    }
-}
-
-/// A small Liquid Glass circle with a symbol, tinted with a status colour like the date cover.
-/// Without a symbol it is an empty circle. Without a tint it is plain glass.
-struct GlassBadge: View {
-    var systemName: String?
-    var tint: Color?
-    /// The width and height of the circle. Nil takes a size that follows the text size.
-    var side: CGFloat?
-    @ScaledMetric(relativeTo: .subheadline) private var defaultSide: CGFloat = 24
-    @Environment(\.colorScheme) private var colorScheme
-
-    var body: some View {
-        let diameter = side ?? defaultSide
-        Group {
-            if let systemName {
-                // The symbol follows the circle, so a smaller circle keeps the same look.
-                Image(systemName: systemName)
-                    .font(.system(size: diameter * 0.5, weight: .bold))
-            } else {
-                Color.clear
-            }
-        }
-        .foregroundStyle(.primary)
-        .frame(width: diameter, height: diameter)
-        .glassEffect(glass, in: .circle)
-    }
-
-    private var glass: Glass {
-        guard let tint else { return .regular }
-        return .regular.tint(tint.opacity(colorScheme == .dark ? 0.5 : 0.28))
     }
 }
 

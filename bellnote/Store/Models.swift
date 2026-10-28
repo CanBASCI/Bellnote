@@ -86,6 +86,9 @@ final class Course {
     @Relationship(deleteRule: .cascade, inverse: \CourseFile.course)
     var files: [CourseFile]
 
+    @Relationship(deleteRule: .cascade, inverse: \StickyNote.course)
+    var stickies: [StickyNote]
+
     @Relationship(deleteRule: .cascade, inverse: \LecturerContact.course)
     var lecturer: LecturerContact?
 
@@ -107,6 +110,7 @@ final class Course {
         self.quizAttempts = []
         self.inventory = []
         self.files = []
+        self.stickies = []
     }
 }
 
@@ -533,7 +537,12 @@ final class CourseFile {
     var lectureID: UUID?
     var second: Int?
     var course: Course?
-
+    /// When the copy was added. A new copy starts at the top until the student drags the list.
+    var addedAt: Date = Date.now
+    /// When the student last edited this copy. Nil until a preview edit is written back. The default lets a file from before this field open.
+    var updatedAt: Date? = nil
+    /// The student’s order in the file list. Lower comes first. The default lets a file from before this field open.
+    var listOrder: Int = 0
     @Relationship(deleteRule: .cascade, inverse: \PagePair.file)
     var pagePairs: [PagePair]
 
@@ -556,6 +565,61 @@ final class PagePair {
         self.topic = topic
         self.page = page
         self.file = file
+    }
+}
+
+/// A short note the student wrote on a course. It is theirs. It is not a lecture block.
+/// It sits on that course’s board. `centerX` and `centerY` are fractions of the board. `rotation` is clockwise degrees.
+@Model
+final class StickyNote {
+    var token: UUID
+    var text: String
+    var colorIndex: Int
+    var createdAt: Date
+    var updatedAt: Date
+    /// Horizontal center, as a fraction of the board width. The default lets a note from before this field open.
+    var centerX: Double = 0.5
+    /// Vertical center, as a fraction of the board height.
+    var centerY: Double = 0.28
+    var width: Double = 168
+    var height: Double = 156
+    /// Clockwise degrees. A new note is slightly turned so it reads as paper, not a row.
+    var rotation: Double = -6
+    /// Pencil strokes on the paper. Empty when the note is only words. The default lets a note from before this field open.
+    @Attribute(.externalStorage) var drawingData: Data? = nil
+    /// The page those strokes were drawn on, in points. Zero when there is no drawing.
+    var drawingWidth: Double = 0
+    var drawingHeight: Double = 0
+    var course: Course?
+
+    init(
+        course: Course,
+        text: String,
+        colorIndex: Int,
+        centerX: Double = 0.5,
+        centerY: Double = 0.28,
+        width: Double = 168,
+        height: Double = 156,
+        rotation: Double = -6,
+        drawingData: Data? = nil,
+        drawingWidth: Double = 0,
+        drawingHeight: Double = 0
+    ) {
+        self.token = UUID()
+        self.course = course
+        self.text = text
+        self.colorIndex = colorIndex
+        self.centerX = centerX
+        self.centerY = centerY
+        self.width = width
+        self.height = height
+        self.rotation = rotation
+        self.drawingData = drawingData
+        self.drawingWidth = drawingWidth
+        self.drawingHeight = drawingHeight
+        let now = Date.now
+        self.createdAt = now
+        self.updatedAt = now
     }
 }
 

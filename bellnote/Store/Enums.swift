@@ -207,6 +207,15 @@ enum ExamKind: String, Codable, Sendable, CaseIterable {
         case .other: String(localized: "Other")
         }
     }
+
+    /// The segment under Exams. Midterms, then finals, then any other kind.
+    var groupTitle: String {
+        switch self {
+        case .midterm: String(localized: "Midterms")
+        case .final: String(localized: "Finals")
+        case .other: String(localized: "Other")
+        }
+    }
 }
 
 enum InventoryKind: String, Codable, Sendable, CaseIterable {
