@@ -174,7 +174,6 @@
       }
     },
     "%lld days later" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2654,7 +2653,6 @@
       }
     },
     "Last recording: %@" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -3584,7 +3582,6 @@
       }
     },
     "No recording yet" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -4095,7 +4092,6 @@
       }
     },
     "Pending assignments: %lld" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -7101,7 +7097,6 @@
       }
     },
     "Yesterday" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {

@@ -217,6 +217,8 @@ struct TodayPage: View {
     /// Collapsed, both words meet the course name at `heroCollapsedSize`.
     @ScaledMetric(relativeTo: .body) private var heroTimeAmountSize: CGFloat = 18
     @ScaledMetric(relativeTo: .subheadline) private var heroTimeWordSize: CGFloat = 15
+    /// Matches the quiet fact line, so the collapse distance includes that row.
+    @ScaledMetric(relativeTo: .footnote) private var heroDetailLineHeight: CGFloat = 18
     @State private var openedCourse: Course?
     @State private var editingCourse: Course?
     /// The dragged course order. Scrolling rebuilds the list, so the order has to live here, not only in the drag preview.
@@ -749,6 +751,11 @@ struct TodayPage: View {
     /// The hero, the course list, and the exam list use the same lift.
     private static let identityDetailLift: CGFloat = 2
 
+    /// The fact line, including the gap above it. This part of the band closes with the scroll.
+    private var heroFactSpan: CGFloat {
+        heroDetailLineHeight + 16
+    }
+
     /// The lecturer line plus the gap under the name.
     private var heroLecturerBlock: CGFloat {
         UIFont.systemFont(ofSize: heroLecturerSize).lineHeight + 2
@@ -774,9 +781,9 @@ struct TodayPage: View {
         max(0, heroOpenRow - heroCollapsedLineHeight)
     }
 
-    /// Scroll that fully closes the badge and the lecturer. Matches the height the band loses.
+    /// Scroll that fully closes the fact line, the badge, and the lecturer. Matches the height the band loses.
     private var heroLowerSpan: CGFloat {
-        heroRowDrop
+        heroFactSpan + heroRowDrop
     }
 
     @ViewBuilder
@@ -821,6 +828,13 @@ struct TodayPage: View {
                     .fixedSize(horizontal: true, vertical: false)
                     .layoutPriority(1)
             }
+            // The quiet fact line closes upward as the cards scroll up.
+            HeroDetailLine(items: heroDetail(slot))
+                .padding(.top, 16)
+                .frame(height: heroFactSpan * (1 - collapse), alignment: .top)
+                .clipped()
+                .opacity(1 - collapse)
+                .accessibilityHidden(collapse > 0.95)
         }
         // A little room inside the glass, between its edge and the badge.
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -874,6 +888,87 @@ struct TodayPage: View {
         }
         .foregroundStyle(.primary)
         .accessibilityElement(children: .combine)
+    }
+
+    /// One quiet line under the large time. Each fact keeps a small symbol: the clock span, the place when it
+    /// is set, the last recording, open assignments when there are some, and the next exam when one is coming.
+    private func heroDetail(_ slot: WeeklySlot) -> [HeroDetailItem] {
+        var items = [HeroDetailItem(symbol: "clock", text: slotDetail(slot))]
+        let place = PlacePreset.displayName(for: slot.placeName)
+        if !place.isEmpty {
+            items.append(HeroDetailItem(symbol: "mappin.and.ellipse", text: place))
+        }
+        if let course = slot.course {
+            items.append(HeroDetailItem(symbol: "waveform", text: lastRecordingText(for: course)))
+            if course.assignments.contains(where: { !$0.done && !$0.cancelled }) {
+                items.append(HeroDetailItem(symbol: "checklist", text: openAssignmentsText(for: course)))
+            }
+            if let exam = nextExamText(for: course) {
+                items.append(HeroDetailItem(symbol: "calendar.badge.clock", text: exam))
+            }
+        } else {
+            items.append(HeroDetailItem(symbol: "waveform", text: String(localized: "No recording yet")))
+        }
+        return items
+    }
+
+    /// The next exam of the course that is today or later: "Midterm · 12 days later". Nil when there is none.
+    private func nextExamText(for course: Course) -> String? {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: .now)
+        let upcoming = course.sittings
+            .compactMap { sitting -> (sitting: ExamSitting, date: Date)? in
+                guard let date = sitting.date, calendar.startOfDay(for: date) >= today else { return nil }
+                return (sitting, date)
+            }
+            .min { $0.date < $1.date }
+        guard let upcoming else { return nil }
+        let days = calendar.dateComponents([.day], from: today, to: calendar.startOfDay(for: upcoming.date)).day ?? 0
+        let when: String
+        switch days {
+        case 0: when = String(localized: "Today")
+        case 1: when = String(localized: "Tomorrow")
+        default: when = String(format: String(localized: "%lld days later"), days)
+        }
+        return "\(heroExamName(upcoming.sitting)) · \(when)"
+    }
+
+    /// The title the student gave the exam, or the name of its kind.
+    private func heroExamName(_ sitting: ExamSitting) -> String {
+        let title = sitting.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !title.isEmpty { return title }
+        switch ExamKind(rawValue: sitting.kind) {
+        case .midterm: return String(localized: "Midterm")
+        case .final: return String(localized: "Final")
+        case .other, nil: return String(localized: "Exam")
+        }
+    }
+
+    /// The assignments that are not done and not cancelled, the same count as "Pending" on the course page.
+    private func openAssignmentsText(for course: Course) -> String {
+        let open = course.assignments.filter { !$0.done && !$0.cancelled }.count
+        return String(format: String(localized: "Pending assignments: %lld"), open)
+    }
+
+    /// The newest recording of the course: today, yesterday, or its date. Empty courses say there is none yet.
+    private func lastRecordingText(for course: Course) -> String {
+        guard let last = course.lectures.max(by: { $0.startedAt < $1.startedAt }) else {
+            return String(localized: "No recording yet")
+        }
+        let calendar = Calendar.current
+        let when: String
+        if calendar.isDateInToday(last.startedAt) {
+            when = String(localized: "Today")
+        } else if calendar.isDateInYesterday(last.startedAt) {
+            when = String(localized: "Yesterday")
+        } else {
+            when = last.startedAt.formatted(.dateTime.day().month(.abbreviated))
+        }
+        return String(format: String(localized: "Last recording: %@"), when)
+    }
+
+    private func slotDetail(_ slot: WeeklySlot) -> String {
+        "\(ReminderScheduler.clock(slot.startMinutes))–\(ReminderScheduler.clock(slot.endMinutes))"
     }
 
     /// The glass band. Square at the top of the screen. The bottom corners match the old hero card.
@@ -1477,6 +1572,204 @@ private struct HeroScrollFinder: UIViewRepresentable {
             if let found = collectionView(in: child, containing: point) { return found }
         }
         return nil
+    }
+}
+
+/// One fact on the quiet line under the large time: a system symbol and its words.
+private struct HeroDetailItem: Equatable {
+    var symbol: String
+    var text: String
+}
+
+/// The quiet fact line under the time on the home hero.
+/// One row of symbol and words. When that row is wider than the hero, it slides left in a loop.
+/// A gap sits between one copy and the next, so the end does not meet the start.
+/// A horizontal drag moves it. After the finger lifts and the slide settles, the loop waits, then continues
+/// from the place where it was left. Reduce Motion leaves it still.
+private struct HeroDetailLine: View {
+    var items: [HeroDetailItem]
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @ScaledMetric(relativeTo: .footnote) private var lineHeight: CGFloat = 18
+
+    @State private var textWidth: CGFloat = 0
+    @State private var containerWidth: CGFloat = 0
+    @State private var position = ScrollPosition(x: 0)
+    @State private var running = false
+    @State private var baseX: CGFloat = 0
+    @State private var baseDate = Date()
+    @State private var resume: Task<Void, Never>?
+    /// True from the moment a finger takes the line until it has settled again.
+    @State private var heldByFinger = false
+
+    /// How far the line travels left each second.
+    private static let speed: CGFloat = 32
+    /// Room between one copy of the line and the next.
+    private static let gap: CGFloat = 48
+    /// Copies laid end to end, so a drag in either direction stays on the same words.
+    private static let copies = 5
+    /// Stillness after a drag before the loop starts again.
+    private static let resumeDelay: Duration = .milliseconds(1500)
+
+    /// The distance from the start of one copy to the start of the next.
+    private var period: CGFloat { textWidth + Self.gap }
+
+    private var overflows: Bool { containerWidth > 0 && textWidth > containerWidth + 1 }
+
+    var body: some View {
+        GeometryReader { geo in
+            Group {
+                if overflows {
+                    scroller
+                } else {
+                    row
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+            .onAppear { containerWidth = geo.size.width }
+            .onChange(of: geo.size.width) { _, width in
+                containerWidth = width
+            }
+        }
+        .frame(height: lineHeight)
+        .clipped()
+        // The measuring copy sits behind the row and does not change its height.
+        .background(alignment: .leading) {
+            row
+                .fixedSize(horizontal: true, vertical: false)
+                .hidden()
+                .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width in
+                    guard abs(width - textWidth) > 0.5 else { return }
+                    textWidth = width
+                }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(verbatim: items.map(\.text).joined(separator: ", ")))
+        .onChange(of: items) { _, _ in start() }
+        .onChange(of: overflows) { _, now in
+            if now {
+                start()
+            } else {
+                running = false
+                resume?.cancel()
+                resume = nil
+            }
+        }
+        .onDisappear {
+            resume?.cancel()
+            running = false
+        }
+    }
+
+    /// Symbol and words for each fact, in one row.
+    private var row: some View {
+        HStack(spacing: 16) {
+            ForEach(Array(items.enumerated()), id: \.offset) { _, item in
+                HStack(spacing: 4) {
+                    Image(systemName: item.symbol)
+                        .accessibilityHidden(true)
+                    Text(verbatim: item.text)
+                        .lineLimit(1)
+                }
+            }
+        }
+        .appFont(.footnote)
+        .foregroundStyle(.secondary)
+    }
+
+    private var scroller: some View {
+        ScrollView(.horizontal) {
+            HStack(spacing: Self.gap) {
+                ForEach(0..<Self.copies, id: \.self) { index in
+                    row.accessibilityHidden(index != 0)
+                }
+            }
+        }
+        .scrollPosition($position)
+        .scrollIndicators(.hidden)
+        .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
+        .onAppear { start() }
+        .onScrollPhaseChange { _, phase, context in
+            switch phase {
+            case .tracking, .interacting, .decelerating:
+                running = false
+                resume?.cancel()
+                resume = nil
+                heldByFinger = true
+            case .idle:
+                guard heldByFinger else { return }
+                heldByFinger = false
+                let x = recenter(context.geometry.contentOffset.x)
+                baseX = x
+                jump(to: x)
+                scheduleResume()
+            case .animating:
+                break
+            }
+        }
+        .background {
+            TimelineView(.animation(minimumInterval: 1.0 / 30, paused: !running)) { context in
+                Color.clear
+                    .onChange(of: context.date) { _, date in
+                        advance(to: date)
+                    }
+            }
+        }
+    }
+
+    /// Park the line at the middle copy and, when it does not fit, arm the loop.
+    private func start() {
+        running = false
+        resume?.cancel()
+        resume = nil
+        heldByFinger = false
+        guard overflows else { return }
+        let parked = 2 * period
+        baseX = parked
+        jump(to: parked)
+        scheduleResume()
+    }
+
+    private func scheduleResume() {
+        resume?.cancel()
+        guard overflows, !reduceMotion else { return }
+        resume = Task {
+            try? await Task.sleep(for: Self.resumeDelay)
+            guard !Task.isCancelled else { return }
+            baseDate = .now
+            running = true
+        }
+    }
+
+    /// Move the line left. Past the middle copy, jump back one period so the loop has no seam.
+    private func advance(to date: Date) {
+        guard running, period > 0 else { return }
+        var x = baseX + Self.speed * date.timeIntervalSince(baseDate)
+        if x >= 3 * period {
+            x = 2 * period + positiveMod(x, period)
+            baseX = x
+            baseDate = date
+        }
+        jump(to: x)
+    }
+
+    /// The same words, shifted into the middle copy, so a jump does not change what is on screen.
+    private func recenter(_ x: CGFloat) -> CGFloat {
+        guard period > 0 else { return 0 }
+        return 2 * period + positiveMod(x, period)
+    }
+
+    private func positiveMod(_ value: CGFloat, _ period: CGFloat) -> CGFloat {
+        let remainder = value.truncatingRemainder(dividingBy: period)
+        return remainder < 0 ? remainder + period : remainder
+    }
+
+    private func jump(to x: CGFloat) {
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            position.scrollTo(x: x)
+        }
     }
 }
 
