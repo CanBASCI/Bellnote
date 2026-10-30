@@ -217,8 +217,6 @@ struct TodayPage: View {
     /// Collapsed, both words meet the course name at `heroCollapsedSize`.
     @ScaledMetric(relativeTo: .body) private var heroTimeAmountSize: CGFloat = 18
     @ScaledMetric(relativeTo: .subheadline) private var heroTimeWordSize: CGFloat = 15
-    /// Matches the quiet fact line, so the collapse distance includes that row.
-    @ScaledMetric(relativeTo: .footnote) private var heroDetailLineHeight: CGFloat = 18
     @State private var openedCourse: Course?
     @State private var editingCourse: Course?
     /// The dragged course order. Scrolling rebuilds the list, so the order has to live here, not only in the drag preview.
@@ -747,13 +745,9 @@ struct TodayPage: View {
         return band + Self.heroToListGap
     }
 
-    /// The fact line, including the gap above it. This part of the band closes with the scroll.
-    private var heroFactSpan: CGFloat {
-        heroDetailLineHeight + 16
-    }
-
-    /// Room under the lecturer line so its words sit on the icon's bottom edge, not under it.
-    private static let heroLecturerLift: CGFloat = 2
+    /// Room under the second line beside a badge so those words sit on the icon’s bottom edge, not under it.
+    /// The hero, the course list, and the exam list use the same lift.
+    private static let identityDetailLift: CGFloat = 2
 
     /// The lecturer line plus the gap under the name.
     private var heroLecturerBlock: CGFloat {
@@ -780,9 +774,9 @@ struct TodayPage: View {
         max(0, heroOpenRow - heroCollapsedLineHeight)
     }
 
-    /// Scroll that fully closes the fact line, the badge, and the lecturer. Matches the height the band loses.
+    /// Scroll that fully closes the badge and the lecturer. Matches the height the band loses.
     private var heroLowerSpan: CGFloat {
-        heroFactSpan + heroRowDrop
+        heroRowDrop
     }
 
     @ViewBuilder
@@ -818,7 +812,7 @@ struct TodayPage: View {
                         .frame(height: heroLecturerBlock * (1 - collapse), alignment: .bottom)
                         .clipped()
                         // The line box was flush with the icon's bottom, so the words sat under that edge.
-                        .padding(.bottom, Self.heroLecturerLift * (1 - collapse))
+                        .padding(.bottom, Self.identityDetailLift * (1 - collapse))
                         .opacity(1 - collapse)
                         .accessibilityHidden(collapse > 0.95)
                 }
@@ -827,13 +821,6 @@ struct TodayPage: View {
                     .fixedSize(horizontal: true, vertical: false)
                     .layoutPriority(1)
             }
-            // The quiet fact line closes upward as the cards scroll up.
-            HeroDetailLine(items: heroDetail(slot))
-                .padding(.top, 16)
-                .frame(height: heroFactSpan * (1 - collapse), alignment: .top)
-                .clipped()
-                .opacity(1 - collapse)
-                .accessibilityHidden(collapse > 0.95)
         }
         // A little room inside the glass, between its edge and the badge.
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -889,83 +876,6 @@ struct TodayPage: View {
         .accessibilityElement(children: .combine)
     }
 
-    /// One quiet line under the large time. Each fact keeps a small symbol: the clock span, the place when it
-    /// is set, the last recording, open assignments when there are some, and the next exam when one is coming.
-    private func heroDetail(_ slot: WeeklySlot) -> [HeroDetailItem] {
-        var items = [HeroDetailItem(symbol: "clock", text: slotDetail(slot))]
-        let place = PlacePreset.displayName(for: slot.placeName)
-        if !place.isEmpty {
-            items.append(HeroDetailItem(symbol: "mappin.and.ellipse", text: place))
-        }
-        if let course = slot.course {
-            items.append(HeroDetailItem(symbol: "waveform", text: lastRecordingText(for: course)))
-            if course.assignments.contains(where: { !$0.done && !$0.cancelled }) {
-                items.append(HeroDetailItem(symbol: "checklist", text: openAssignmentsText(for: course)))
-            }
-            if let exam = nextExamText(for: course) {
-                items.append(HeroDetailItem(symbol: "calendar.badge.clock", text: exam))
-            }
-        } else {
-            items.append(HeroDetailItem(symbol: "waveform", text: String(localized: "No recording yet")))
-        }
-        return items
-    }
-
-    /// The next exam of the course that is today or later: "Midterm · 12 days later". Nil when there is none.
-    private func nextExamText(for course: Course) -> String? {
-        let calendar = Calendar.current
-        let today = calendar.startOfDay(for: .now)
-        let upcoming = course.sittings
-            .compactMap { sitting -> (sitting: ExamSitting, date: Date)? in
-                guard let date = sitting.date, calendar.startOfDay(for: date) >= today else { return nil }
-                return (sitting, date)
-            }
-            .min { $0.date < $1.date }
-        guard let upcoming else { return nil }
-        let days = calendar.dateComponents([.day], from: today, to: calendar.startOfDay(for: upcoming.date)).day ?? 0
-        let when: String
-        switch days {
-        case 0: when = String(localized: "Today")
-        case 1: when = String(localized: "Tomorrow")
-        default: when = String(format: String(localized: "%lld days later"), days)
-        }
-        return "\(examName(upcoming.sitting)) · \(when)"
-    }
-
-    /// The title the student gave the exam, or the name of its kind.
-    private func examName(_ sitting: ExamSitting) -> String {
-        let title = sitting.title.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !title.isEmpty { return title }
-        switch ExamKind(rawValue: sitting.kind) {
-        case .midterm: return String(localized: "Midterm")
-        case .final: return String(localized: "Final")
-        case .other, nil: return String(localized: "Exam")
-        }
-    }
-
-    /// The assignments that are not done and not cancelled, the same count as "Pending" on the course page.
-    private func openAssignmentsText(for course: Course) -> String {
-        let open = course.assignments.filter { !$0.done && !$0.cancelled }.count
-        return String(format: String(localized: "Pending assignments: %lld"), open)
-    }
-
-    /// The newest recording of the course: today, yesterday, or its date. Empty courses say there is none yet.
-    private func lastRecordingText(for course: Course) -> String {
-        guard let last = course.lectures.max(by: { $0.startedAt < $1.startedAt }) else {
-            return String(localized: "No recording yet")
-        }
-        let calendar = Calendar.current
-        let when: String
-        if calendar.isDateInToday(last.startedAt) {
-            when = String(localized: "Today")
-        } else if calendar.isDateInYesterday(last.startedAt) {
-            when = String(localized: "Yesterday")
-        } else {
-            when = last.startedAt.formatted(.dateTime.day().month(.abbreviated))
-        }
-        return String(format: String(localized: "Last recording: %@"), when)
-    }
-
     /// The glass band. Square at the top of the screen. The bottom corners match the old hero card.
     private var heroBandShape: UnevenRoundedRectangle {
         UnevenRoundedRectangle(
@@ -985,15 +895,15 @@ struct TodayPage: View {
     private static let heroTopInset: CGFloat = 4
     /// Room between the bottom edge of the hero glass and the first course title.
     private static let heroToListGap: CGFloat = 16
-    /// The course icon on a list row, before it grows to the two slot lines.
+    /// The course icon on a list row, before it grows to the two lines on the right.
     private static let courseBadgeSize: CGFloat = 34
 
-    /// Height the icon, the name, and the lecturer grow to. It stays the two 15 pt slot lines,
-    /// including the gap between them and the counts on the lower line. The dates themselves are smaller.
+    /// Height the icon, the name, and the lecturer grow to. It matches the two lines on the right:
+    /// the counts above, and the nearest slot under them. The slot text itself is smaller.
     private var datePairHeight: CGFloat {
         let slot = UIFont.preferredFont(forTextStyle: .subheadline).lineHeight
         let counts = UIFont.systemFont(ofSize: courseTotalSize).lineHeight
-        return slot + 2 + max(slot, counts)
+        return counts + 2 + slot
     }
 
     /// The icon, the name, and the lecturer before they grow.
@@ -1005,7 +915,7 @@ struct TodayPage: View {
         return max(Self.courseBadgeSize, name + lecturer)
     }
 
-    /// One factor for the icon, the name, and the lecturer, so the group matches the two slot lines.
+    /// One factor for the icon, the name, and the lecturer, so the group matches the two lines on the right.
     private var courseIdentityScale: CGFloat {
         let natural = courseIdentityHeight
         guard natural > 1 else { return 1 }
@@ -1020,8 +930,8 @@ struct TodayPage: View {
         let lecturer = course.lecturer?.displayName ?? ""
         let share = recordedShare(for: course)
         return VStack(alignment: .leading, spacing: 6) {
-            // The icon, the name, and the lecturer stay as tall as two 15 pt date lines.
-            // Dates sit to their right, on the bottom of that block. The three counts stay on the lower date, at the trailing corner.
+            // The icon, the name, and the lecturer stay as tall as the two lines on the right.
+            // Counts sit above. The nearest slot sits under them, at the trailing corner.
             HStack(alignment: .bottom, spacing: 10) {
                 HStack(alignment: .bottom, spacing: 10) {
                     CourseBadge(name: course.name, color: course.color, size: Self.courseBadgeSize * courseIdentityScale, outlined: true, borderColor: .secondary)
@@ -1034,6 +944,7 @@ struct TodayPage: View {
                             .appFont(size: UIFont.preferredFont(forTextStyle: .caption2).pointSize * courseIdentityScale)
                             .foregroundStyle(lecturer.isEmpty ? Color.secondary : Color.primary)
                             .lineLimit(1)
+                            .padding(.bottom, Self.identityDetailLift)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
@@ -1054,53 +965,42 @@ struct TodayPage: View {
         .contentShape(.rect)
     }
 
-    /// Up to two slots, on the right of the name. The nearest sits above.
-    /// The last slot shares its line with the three counts, which stay at the trailing corner.
-    /// A course with fewer than two still keeps the height of two, so every row is the same length.
+    /// Counts above, nearest slot under them at the trailing corner. Only one slot is shown.
+    /// A course with no slot still keeps the height of two lines, so every row is the same length.
     private func scheduleAndCounts(_ course: Course) -> some View {
-        let lines = scheduleLines(course)
-        let earlier = Array(lines.dropLast())
-        let lastIsNearest = earlier.isEmpty
-        return VStack(alignment: .leading, spacing: 2) {
-            if let first = earlier.first {
-                scheduleLine(first, nearest: true)
-            } else {
-                reservedScheduleLine()
-            }
-            HStack(alignment: .center, spacing: 10) {
-                if let last = lines.last {
-                    scheduleLine(last, nearest: lastIsNearest)
-                } else {
-                    reservedScheduleLine()
-                }
+        let nearest = scheduleLine(for: course)
+        return VStack(alignment: .trailing, spacing: 2) {
+            HStack(alignment: .center, spacing: 4) {
                 total(course.lectures.count, "waveform", "Recordings")
                 total(course.assignments.count, "checklist", "Assignments")
                 total(course.sittings.count, "calendar", "Exams")
             }
+            if let nearest {
+                scheduleLine(nearest)
+            } else {
+                reservedScheduleLine()
+            }
         }
+        .padding(.bottom, Self.identityDetailLift)
         .fixedSize(horizontal: true, vertical: true)
         .layoutPriority(1)
     }
 
-    /// One weekly slot, with a list bullet in front. The nearest slot is primary. The rest are secondary.
-    private func scheduleLine(_ line: String, nearest: Bool) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 6) {
-            Text(verbatim: "•")
-                .accessibilityHidden(true)
-            Text(verbatim: line)
-                .lineLimit(1)
-        }
-        .appFont(.footnote)
-        .foregroundStyle(nearest ? Color.primary : Color.secondary)
+    /// One weekly slot at the trailing corner.
+    private func scheduleLine(_ line: String) -> some View {
+        Text(verbatim: line)
+            .appFont(.footnote)
+            .foregroundStyle(.primary)
+            .lineLimit(1)
     }
 
     /// The height of one slot, with nothing to read. The width stays out of the row, so a short date column does not grow.
     private func reservedScheduleLine() -> some View {
-        scheduleLine("00:00–00:00", nearest: false)
+        scheduleLine("00:00–00:00")
             .hidden()
             .accessibilityHidden(true)
             .fixedSize(horizontal: true, vertical: true)
-            .frame(width: 0, alignment: .leading)
+            .frame(width: 0, alignment: .trailing)
     }
 
     private func recordedAccessLabel(_ share: RecordedShare) -> Text {
@@ -1240,10 +1140,6 @@ struct TodayPage: View {
         return (slot.weekday - weekday + 7) % 7
     }
 
-    private func slotDetail(_ slot: WeeklySlot) -> String {
-        "\(ReminderScheduler.clock(slot.startMinutes))–\(ReminderScheduler.clock(slot.endMinutes))"
-    }
-
     /// Minutes until this slot’s next occurrence (0 while the class is on). Used to put the nearest line first.
     private func minutesUntilNextOccurrence(_ slot: WeeklySlot) -> Int {
         let calendar = Calendar.current
@@ -1259,10 +1155,10 @@ struct TodayPage: View {
         return days * 24 * 60 + slot.startMinutes - minutes
     }
 
-    /// Up to two weekly slots, nearest upcoming first ("Mon 09:00–10:30").
-    private func scheduleLines(_ course: Course) -> [String] {
+    /// The nearest upcoming weekly slot ("Mon 09:00–10:30"). Nil when the course has none.
+    private func scheduleLine(for course: Course) -> String? {
         let symbols = Calendar.current.shortWeekdaySymbols
-        let lines = term.slots
+        return term.slots
             .filter { $0.course?.token == course.token }
             .sorted { minutesUntilNextOccurrence($0) < minutesUntilNextOccurrence($1) }
             .compactMap { slot -> String? in
@@ -1270,70 +1166,60 @@ struct TodayPage: View {
                 let span = "\(ReminderScheduler.clock(slot.startMinutes))–\(ReminderScheduler.clock(slot.endMinutes))"
                 return "\(symbols[slot.weekday - 1]) \(span)"
             }
-        return Array(lines.prefix(2))
+            .first
     }
 
-    /// One sitting, in the same arrangement as a course row. The kind leads. The day and the time sit on the right.
-    /// A typed score sits in the horizontal middle and on the bottom edge, with Gedik’s letter and result beside it.
+    /// One sitting, in the same arrangement as a course row. The course name leads. The exam name sits left of the place.
+    /// The badge shows the exam’s initial. On the right, a typed score sits above the day and time on one line.
     /// A past day strikes that day and time.
     private func examCard(_ row: ExamRow) -> some View {
         let tint = term.courses.first { $0.name == row.courseName }?.color ?? CourseStyle.color(for: row.courseName)
+        let examName = examKindTitle(row)
         let place = PlacePreset.displayName(for: row.place)
-        let courseLine = place.isEmpty ? row.courseName : "\(row.courseName) · \(place)"
+        let examLine = place.isEmpty ? examName : "\(examName) · \(place)"
         let score = row.score.trimmingCharacters(in: .whitespacesAndNewlines)
+        let grade = ExamGrade.mark(for: score)
         let past = examIsPast(row)
         let nameSize = UIFont.preferredFont(forTextStyle: .subheadline).pointSize * courseIdentityScale
         let detailSize = UIFont.preferredFont(forTextStyle: .caption2).pointSize * courseIdentityScale
         return VStack(alignment: .leading, spacing: 4) {
             HStack(alignment: .bottom, spacing: 10) {
                 CourseBadge(
-                    name: row.courseName,
+                    name: examName,
                     color: tint,
                     size: Self.courseBadgeSize * courseIdentityScale,
                     outlined: true,
-                    borderColor: .secondary
+                    borderColor: .secondary,
+                    letterColor: past ? .secondary : .primary
                 )
                 VStack(alignment: .leading, spacing: 0) {
-                    Text(verbatim: examKindTitle(row))
+                    Text(verbatim: row.courseName)
                         .appFont(size: nameSize, weight: .semibold)
                         .lineLimit(1)
                         .truncationMode(.tail)
-                    Text(verbatim: courseLine)
+                    Text(verbatim: examLine)
                         .appFont(size: detailSize)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
+                        .padding(.bottom, Self.identityDetailLift)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                if let grade = ExamGrade.mark(for: score) {
-                    let result = String(localized: String.LocalizationValue(grade.result.rawValue))
-                    HStack(alignment: .firstTextBaseline, spacing: 0) {
+                VStack(alignment: .trailing, spacing: 2) {
+                    if !score.isEmpty {
                         Text(verbatim: score)
                             .appFont(.footnote, weight: .semibold, digits: true)
-                            .foregroundStyle(CourseStyle.scoreTint(grade.result))
-                        Text(verbatim: " · \(grade.letter) · \(result)")
-                            .appFont(.footnote)
-                            .foregroundStyle(.primary)
+                            .foregroundStyle(grade.map { CourseStyle.scoreTint($0.result) } ?? Color.primary)
+                            .lineLimit(1)
+                            .accessibilityLabel(Text(verbatim: String(format: String(localized: "Score %@"), score)))
                     }
-                    .lineLimit(1)
-                    .fixedSize()
-                    .accessibilityLabel(
-                        Text(verbatim: "\(String(format: String(localized: "Score %@"), score)) \(grade.letter) \(result)")
-                    )
-                }
-                VStack(alignment: .trailing, spacing: 2) {
-                    Text(verbatim: examDay(row))
-                        .appFont(.footnote, weight: .semibold)
+                    Text(verbatim: "\(examDay(row)) · \(examClock(row))")
+                        .appFont(.footnote)
                         .foregroundStyle(past ? Color.secondary : Color.primary)
                         .strikethrough(past)
                         .lineLimit(1)
-                    Text(verbatim: examClock(row))
-                        .appFont(.footnote)
-                        .foregroundStyle(.secondary)
-                        .strikethrough(past)
-                        .lineLimit(1)
                 }
+                .padding(.bottom, Self.identityDetailLift)
                 .fixedSize(horizontal: true, vertical: false)
-                .frame(maxWidth: score.isEmpty ? nil : .infinity, alignment: .trailing)
             }
             if let approach = examApproach(row) {
                 ProgressView(value: approach)
@@ -1591,204 +1477,6 @@ private struct HeroScrollFinder: UIViewRepresentable {
             if let found = collectionView(in: child, containing: point) { return found }
         }
         return nil
-    }
-}
-
-/// One fact on the quiet line under the large time: a system symbol and its words.
-private struct HeroDetailItem: Equatable {
-    var symbol: String
-    var text: String
-}
-
-/// The quiet fact line under the time on the home hero.
-/// One row of symbol and words. When that row is wider than the hero, it slides left in a loop.
-/// A gap sits between one copy and the next, so the end does not meet the start.
-/// A horizontal drag moves it. After the finger lifts and the slide settles, the loop waits, then continues
-/// from the place where it was left. Reduce Motion leaves it still.
-private struct HeroDetailLine: View {
-    var items: [HeroDetailItem]
-
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @ScaledMetric(relativeTo: .footnote) private var lineHeight: CGFloat = 18
-
-    @State private var textWidth: CGFloat = 0
-    @State private var containerWidth: CGFloat = 0
-    @State private var position = ScrollPosition(x: 0)
-    @State private var running = false
-    @State private var baseX: CGFloat = 0
-    @State private var baseDate = Date()
-    @State private var resume: Task<Void, Never>?
-    /// True from the moment a finger takes the line until it has settled again.
-    @State private var heldByFinger = false
-
-    /// How far the line travels left each second.
-    private static let speed: CGFloat = 32
-    /// Room between one copy of the line and the next.
-    private static let gap: CGFloat = 48
-    /// Copies laid end to end, so a drag in either direction stays on the same words.
-    private static let copies = 5
-    /// Stillness after a drag before the loop starts again.
-    private static let resumeDelay: Duration = .milliseconds(1500)
-
-    /// The distance from the start of one copy to the start of the next.
-    private var period: CGFloat { textWidth + Self.gap }
-
-    private var overflows: Bool { containerWidth > 0 && textWidth > containerWidth + 1 }
-
-    var body: some View {
-        GeometryReader { geo in
-            Group {
-                if overflows {
-                    scroller
-                } else {
-                    row
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-            }
-            .onAppear { containerWidth = geo.size.width }
-            .onChange(of: geo.size.width) { _, width in
-                containerWidth = width
-            }
-        }
-        .frame(height: lineHeight)
-        .clipped()
-        // The measuring copy sits behind the row and does not change its height.
-        .background(alignment: .leading) {
-            row
-                .fixedSize(horizontal: true, vertical: false)
-                .hidden()
-                .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width in
-                    guard abs(width - textWidth) > 0.5 else { return }
-                    textWidth = width
-                }
-        }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(Text(verbatim: items.map(\.text).joined(separator: ", ")))
-        .onChange(of: items) { _, _ in start() }
-        .onChange(of: overflows) { _, now in
-            if now {
-                start()
-            } else {
-                running = false
-                resume?.cancel()
-                resume = nil
-            }
-        }
-        .onDisappear {
-            resume?.cancel()
-            running = false
-        }
-    }
-
-    /// Symbol and words for each fact, in one row.
-    private var row: some View {
-        HStack(spacing: 16) {
-            ForEach(Array(items.enumerated()), id: \.offset) { _, item in
-                HStack(spacing: 4) {
-                    Image(systemName: item.symbol)
-                        .accessibilityHidden(true)
-                    Text(verbatim: item.text)
-                        .lineLimit(1)
-                }
-            }
-        }
-        .appFont(.footnote)
-        .foregroundStyle(.secondary)
-    }
-
-    private var scroller: some View {
-        ScrollView(.horizontal) {
-            HStack(spacing: Self.gap) {
-                ForEach(0..<Self.copies, id: \.self) { index in
-                    row.accessibilityHidden(index != 0)
-                }
-            }
-        }
-        .scrollPosition($position)
-        .scrollIndicators(.hidden)
-        .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
-        .onAppear { start() }
-        .onScrollPhaseChange { _, phase, context in
-            switch phase {
-            case .tracking, .interacting, .decelerating:
-                running = false
-                resume?.cancel()
-                resume = nil
-                heldByFinger = true
-            case .idle:
-                guard heldByFinger else { return }
-                heldByFinger = false
-                let x = recenter(context.geometry.contentOffset.x)
-                baseX = x
-                jump(to: x)
-                scheduleResume()
-            case .animating:
-                break
-            }
-        }
-        .background {
-            TimelineView(.animation(minimumInterval: 1.0 / 30, paused: !running)) { context in
-                Color.clear
-                    .onChange(of: context.date) { _, date in
-                        advance(to: date)
-                    }
-            }
-        }
-    }
-
-    /// Park the line at the middle copy and, when it does not fit, arm the loop.
-    private func start() {
-        running = false
-        resume?.cancel()
-        resume = nil
-        heldByFinger = false
-        guard overflows else { return }
-        let parked = 2 * period
-        baseX = parked
-        jump(to: parked)
-        scheduleResume()
-    }
-
-    private func scheduleResume() {
-        resume?.cancel()
-        guard overflows, !reduceMotion else { return }
-        resume = Task {
-            try? await Task.sleep(for: Self.resumeDelay)
-            guard !Task.isCancelled else { return }
-            baseDate = .now
-            running = true
-        }
-    }
-
-    /// Move the line left. Past the middle copy, jump back one period so the loop has no seam.
-    private func advance(to date: Date) {
-        guard running, period > 0 else { return }
-        var x = baseX + Self.speed * date.timeIntervalSince(baseDate)
-        if x >= 3 * period {
-            x = 2 * period + positiveMod(x, period)
-            baseX = x
-            baseDate = date
-        }
-        jump(to: x)
-    }
-
-    /// The same words, shifted into the middle copy, so a jump does not change what is on screen.
-    private func recenter(_ x: CGFloat) -> CGFloat {
-        guard period > 0 else { return 0 }
-        return 2 * period + positiveMod(x, period)
-    }
-
-    private func positiveMod(_ value: CGFloat, _ period: CGFloat) -> CGFloat {
-        let remainder = value.truncatingRemainder(dividingBy: period)
-        return remainder < 0 ? remainder + period : remainder
-    }
-
-    private func jump(to x: CGFloat) {
-        var transaction = Transaction()
-        transaction.disablesAnimations = true
-        withTransaction(transaction) {
-            position.scrollTo(x: x)
-        }
     }
 }
 

@@ -174,6 +174,7 @@
       }
     },
     "%lld days later" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -964,38 +965,6 @@
         }
       }
     },
-    "Chosen sentences leave this speaker and are added to the one you pick." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Chosen sentences leave this speaker and are added to the one you pick."
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Seçilen cümleler bu konuşmacıdan çıkar ve seçtiğin konuşmacıya eklenir."
-          }
-        }
-      }
-    },
-    "Clay brown" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Clay brown"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Kil kahvesi"
-          }
-        }
-      }
-    },
     "Choose Supertonic under Read aloud, then pick a voice." : {
       "localizations" : {
         "en" : {
@@ -1024,6 +993,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Transkript’te Whisper’ı seç."
+          }
+        }
+      }
+    },
+    "Chosen sentences leave this speaker and are added to the one you pick." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chosen sentences leave this speaker and are added to the one you pick."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Seçilen cümleler bu konuşmacıdan çıkar ve seçtiğin konuşmacıya eklenir."
+          }
+        }
+      }
+    },
+    "Clay brown" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clay brown"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kil kahvesi"
           }
         }
       }
@@ -1526,54 +1527,6 @@
         }
       }
     },
-    "Download FluidAudio. It tells the speakers apart." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Download FluidAudio. It tells the speakers apart."
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "FluidAudio’yu indir. Konuşmacıları ayırır."
-          }
-        }
-      }
-    },
-    "Download Supertonic, choose it under Read aloud, then pick a voice." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Download Supertonic, choose it under Read aloud, then pick a voice."
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Supertonic’i indir, Sesli okuma’da onu seç, sonra bir ses seç."
-          }
-        }
-      }
-    },
-    "Download Whisper, then choose it under Transcript." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Download Whisper, then choose it under Transcript."
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Whisper’ı indir, sonra Transkript’te onu seç."
-          }
-        }
-      }
-    },
     "Download a text model" : {
       "localizations" : {
         "en" : {
@@ -1638,6 +1591,22 @@
         }
       }
     },
+    "Download FluidAudio. It tells the speakers apart." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Download FluidAudio. It tells the speakers apart."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "FluidAudio’yu indir. Konuşmacıları ayırır."
+          }
+        }
+      }
+    },
     "Download starts when you confirm this row." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1671,6 +1640,22 @@
         }
       }
     },
+    "Download Supertonic, choose it under Read aloud, then pick a voice." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Download Supertonic, choose it under Read aloud, then pick a voice."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Supertonic’i indir, Sesli okuma’da onu seç, sonra bir ses seç."
+          }
+        }
+      }
+    },
     "Download the models Bellnote uses for notes. Nothing is uploaded." : {
       "localizations" : {
         "en" : {
@@ -1683,6 +1668,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Notlar için Bellnote’un kullandığı modelleri indir. Hiçbir şey yüklenmez."
+          }
+        }
+      }
+    },
+    "Download Whisper, then choose it under Transcript." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Download Whisper, then choose it under Transcript."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Whisper’ı indir, sonra Transkript’te onu seç."
           }
         }
       }
@@ -2653,6 +2654,7 @@
       }
     },
     "Last recording: %@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -3582,6 +3584,7 @@
       }
     },
     "No recording yet" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -4092,6 +4095,7 @@
       }
     },
     "Pending assignments: %lld" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -4784,6 +4788,22 @@
         }
       }
     },
+    "Resize" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Resize"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Boyutlandır"
+          }
+        }
+      }
+    },
     "Restore" : {
       "localizations" : {
         "en" : {
@@ -4834,22 +4854,6 @@
     },
     "Resume the lecture recording" : {
 
-    },
-    "Resize" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Resize"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Boyutlandır"
-          }
-        }
-      }
     },
     "Retry" : {
       "localizations" : {
@@ -7097,6 +7101,7 @@
       }
     },
     "Yesterday" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {

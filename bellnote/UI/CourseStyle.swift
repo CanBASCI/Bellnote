@@ -182,18 +182,21 @@ extension View {
 
 /// A rounded square with the course initial. Filled, it is flat like a date cover.
 /// Outlined, the glass shows through and the initial is primary. The border is `borderColor`.
+/// `letterColor` replaces that initial color when set, such as secondary on a past exam.
 struct CourseBadge: View {
     var name: String
     var color: Color
     var size: CGFloat = 40
     var outlined = false
     var borderColor: Color = .primary
+    var letterColor: Color? = nil
 
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: size * 0.27, style: .continuous)
+        let letter = letterColor ?? (outlined ? Color.primary : Color.white)
         Text(CourseStyle.initial(of: name))
             .font(.system(size: size * 0.45, weight: .bold, design: .rounded))
-            .foregroundStyle(outlined ? Color.primary : Color.white)
+            .foregroundStyle(letter)
             .frame(width: size, height: size)
             .background {
                 if outlined {
@@ -470,22 +473,12 @@ struct AssignmentRow: View {
             }
             if let lecture = assignment.sourceLecture {
                 let source = "\(lecture.startedAt.formatted(date: .abbreviated, time: .shortened)) · \(MediaClock.short(assignment.sourceSecond))"
-                Group {
-                    if plainDetails {
-                        // A label puts a wide space of its own between the icon and the text. The dot is the same
-                        // one that stands between the date and the time in the text.
-                        HStack(spacing: 0) {
-                            Image(systemName: "play.circle")
-                            Text(verbatim: " · ")
-                            Text(verbatim: source)
-                        }
-                    } else {
-                        Label {
-                            Text(verbatim: source)
-                        } icon: {
-                            Image(systemName: "play.circle")
-                        }
-                    }
+                // A Label puts a wide space of its own between the icon and the text. The dot is the same
+                // one that stands between the date and the time in the text.
+                HStack(spacing: 0) {
+                    Image(systemName: "play.circle")
+                    Text(verbatim: " · ")
+                    Text(verbatim: source)
                 }
                 .appFont(plainDetails ? .subheadline : .caption)
                 .modifier(LectureMetaFont(active: lectureReading, size: lectureMetaSize))
