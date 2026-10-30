@@ -1431,15 +1431,9 @@ struct ProgramPage: View {
                 .listRowSeparator(.hidden)
                 .listRowBackground(Color.clear)
                 timeline
-                    .listRowInsets(EdgeInsets(top: 8, leading: 0, bottom: 0, trailing: 0))
+                    .listRowInsets(EdgeInsets(top: 8, leading: 0, bottom: 8, trailing: 0))
                     .listRowSeparator(.hidden)
                     .listRowBackground(Color.clear)
-                if !hourRows.isEmpty {
-                    dayMinutes
-                        .listRowInsets(EdgeInsets(top: 8, leading: 36, bottom: 8, trailing: 16))
-                        .listRowSeparator(.hidden)
-                        .listRowBackground(Color.clear)
-                }
             }
         }
         .listStyle(.insetGrouped)
@@ -1488,18 +1482,6 @@ struct ProgramPage: View {
         }
     }
 
-    /// The selected day's load, under the hours. The minutes stay beside the course.
-    private var dayMinutes: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            ForEach(hourRows, id: \.courseName) { row in
-                Text("\(row.courseName) · \(String(format: String(localized: "%lld min"), row.weeklyMinutes))")
-                    .appFont(.footnote, digits: true)
-            }
-        }
-        .foregroundStyle(.secondary)
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
     private var timeline: some View {
         let slots = slots(on: day)
         let start = startHour(slots)
@@ -1508,7 +1490,7 @@ struct ProgramPage: View {
         let spanEnd = lastMinute.map { $0 + 1 } ?? (last + 1) * 60
         // Each hour row is hourHeight tall and its rule is the top edge of that row. A block uses that
         // same edge, so 9:00 starts on the 9 rule. The label is only centered on the rule; it does not move it.
-        // The last row stops at the last class, so the totals are not left under an empty hour.
+        // The last row stops at the last class, so an empty hour is not left under it.
         return VStack(spacing: 0) {
             ForEach(start...last, id: \.self) { hour in
                 hourRow(hour, height: rowHeight(hour: hour, start: start, last: last, lastMinute: lastMinute))
@@ -1620,12 +1602,6 @@ struct ProgramPage: View {
         if term.slots.contains(where: { $0.weekday == 7 }) { days.append(7) }
         if term.slots.contains(where: { $0.weekday == 1 }) { days.append(1) }
         return days
-    }
-
-    private var hourRows: [SlotHours] {
-        HoursChart.weekly(slots: slots(on: day).map {
-            ($0.course?.name ?? "", $0.startMinutes, $0.endMinutes)
-        })
     }
 
     private var isToday: Bool {
