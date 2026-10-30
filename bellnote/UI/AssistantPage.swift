@@ -262,6 +262,7 @@ struct AssistantPage: View {
     /// You / Bellnote leading, Source at the card’s trailing edge, both outside the fill.
     /// The fill hugs short text; Source does not follow that width.
     /// The card grows with the text up to `maxHeight` (the orb has met the question), then the body scrolls.
+    /// Header aligns on the bottom so Source, taller than the caption, does not lift You / Bellnote off the body.
     @ViewBuilder
     private func talkTurnCard(
         _ card: (title: String, body: String, showSource: Bool, followTail: Bool),
@@ -270,7 +271,7 @@ struct AssistantPage: View {
     ) -> some View {
         let bodyMax = max(maxWidth - 28, 1)
         TalkTurnColumn(spacing: 8, maxWidth: maxWidth, maxHeight: maxHeight) {
-            HStack(alignment: .center, spacing: 8) {
+            HStack(alignment: .bottom, spacing: 8) {
                 Text(card.title)
                     .appFont(.caption, weight: .semibold)
                     .foregroundStyle(.secondary)
