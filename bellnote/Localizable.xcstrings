@@ -72,6 +72,16 @@
         }
       }
     },
+    "%@%@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@%2$@"
+          }
+        }
+      }
+    },
     "%1$@ is in %2$lld recordings: %3$@." : {
       "localizations" : {
         "en" : {

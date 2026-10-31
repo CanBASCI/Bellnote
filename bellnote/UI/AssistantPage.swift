@@ -265,7 +265,7 @@ struct AssistantPage: View {
     /// Header aligns on the bottom so Source, taller than the caption, does not lift You / Bellnote off the body.
     @ViewBuilder
     private func talkTurnCard(
-        _ card: (title: String, body: String, showSource: Bool, followTail: Bool),
+        _ card: (title: String, body: String, bodyParts: [TalkBodyPart]?, showSource: Bool, followTail: Bool),
         maxWidth: CGFloat,
         maxHeight: CGFloat
     ) -> some View {
@@ -294,6 +294,7 @@ struct AssistantPage: View {
             .padding(.horizontal, 14)
             TalkBubble(
                 text: card.body,
+                bodyParts: card.bodyParts,
                 maxTextWidth: bodyMax,
                 followTail: card.followTail
             )
@@ -340,7 +341,13 @@ struct AssistantPage: View {
     /// Partial speech fills the same “You” card that later holds the final line.
     /// While Speaking, keep the Bellnote reply — barge ASR often echoes TTS into partialTranscript
     /// and would shrink the card to the first echoed line until playback ends.
-    private var turnCardContent: (title: String, body: String, showSource: Bool, followTail: Bool)? {
+    private var turnCardContent: (
+        title: String,
+        body: String,
+        bodyParts: [TalkBodyPart]?,
+        showSource: Bool,
+        followTail: Bool
+    )? {
         if talk.phase == .speaking,
            let latest = talk.turns.last,
            latest.role == .assistant
@@ -348,6 +355,7 @@ struct AssistantPage: View {
             return (
                 String(localized: "Bellnote"),
                 latest.text,
+                latest.bodyParts,
                 !latest.sources.isEmpty,
                 false
             )
@@ -355,12 +363,12 @@ struct AssistantPage: View {
         let live = talk.partialTranscript.trimmingCharacters(in: .whitespacesAndNewlines)
         if !live.isEmpty {
             // Live speech follows the newest line. The question stays on this card until the reply replaces it.
-            return (String(localized: "You"), live, false, true)
+            return (String(localized: "You"), live, nil, false, true)
         }
         guard let latest = talk.turns.last else { return nil }
         let title = latest.role == .user ? String(localized: "You") : String(localized: "Bellnote")
         let showSource = latest.role == .assistant && !latest.sources.isEmpty
-        return (title, latest.text, showSource, false)
+        return (title, latest.text, latest.bodyParts, showSource, false)
     }
 
     /// One source opens directly; several open a pick menu (same idea as Ask, with a list).
@@ -738,6 +746,8 @@ private enum TalkBubbleEnd {
 /// but it has no fill of its own, so it cannot paint a second box in the corner.
 private struct TalkBubble: View {
     var text: String
+    /// Speaker replies mark the lead and the recording label in italic semibold. Nil keeps a plain body.
+    var bodyParts: [TalkBodyPart]? = nil
     var maxTextWidth: CGFloat
     var followTail: Bool
 
@@ -778,12 +788,28 @@ private struct TalkBubble: View {
     }
 
     private var words: some View {
-        Text(verbatim: text)
+        styledBody
             .appFont(.callout)
             .textSelection(.enabled)
             .multilineTextAlignment(.leading)
             .frame(maxWidth: maxTextWidth, alignment: .leading)
             .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private var styledBody: Text {
+        guard let bodyParts, !bodyParts.isEmpty else {
+            return Text(verbatim: text)
+        }
+        return bodyParts.reduce(Text(verbatim: "")) { soFar, part in
+            let next: Text
+            switch part {
+            case .plain(let chunk):
+                next = Text(verbatim: chunk)
+            case .italic(let chunk):
+                next = Text(verbatim: chunk).italic().fontWeight(.semibold)
+            }
+            return Text("\(soFar)\(next)")
+        }
     }
 }
 

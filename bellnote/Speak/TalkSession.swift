@@ -48,6 +48,12 @@ struct TalkSourceItem: Identifiable, Equatable, Hashable {
     }
 }
 
+/// One run in a Bellnote reply. Italic semibold marks the speaker lead and the recording label; plain is the note.
+enum TalkBodyPart: Equatable {
+    case plain(String)
+    case italic(String)
+}
+
 struct TalkTurn: Identifiable, Equatable {
     enum Role: Equatable {
         case user
@@ -59,12 +65,15 @@ struct TalkTurn: Identifiable, Equatable {
     let text: String
     /// Note or timetable sources for the Source control. Empty for greetings, clock, or missing notes.
     let sources: [TalkSourceItem]
+    /// Styled runs for the card. Nil keeps a plain `text` body.
+    let bodyParts: [TalkBodyPart]?
 
-    init(role: Role, text: String, sources: [TalkSourceItem] = []) {
+    init(role: Role, text: String, sources: [TalkSourceItem] = [], bodyParts: [TalkBodyPart]? = nil) {
         self.id = UUID()
         self.role = role
         self.text = text
         self.sources = sources
+        self.bodyParts = bodyParts
     }
 }
 
@@ -278,7 +287,12 @@ final class TalkSession {
                         )
                         guard running, !Task.isCancelled else { break thinkLoop }
                         turns.append(
-                            TalkTurn(role: .assistant, text: reply.text, sources: reply.sources)
+                            TalkTurn(
+                                role: .assistant,
+                                text: reply.text,
+                                sources: reply.sources,
+                                bodyParts: reply.bodyParts
+                            )
                         )
                         trimHistory()
 
@@ -338,6 +352,7 @@ final class TalkSession {
     private struct TalkReply: Equatable {
         var text: String
         var sources: [TalkSourceItem] = []
+        var bodyParts: [TalkBodyPart]? = nil
     }
 
     private enum ThinkRace {
@@ -1341,22 +1356,30 @@ final class TalkSession {
         }
         let stamp = Date.FormatStyle(date: .abbreviated, time: .omitted).locale(locale)
         var pieces: [String] = []
+        var parts: [TalkBodyPart] = [.italic(Self.saidLead(name: name))]
         var sources: [TalkSourceItem] = []
         var seen: [PersistentIdentifier] = []
         for turn in turns {
             let id = turn.lecture.persistentModelID
             let text = turn.block.text.trimmingCharacters(in: .whitespacesAndNewlines)
             if !seen.contains(id) {
+                if !pieces.isEmpty {
+                    parts.append(.plain(" "))
+                }
                 seen.append(id)
-                pieces.append("\(lectureLabel(turn.lecture, stamp: stamp)): \(text)")
+                let label = lectureLabel(turn.lecture, stamp: stamp)
+                pieces.append("\(label): \(text)")
+                parts.append(.italic("\(label): "))
+                parts.append(.plain(text))
                 sources.append(
                     TalkSourceItem(
-                        title: lectureLabel(turn.lecture, stamp: stamp),
+                        title: label,
                         target: .note(blockID: turn.block.token, second: turn.block.second)
                     )
                 )
             } else if let index = pieces.indices.last {
                 pieces[index] += " \(text)"
+                parts.append(.plain(" \(text)"))
             }
         }
         let spoken = pieces.joined(separator: " ")
@@ -1364,10 +1387,73 @@ final class TalkSession {
         let key: String.LocalizationValue = clipped.trimmed
             ? "%1$@ said: %2$@ The rest is in the recording."
             : "%1$@ said: %2$@"
-        return TalkReply(
-            text: String(format: String(localized: key), name, clipped.text),
-            sources: sources
+        let spokenText = String(format: String(localized: key), name, clipped.text)
+        if clipped.trimmed {
+            parts = Self.clippedSpeakerParts(name: name, clipped: clipped.text, parts: parts)
+            if let rest = Self.saidRestTail(name: name) {
+                parts.append(.italic(rest))
+            }
+        }
+        return TalkReply(text: spokenText, sources: sources, bodyParts: parts)
+    }
+
+    /// The localized “Name said: ” lead, without the spoken body.
+    private static func saidLead(name: String) -> String {
+        let mark = "\u{FFFC}"
+        let stamped = String(format: String(localized: "%1$@ said: %2$@"), name, mark)
+        guard let range = stamped.range(of: mark) else {
+            return String(format: String(localized: "%1$@ said: %2$@"), name, "")
+        }
+        return String(stamped[..<range.lowerBound])
+    }
+
+    /// The localized “ The rest is in the recording.” tail after a clipped body.
+    private static func saidRestTail(name: String) -> String? {
+        let mark = "\u{FFFC}"
+        let stamped = String(
+            format: String(localized: "%1$@ said: %2$@ The rest is in the recording."),
+            name,
+            mark
         )
+        guard let range = stamped.range(of: mark) else { return nil }
+        let tail = String(stamped[range.upperBound...])
+        return tail.isEmpty ? nil : tail
+    }
+
+    /// Drops italic and plain runs that sit past the clipped spoken body, so the card matches what is said.
+    private static func clippedSpeakerParts(
+        name: String,
+        clipped: String,
+        parts: [TalkBodyPart]
+    ) -> [TalkBodyPart] {
+        let budget = clipped.count
+        var used = 0
+        var kept: [TalkBodyPart] = [.italic(saidLead(name: name))]
+        for part in parts.dropFirst() {
+            let chunk: String
+            switch part {
+            case .plain(let text), .italic(let text):
+                chunk = text
+            }
+            if used >= budget { break }
+            if used + chunk.count <= budget {
+                kept.append(part)
+                used += chunk.count
+                continue
+            }
+            let take = budget - used
+            guard take > 0 else { break }
+            let end = chunk.index(chunk.startIndex, offsetBy: take)
+            let piece = String(chunk[..<end])
+            switch part {
+            case .plain:
+                kept.append(.plain(piece))
+            case .italic:
+                kept.append(.italic(piece))
+            }
+            break
+        }
+        return kept
     }
 
     /// Spoken replies stay short enough to say. The Source still opens the first raw line.
