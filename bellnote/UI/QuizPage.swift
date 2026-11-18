@@ -208,12 +208,14 @@ struct QuizPage: View {
     private func examTile(_ course: Course) -> some View {
         let documentCount = quizDocumentCount(course)
         return VStack(spacing: 6) {
-            // An answer sheet with a pencil, in the course color. The fill variant is used when the symbol has one.
+            // An answer sheet with a pencil. The symbol has no filled form, so it sits on a tile in a soft wash of the
+            // course color and is not hollow.
             Image(systemName: "pencil.and.list.clipboard")
-                .symbolVariant(.fill)
-                .font(.system(size: 68))
-                .symbolRenderingMode(.hierarchical)
+                .font(.system(size: 40, weight: .regular))
+                .symbolRenderingMode(.monochrome)
                 .foregroundStyle(course.color)
+                .frame(width: 76, height: 76)
+                .background(course.color.opacity(0.22), in: .rect(cornerRadius: 20, style: .continuous))
                 .accessibilityHidden(true)
             Text(course.name)
                 .appFont(.footnote)
