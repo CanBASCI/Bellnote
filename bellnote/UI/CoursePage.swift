@@ -842,13 +842,13 @@ struct LecturerEditor: View {
                     Button("Done") { dismiss() }
                 }
             }
-            .confirmationDialog(
+            // An alert, like the other confirmations of the app.
+            .alert(
                 confirmationTitle,
                 isPresented: Binding(
                     get: { pending != nil },
                     set: { if !$0 { pending = nil } }
-                ),
-                titleVisibility: .visible
+                )
             ) {
                 switch pending {
                 case .call:
