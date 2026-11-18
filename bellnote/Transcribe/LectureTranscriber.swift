@@ -30,7 +30,7 @@ enum LectureTranscriber {
         let turns = appleTurns(runs)
         if turns.isEmpty {
             let spoken = try await transcribeFile(url: url, locale: locale, keeping: [])
-            log.info("Apple dictation lines=\(spoken.count) speakers=0")
+            // log.info("Apple dictation lines=\(spoken.count) speakers=0")
             return spoken
         }
         return try await transcribeTurns(
@@ -63,7 +63,7 @@ enum LectureTranscriber {
     ) async throws -> [TranscriptLine] {
         let turns = appleTurns(runs)
         let longest = RoleRules.longestCluster(runs) ?? 1
-        log.info("\(engine, privacy: .public) turns=\(turns.count) speakers=\(Set(turns.map(\.cluster)).count)")
+        // log.info("\(engine, privacy: .public) turns=\(turns.count) speakers=\(Set(turns.map(\.cluster)).count)")
         var lines: [TranscriptLine] = []
         for turn in turns {
             var pieces: [String] = []
@@ -77,9 +77,9 @@ enum LectureTranscriber {
                     defer { try? FileManager.default.removeItem(at: clip) }
                     let piece = try await write(clip)
                         .trimmingCharacters(in: .whitespacesAndNewlines)
-                    log.info(
-                        "\(engine, privacy: .public) window speaker=\(turn.cluster) from=\(windowStart) to=\(windowEnd) words=\(piece.split(whereSeparator: \.isWhitespace).count)"
-                    )
+                    // log.info(
+                        // "\(engine, privacy: .public) window speaker=\(turn.cluster) from=\(windowStart) to=\(windowEnd) words=\(piece.split(whereSeparator: \.isWhitespace).count)"
+                    // )
                     if !piece.isEmpty { pieces.append(piece) }
                 } catch {
                     log.error(
@@ -88,10 +88,10 @@ enum LectureTranscriber {
                 }
             }
             let text = pieces.joined(separator: " ")
-            let words = text.split(whereSeparator: \.isWhitespace).count
-            log.info(
-                "\(engine, privacy: .public) speaker=\(turn.cluster) start=\(turn.start) seconds=\(turn.end - turn.start) words=\(words) text=\(text, privacy: .public)"
-            )
+            // let words = text.split(whereSeparator: \.isWhitespace).count
+            // log.info(
+                // "\(engine, privacy: .public) speaker=\(turn.cluster) start=\(turn.start) seconds=\(turn.end - turn.start) words=\(words) text=\(text, privacy: .public)"
+            // )
             guard !text.isEmpty else { continue }
             lines.append(TranscriptLine(
                 second: turn.start,
@@ -102,7 +102,7 @@ enum LectureTranscriber {
         }
         guard !lines.isEmpty else { throw TranscriptError.qualityFailed }
         let numbered = renumbered(lines)
-        log.info("\(engine, privacy: .public) lines=\(numbered.count) speakers=\(Set(numbered.map(\.speaker)).count)")
+        // log.info("\(engine, privacy: .public) lines=\(numbered.count) speakers=\(Set(numbered.map(\.speaker)).count)")
         return numbered
     }
 
@@ -238,9 +238,9 @@ enum LectureTranscriber {
         keeping ranges: [ClosedRange<Int>]
     ) async throws -> [TranscriptLine] {
         let candidates = await localeCandidates(for: locale)
-        log.info(
-            "Locale requested=\(locale.identifier, privacy: .public) candidates=\(candidates.map(\.identifier).joined(separator: ","), privacy: .public)"
-        )
+        // log.info(
+            // "Locale requested=\(locale.identifier, privacy: .public) candidates=\(candidates.map(\.identifier).joined(separator: ","), privacy: .public)"
+        // )
 
         var lastError: Error?
         for candidate in candidates {
@@ -253,9 +253,9 @@ enum LectureTranscriber {
                             preset: preset,
                             keeping: ranges
                         )
-                        log.info(
-                            "Transcript ok speech locale=\(candidate.identifier, privacy: .public) preset=\(String(describing: preset), privacy: .public) lines=\(lines.count)"
-                        )
+                        // log.info(
+                            // "Transcript ok speech locale=\(candidate.identifier, privacy: .public) preset=\(String(describing: preset), privacy: .public) lines=\(lines.count)"
+                        // )
                         return lines
                     } catch {
                         lastError = error
@@ -266,8 +266,6 @@ enum LectureTranscriber {
                         }
                     }
                 }
-            } else {
-                log.info("Speech transcriber unavailable locale=\(candidate.identifier, privacy: .public)")
             }
 
             for preset in dictationPresets {
@@ -278,9 +276,9 @@ enum LectureTranscriber {
                         preset: preset,
                         keeping: ranges
                     )
-                    log.info(
-                        "Transcript ok dictation locale=\(candidate.identifier, privacy: .public) preset=\(String(describing: preset), privacy: .public) lines=\(lines.count)"
-                    )
+                    // log.info(
+                        // "Transcript ok dictation locale=\(candidate.identifier, privacy: .public) preset=\(String(describing: preset), privacy: .public) lines=\(lines.count)"
+                    // )
                     return lines
                 } catch {
                     lastError = error
@@ -339,12 +337,12 @@ enum LectureTranscriber {
             }
         }
 
-        let dictationSupported = await DictationTranscriber.supportedLocales
-        let dictationInstalled = await DictationTranscriber.installedLocales
-        let speechInstalled = await SpeechTranscriber.installedLocales
-        log.info(
-            "Dictation supported count=\(dictationSupported.count) installed=\(dictationInstalled.count) speechInstalled=\(speechInstalled.count)"
-        )
+        // let dictationSupported = await DictationTranscriber.supportedLocales
+        // let dictationInstalled = await DictationTranscriber.installedLocales
+        // let speechInstalled = await SpeechTranscriber.installedLocales
+        // log.info(
+            // "Dictation supported count=\(dictationSupported.count) installed=\(dictationInstalled.count) speechInstalled=\(speechInstalled.count)"
+        // )
         return ordered
     }
 
@@ -373,9 +371,9 @@ enum LectureTranscriber {
         keeping ranges: [ClosedRange<Int>]
     ) async throws -> [TranscriptLine] {
         let resolved = await DictationTranscriber.supportedLocale(equivalentTo: locale) ?? locale
-        log.info(
-            "Dictation locale requested=\(locale.identifier, privacy: .public) resolved=\(resolved.identifier, privacy: .public) preset=\(String(describing: preset), privacy: .public)"
-        )
+        // log.info(
+            // "Dictation locale requested=\(locale.identifier, privacy: .public) resolved=\(resolved.identifier, privacy: .public) preset=\(String(describing: preset), privacy: .public)"
+        // )
         let transcriber = DictationTranscriber(locale: resolved, preset: preset)
         try await ensureAssets(for: [transcriber], locale: resolved)
         return try await analyze(
@@ -392,7 +390,7 @@ enum LectureTranscriber {
         _ = try await AssetInventory.reserve(locale: locale)
         do {
             let status = await AssetInventory.status(forModules: modules)
-            log.info("Asset status=\(String(describing: status), privacy: .public) locale=\(locale.identifier, privacy: .public)")
+            // log.info("Asset status=\(String(describing: status), privacy: .public) locale=\(locale.identifier, privacy: .public)")
             switch status {
             case .unsupported:
                 log.error("Module unsupported for locale=\(locale.identifier, privacy: .public)")
@@ -407,17 +405,12 @@ enum LectureTranscriber {
                 break
             case .supported, .downloading:
                 if let request = try await AssetInventory.assetInstallationRequest(supporting: modules) {
-                    log.info("Downloading speech asset locale=\(locale.identifier, privacy: .public)")
+                    // log.info("Downloading speech asset locale=\(locale.identifier, privacy: .public)")
                     try await request.downloadAndInstall()
-                    let after = await AssetInventory.status(forModules: modules)
-                    log.info(
-                        "Speech asset install finished locale=\(locale.identifier, privacy: .public) status=\(String(describing: after), privacy: .public)"
-                    )
-                } else {
-                    // Apple: nil means nothing more to install for this configuration.
-                    log.info(
-                        "Speech asset install not required locale=\(locale.identifier, privacy: .public) status=\(String(describing: status), privacy: .public)"
-                    )
+                    // let after = await AssetInventory.status(forModules: modules)
+                    // log.info(
+                        // "Speech asset install finished locale=\(locale.identifier, privacy: .public) status=\(String(describing: after), privacy: .public)"
+                    // )
                 }
             @unknown default:
                 break
@@ -441,9 +434,9 @@ enum LectureTranscriber {
         let source = try AVAudioFile(forReading: url)
         let sourceFormat = source.processingFormat
         let audioSeconds = max(Int((Double(source.length) / max(sourceFormat.sampleRate, 1)).rounded(.down)), 1)
-        log.info(
-            "Source audio format=\(formatSummary(sourceFormat), privacy: .public) frames=\(source.length) seconds=\(audioSeconds)"
-        )
+        // log.info(
+            // "Source audio format=\(formatSummary(sourceFormat), privacy: .public) frames=\(source.length) seconds=\(audioSeconds)"
+        // )
 
         let moduleFormats = await module.availableCompatibleAudioFormats
         let preferred = await SpeechAnalyzer.bestAvailableAudioFormat(
@@ -453,9 +446,9 @@ enum LectureTranscriber {
         var compatible = moduleFormats
         if let preferred {
             compatible.insert(preferred, at: 0)
-            log.info("Preferred format=\(formatSummary(preferred), privacy: .public)")
+            // log.info("Preferred format=\(formatSummary(preferred), privacy: .public)")
         }
-        log.info("Compatible formats count=\(compatible.count)")
+        // log.info("Compatible formats count=\(compatible.count)")
 
         let analysisURL = try preparedAudio(from: source, url: url, compatible: compatible)
         defer {
@@ -464,9 +457,9 @@ enum LectureTranscriber {
             }
         }
         let analysisFile = try AVAudioFile(forReading: analysisURL)
-        log.info(
-            "Analysis audio format=\(formatSummary(analysisFile.processingFormat), privacy: .public) frames=\(analysisFile.length)"
-        )
+        // log.info(
+            // "Analysis audio format=\(formatSummary(analysisFile.processingFormat), privacy: .public) frames=\(analysisFile.length)"
+        // )
 
         let analyzer = SpeechAnalyzer(modules: [module])
         let collector = Task { try await collect() }
@@ -474,10 +467,10 @@ enum LectureTranscriber {
             let lastSample = try await feed(analyzer, file: analysisFile, modules: [module])
             if let lastSample {
                 let seconds = lastSample.seconds
-                log.info("Finalize through seconds=\(seconds)")
+                // log.info("Finalize through seconds=\(seconds)")
                 try await analyzer.finalizeAndFinish(through: lastSample)
             } else {
-                log.info("Finalize through end of input")
+                // log.info("Finalize through end of input")
                 try await analyzer.finalizeAndFinishThroughEndOfInput()
             }
         } catch {
@@ -486,11 +479,11 @@ enum LectureTranscriber {
             throw error
         }
         let lines = try await collector.value
-        let rangeText = ranges.map { "\($0.lowerBound)...\($0.upperBound)" }.joined(separator: ",")
-        let lineText = lines.map { "\($0.second):\($0.text)" }.joined(separator: " | ")
-        log.info(
-            "Transcript raw lines=\(lines.count) ranges=\(rangeText, privacy: .public) body=\(String(lineText.prefix(180)), privacy: .public)"
-        )
+        // let rangeText = ranges.map { "\($0.lowerBound)...\($0.upperBound)" }.joined(separator: ",")
+        // let lineText = lines.map { "\($0.second):\($0.text)" }.joined(separator: " | ")
+        // log.info(
+            // "Transcript raw lines=\(lines.count) ranges=\(rangeText, privacy: .public) body=\(String(lineText.prefix(180)), privacy: .public)"
+        // )
         let kept = lines.filter { line in
             ranges.isEmpty || ranges.contains { range in
                 let padded = (range.lowerBound - 2)...(range.upperBound + 2)
@@ -500,9 +493,9 @@ enum LectureTranscriber {
         let selected = kept.isEmpty ? lines : kept
         let joined = selected.map(\.text).joined(separator: " ")
         let words = joined.split(whereSeparator: \.isWhitespace).count
-        log.info(
-            "Transcript collected lines=\(lines.count) kept=\(selected.count) words=\(words) audioSeconds=\(audioSeconds) head=\(String(joined.prefix(80)), privacy: .public) tail=\(String(joined.suffix(80)), privacy: .public)"
-        )
+        // log.info(
+            // "Transcript collected lines=\(lines.count) kept=\(selected.count) words=\(words) audioSeconds=\(audioSeconds) head=\(String(joined.prefix(80)), privacy: .public) tail=\(String(joined.suffix(80)), privacy: .public)"
+        // )
         guard !selected.isEmpty else {
             throw TranscriptError.qualityFailed
         }
@@ -539,7 +532,7 @@ enum LectureTranscriber {
             sampleTime += AVAudioFramePosition(buffer.frameLength)
         }
         inputs.append(contentsOf: try converter.flush())
-        log.info("Analyzer inputs=\(inputs.count)")
+        // log.info("Analyzer inputs=\(inputs.count)")
         return try await analyzer.analyzeSequence(InputList(inputs: inputs))
     }
 
@@ -602,22 +595,22 @@ enum LectureTranscriber {
         compatible: [AVAudioFormat]
     ) throws -> URL {
         if compatible.isEmpty {
-            log.info("No compatible format list; using source audio")
+            // log.info("No compatible format list; using source audio")
             return url
         }
         let sourceFormat = source.processingFormat
-        log.info(
-            "Compatible formats=\(compatible.map { formatSummary($0) }.joined(separator: " | "), privacy: .public)"
-        )
+        // log.info(
+            // "Compatible formats=\(compatible.map { formatSummary($0) }.joined(separator: " | "), privacy: .public)"
+        // )
         if compatible.contains(where: { formatsMatch($0, sourceFormat) }) {
             return url
         }
         guard let target = bestCompatibleFormat(in: compatible, matching: sourceFormat) else {
             return url
         }
-        log.info(
-            "Converting audio from=\(formatSummary(sourceFormat), privacy: .public) to=\(formatSummary(target), privacy: .public)"
-        )
+        // log.info(
+            // "Converting audio from=\(formatSummary(sourceFormat), privacy: .public) to=\(formatSummary(target), privacy: .public)"
+        // )
         do {
             return try convertAudio(from: source, url: url, to: target)
         } catch {
@@ -661,7 +654,7 @@ enum LectureTranscriber {
             interleaved: target.isInterleaved
         )
         let writeFormat = output.processingFormat
-        log.info("Write format=\(formatSummary(writeFormat), privacy: .public)")
+        // log.info("Write format=\(formatSummary(writeFormat), privacy: .public)")
         guard let converter = AVAudioConverter(from: source.processingFormat, to: writeFormat) else {
             throw TranscriptError.unreadable
         }
@@ -735,9 +728,9 @@ enum LectureTranscriber {
             let value = text(result).trimmingCharacters(in: .whitespacesAndNewlines)
             let start = result.range.start.seconds
             let duration = result.range.duration.seconds
-            log.info(
-                "Transcript result index=\(index) final=\(result.isFinal) start=\(start) duration=\(duration) characters=\(value.count) head=\(String(value.prefix(60)), privacy: .public) tail=\(String(value.suffix(60)), privacy: .public)"
-            )
+            // log.info(
+                // "Transcript result index=\(index) final=\(result.isFinal) start=\(start) duration=\(duration) characters=\(value.count) head=\(String(value.prefix(60)), privacy: .public) tail=\(String(value.suffix(60)), privacy: .public)"
+            // )
             guard !value.isEmpty else { continue }
             let second = max(0, Int(start.isFinite ? start.rounded(.down) : 0))
             if result.isFinal {
@@ -747,9 +740,9 @@ enum LectureTranscriber {
                 volatileBySecond[second] = value
             }
         }
-        log.info(
-            "Transcript results count=\(index) finals=\(finals.count) volatile=\(volatileBySecond.count) kept=\(finals.isEmpty ? "volatile" : "final", privacy: .public)"
-        )
+        // log.info(
+            // "Transcript results count=\(index) finals=\(finals.count) volatile=\(volatileBySecond.count) kept=\(finals.isEmpty ? "volatile" : "final", privacy: .public)"
+        // )
         if !finals.isEmpty { return finals }
         return volatileBySecond.keys.sorted().compactMap { second in
             guard let value = volatileBySecond[second] else { return nil }

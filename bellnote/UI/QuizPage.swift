@@ -10,6 +10,7 @@ struct QuizPage: View {
     @Environment(AppSession.self) private var session
     @Environment(\.locale) private var locale
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var quiz = QuizSession()
     @State private var sourceJump: QuizSourceJump?
@@ -17,6 +18,8 @@ struct QuizPage: View {
     @State private var pdfSource: QuizPDFSourceItem?
     @State private var stickyJump: QuizStickyJump?
     @State private var fileNotice: String?
+    /// The score ring fills once when the results appear.
+    @State private var ringFilled = false
 
     private var courses: [Course] {
         term.courses.sorted { lhs, rhs in
@@ -178,7 +181,7 @@ struct QuizPage: View {
         return String(format: String(localized: "%@ - %@"), String(localized: "Quiz"), name)
     }
 
-    /// Same grid and tile size as Files, but each tile is a quiz sheet icon — not a folder.
+    /// Same grid and tile size as Files, but each tile is a quiz sheet icon, not a folder.
     private var courseList: some View {
         Group {
             if courses.isEmpty {
@@ -389,13 +392,13 @@ struct QuizPage: View {
                                         .lineLimit(2)
                                 }
                                 .frame(maxWidth: .infinity, alignment: .leading)
-                                // Same mark size as an assignment circle — bare SF Symbol shrinks to list text.
+                                // Same mark size as an assignment circle, bare SF Symbol shrinks to list text.
                                 Image(systemName: selected ? "checkmark.circle.fill" : "circle")
                                     .appFont(.title3)
                                     .foregroundStyle(selected ? Color.accentColor : Color.secondary)
                                     .accessibilityHidden(true)
                             }
-                            // Empty space between the name and the mark must hit too — same as Recordings.
+                            // Empty space between the name and the mark must hit too, same as Recordings.
                             .contentShape(.rect)
                         }
                         .buttonStyle(.plain)
@@ -455,7 +458,9 @@ struct QuizPage: View {
     }
 
     private var courseTint: Color {
-        quiz.course?.color ?? Color.accentColor
+        // With no course (the debug dummy results) a palette color stands in. The app tint is the primary color,
+        // white in dark mode, and a white button with a white label cannot be read.
+        quiz.course?.color ?? CourseStyle.color(at: 0, fallbackName: "")
     }
 
     private var takingView: some View {
@@ -499,7 +504,7 @@ struct QuizPage: View {
     private var quizCorrectTint: Color { CourseStyle.scoreTint(.passed) }
     private var quizWrongTint: Color { CourseStyle.scoreTint(.notPassed) }
 
-    /// Letter badge + row tap. No trailing checkbox — the row itself selects.
+    /// Letter badge + row tap. No trailing checkbox, the row itself selects.
     private func takingChoiceRow(choice: QuizChoice, text: String) -> some View {
         Button {
             quiz.pick(choice)
@@ -519,118 +524,178 @@ struct QuizPage: View {
         .listRowInsets(EdgeInsets(top: 14, leading: 16, bottom: 14, trailing: 16))
     }
 
+    /// A ring with the score in the middle, four small tiles under it, and one Review button.
     private var resultsView: some View {
-        List {
-            Section {
-                VStack(alignment: .leading, spacing: 10) {
-                    HStack(alignment: .firstTextBaseline, spacing: 6) {
-                        Text(verbatim: "\(quiz.correctCount)")
-                            .appFont(.largeTitle, weight: .bold, digits: true)
-                            .foregroundStyle(courseTint)
-                        Text(
-                            verbatim: String(
-                                format: String(localized: "of %lld"),
-                                quiz.questions.count
-                            )
-                        )
-                        .appFont(.title2, weight: .semibold)
-                        .foregroundStyle(.secondary)
-                    }
-                    Text(
-                        verbatim: String(
-                            format: String(localized: "%1$lld wrong"),
-                            quiz.wrongCount
-                        )
-                    )
-                    .appFont(.subheadline, weight: .semibold)
-                    .foregroundStyle(quiz.wrongCount > 0 ? quizWrongTint : Color.secondary)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .listRowBackground(Color.clear)
-                .listRowInsets(.vertical, 8)
-            } header: {
-                sectionTitle("Results", detail: "How this quiz went. Done returns to setup.")
-            }
-
-            Section {
-                resultRow(String(localized: "Total time"), formatDuration(quiz.totalSeconds))
-                resultRow(String(localized: "Average per question"), formatDuration(quiz.averageSeconds))
-            } header: {
-                sectionTitle("Duration")
-            }
-
-            if !quiz.wrongAnswers.isEmpty {
-                Section {
-                    Button {
-                        quiz.openReview()
-                    } label: {
-                        HStack {
-                            Text("Review wrong answers")
-                                .foregroundStyle(.primary)
-                            Spacer()
-                            Image(systemName: "chevron.right")
-                                .appFont(.footnote, weight: .semibold)
-                                .foregroundStyle(.tertiary)
+        let total = max(quiz.questions.count, 1)
+        let ratio = Double(quiz.correctCount) / Double(total)
+        let ofText = String(format: String(localized: "of %lld"), quiz.questions.count)
+        return GeometryReader { proxy in
+            ScrollView {
+                VStack(spacing: 28) {
+                    ZStack {
+                        Circle()
+                            .stroke(courseTint.opacity(0.18), lineWidth: 18)
+                        Circle()
+                            .trim(from: 0, to: ringFilled ? ratio : 0)
+                            .stroke(courseTint, style: StrokeStyle(lineWidth: 18, lineCap: .round))
+                            .rotationEffect(.degrees(-90))
+                            .animation(reduceMotion ? nil : .easeOut(duration: 0.9), value: ringFilled)
+                        VStack(spacing: 2) {
+                            Text(verbatim: "\(quiz.correctCount)")
+                                .appFont(.largeTitle, weight: .bold, digits: true)
+                                .foregroundStyle(courseTint)
+                                .scaleEffect(1.5)
+                                .padding(.bottom, 6)
+                            Text(verbatim: ofText)
+                                .appFont(.title3, weight: .semibold)
+                                .foregroundStyle(.secondary)
                         }
                     }
-                    .buttonStyle(.plain)
-                    .listRowBackground(Color.clear)
-                    .listRowInsets(.vertical, 8)
-                } header: {
-                    sectionTitle(
-                        "Review",
-                        detail: "See the keyed letter and open the source."
-                    )
+                    .frame(width: 200, height: 200)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(Text(verbatim: "\(quiz.correctCount) \(ofText)"))
+
+                    LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
+                        resultTile(
+                            symbol: "checkmark.circle.fill",
+                            tint: courseTint,
+                            title: String(localized: "Correct"),
+                            value: quiz.correctCount.formatted(.number)
+                        )
+                        resultTile(
+                            symbol: "xmark.circle.fill",
+                            tint: quizWrongTint,
+                            title: String(localized: "Wrong"),
+                            value: quiz.wrongCount.formatted(.number)
+                        )
+                        resultTile(
+                            symbol: "clock.fill",
+                            tint: courseTint,
+                            title: String(localized: "Total time"),
+                            value: formatDuration(quiz.totalSeconds)
+                        )
+                        resultTile(
+                            symbol: "speedometer",
+                            tint: courseTint,
+                            title: String(localized: "Average per question"),
+                            value: formatDuration(quiz.averageSeconds)
+                        )
+                    }
+
+                    if !quiz.wrongAnswers.isEmpty {
+                        Button {
+                            quiz.openReview()
+                        } label: {
+                            Label("Review wrong answers", systemImage: "text.magnifyingglass")
+                                .appFont(.body, weight: .semibold)
+                                .frame(maxWidth: .infinity)
+                        }
+                            // A solid fill in the course color. Every palette color holds white text, in dark mode too;
+                            // the glass form went light on the dark background and the white label vanished.
+                            .buttonStyle(.borderedProminent)
+                            .buttonBorderShape(.capsule)
+                            .controlSize(.large)
+                            .tint(courseTint)
+                    }
                 }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 28)
+                // At least as tall as the screen, so the content sits in the middle; taller content scrolls.
+                .frame(minHeight: proxy.size.height)
             }
+            .scrollBounceBehavior(.basedOnSize)
+            .onAppear { ringFilled = true }
+            .onDisappear { ringFilled = false }
         }
-        .listStyle(.plain)
-        .contentMargins(.top, 16, for: .scrollContent)
     }
 
-    /// All wrong answers in one scrolling list; each block has its own Source.
+    /// One number with a colored symbol and a small label under it.
+    private func resultTile(symbol: String, tint: Color, title: String, value: String) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Image(systemName: symbol)
+                .font(.title2)
+                .foregroundStyle(tint)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(verbatim: value)
+                    .appFont(.title3, weight: .bold, digits: true)
+                    .foregroundStyle(.primary)
+                    .minimumScaleFactor(0.7)
+                    .lineLimit(1)
+                Text(verbatim: title)
+                    .appFont(.footnote)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+            }
+        }
+        .frame(maxWidth: .infinity, minHeight: 96, alignment: .topLeading)
+        .padding(14)
+        .background(Color(.secondarySystemGroupedBackground), in: .rect(cornerRadius: 20, style: .continuous))
+        .accessibilityElement(children: .combine)
+    }
+
+    /// All wrong answers in one scroll, one card each: the stem, the three choices with the keyed one in green and
+    /// the student's pick in red, and a Source button.
     private var reviewView: some View {
         let wrongs = quiz.wrongAnswers
         return Group {
             if wrongs.isEmpty {
                 ContentUnavailableView("No questions", systemImage: "questionmark.circle")
             } else {
-                List {
-                    ForEach(Array(wrongs.enumerated()), id: \.element.id) { place, answer in
-                        Section {
-                            Text(verbatim: answer.question.prompt)
-                                .appFont(.body, weight: .semibold)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .listRowBackground(Color.clear)
-                                .listRowInsets(.vertical, 8)
-
-                            ForEach(answer.question.choiceLines, id: \.0) { choice, text in
-                                reviewChoiceRow(choice: choice, text: text, answer: answer)
-                            }
-
-                            Button("Source", systemImage: "text.quote") {
-                                openSource(answer.question)
-                            }
-                            .buttonStyle(.glass)
-                            .controlSize(.small)
-                            .listRowBackground(Color.clear)
-                            .listRowInsets(.vertical, 10)
-                        } header: {
-                            sectionTitle(
-                                verbatim: String(
-                                    format: String(localized: "Wrong %1$lld of %2$lld"),
-                                    place + 1,
-                                    wrongs.count
-                                ),
-                                detail: answer.question.sourceTitle
-                            )
+                ScrollView {
+                    LazyVStack(spacing: 16) {
+                        ForEach(Array(wrongs.enumerated()), id: \.element.id) { place, answer in
+                            reviewCard(answer, place: place, of: wrongs.count)
                         }
                     }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 16)
                 }
-                .listStyle(.plain)
-                .contentMargins(.top, 16, for: .scrollContent)
             }
         }
+    }
+
+    private func reviewCard(_ answer: QuizAnswerRecord, place: Int, of count: Int) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .center, spacing: 12) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(
+                        verbatim: String(
+                            format: String(localized: "Wrong %1$lld of %2$lld"),
+                            place + 1,
+                            count
+                        )
+                    )
+                    .appFont(.footnote, weight: .semibold)
+                    .foregroundStyle(quizWrongTint)
+                    if !answer.question.sourceTitle.isEmpty {
+                        Text(verbatim: answer.question.sourceTitle)
+                            .appFont(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                Button("Source", systemImage: "text.quote") {
+                    openSource(answer.question)
+                }
+                .buttonStyle(.glass)
+                .controlSize(.small)
+            }
+            Text(verbatim: answer.question.prompt)
+                .appFont(.body, weight: .semibold)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .fixedSize(horizontal: false, vertical: true)
+            VStack(spacing: 8) {
+                ForEach(answer.question.choiceLines, id: \.0) { choice, text in
+                    reviewChoiceRow(choice: choice, text: text, answer: answer)
+                }
+            }
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(.secondarySystemGroupedBackground), in: .rect(cornerRadius: 22, style: .continuous))
     }
 
     private func reviewChoiceRow(choice: QuizChoice, text: String, answer: QuizAnswerRecord) -> some View {
@@ -641,20 +706,34 @@ struct QuizPage: View {
                 choice.rawValue,
                 fill: mark ?? Color(.tertiaryLabel)
             )
-            Text(verbatim: text)
-                .appFont(.body)
-                .foregroundStyle(role == .other ? Color.secondary : Color.primary)
-                .multilineTextAlignment(.leading)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            if let mark {
-                Image(systemName: role == .correct ? "checkmark.circle.fill" : "xmark.circle.fill")
-                    .appFont(.title3)
-                    .foregroundStyle(mark)
-                    .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(verbatim: text)
+                    .appFont(.body)
+                    .foregroundStyle(role == .other ? Color.secondary : Color.primary)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                switch role {
+                case .correct:
+                    Text("Correct answer")
+                        .appFont(.caption, weight: .semibold)
+                        .foregroundStyle(quizCorrectTint)
+                case .wrongPick:
+                    Text("Your answer")
+                        .appFont(.caption, weight: .semibold)
+                        .foregroundStyle(quizWrongTint)
+                case .other:
+                    EmptyView()
+                }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .listRowBackground(Color.clear)
-        .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16))
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(
+            (mark ?? Color(.tertiarySystemFill)).opacity(mark == nil ? 0.5 : 0.16),
+            in: .rect(cornerRadius: 14, style: .continuous)
+        )
+        .accessibilityElement(children: .ignore)
         .accessibilityLabel(reviewAccessibility(choice: choice, text: text, answer: answer))
     }
 
@@ -697,18 +776,6 @@ struct QuizPage: View {
         return "\(choice.rawValue). \(text)"
     }
 
-    private func resultRow(_ title: String, _ value: String) -> some View {
-        HStack {
-            Text(verbatim: title)
-            Spacer()
-            Text(verbatim: value)
-                .foregroundStyle(.secondary)
-                .appFont(.body, digits: true)
-        }
-        .listRowBackground(Color.clear)
-        .listRowInsets(.vertical, 8)
-    }
-
     private func canPrepare(_ course: Course) -> Bool {
         let hasFile = !quiz.selectedFileIDs.isEmpty
         if hasFile { return true }
@@ -716,7 +783,7 @@ struct QuizPage: View {
         return readyLectures(course).contains { quiz.selectedLectureIDs.contains($0.persistentModelID) }
     }
 
-    /// Ready recordings that hold some text, newest first — the ones the quiz can use.
+    /// Ready recordings that hold some text, newest first, the ones the quiz can use.
     private func readyLectures(_ course: Course) -> [Lecture] {
         course.lectures
             .filter { lecture in

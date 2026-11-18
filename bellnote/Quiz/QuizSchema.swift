@@ -2,14 +2,14 @@ import Foundation
 import FoundationModels
 import SwiftData
 
-/// One question and its answer span. Generated alone — a 2B model often breaks on a batch array.
+/// One question and its answer span. Generated alone, a 2B model often breaks on a batch array.
 /// The model writes only these two fields. Swift checks the answer against the material, builds the
 /// wrong choices, and shuffles the letter, so the model never picks the key.
 /// The order in the encoded schema is not under our control, so neither field may depend on the other.
 @Generable
 struct QuizDraftItem {
     /// Stem only. Never include the answer or A, B, C here.
-    /// No Regex pattern on the stem — length patterns made GuidedGen stall mid-field on 2B.
+    /// No Regex pattern on the stem, length patterns made GuidedGen stall mid-field on 2B.
     @Guide(description: "One short complete question ending with ?. At most 140 characters. Never include the answer in it. No A/B/C.")
     var question: String
 

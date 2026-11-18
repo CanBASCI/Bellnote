@@ -28,14 +28,14 @@ final class SpeechReader {
     /// A short sample of the chosen voice, for the voice picker.
     func preview(_ text: String, locale: Locale) {
         guard SupertonicSpeech.isInstalled else { return }
-        Self.log.info("Listen preview characters=\(text.count) locale=\(locale.identifier, privacy: .public)")
+        // Self.log.info("Listen preview characters=\(text.count) locale=\(locale.identifier, privacy: .public)")
         begin(text, locale: locale)
     }
 
     func read(_ text: String, locale: Locale) {
-        Self.log.info(
-            "Listen read characters=\(text.count) locale=\(locale.identifier, privacy: .public) speaking=\(self.isSpeaking) preview=\(String(text.prefix(80)), privacy: .public)"
-        )
+        // Self.log.info(
+            // "Listen read characters=\(text.count) locale=\(locale.identifier, privacy: .public) speaking=\(self.isSpeaking) preview=\(String(text.prefix(80)), privacy: .public)"
+        // )
         guard SupertonicSpeech.isInstalled else {
             Self.log.error("Listen skipped; Supertonic is not installed")
             return
@@ -50,10 +50,10 @@ final class SpeechReader {
 
     func stop(force: Bool = false) {
         guard force || Date().timeIntervalSince(startedAt) > 0.4 else {
-            Self.log.info("Listen ignored stop")
+            // Self.log.info("Listen ignored stop")
             return
         }
-        Self.log.info("Listen stop force=\(force)")
+        // Self.log.info("Listen stop force=\(force)")
         turn += 1
         isSpeaking = false
         isAudioPlaying = false
@@ -77,7 +77,7 @@ final class SpeechReader {
         index = 0
         startedAt = Date()
         isSpeaking = !paragraphs.isEmpty
-        Self.log.info("Listen supertonic start paragraphs=\(self.paragraphs.count) turn=\(self.turn)")
+        // Self.log.info("Listen supertonic start paragraphs=\(self.paragraphs.count) turn=\(self.turn)")
         Task { await playParagraph(cancel: cancel) }
     }
 
@@ -91,7 +91,7 @@ final class SpeechReader {
         let language = supertonicLanguage(locale)
         let speaker = SupertonicVoice.clamped(UserDefaults.standard.integer(forKey: AppPreferences.supertonicVoiceKey))
         let spokenTurn = turn
-        Self.log.info("Listen supertonic index=\(self.index) lang=\(language, privacy: .public) speaker=\(speaker) characters=\(text.count)")
+        // Self.log.info("Listen supertonic index=\(self.index) lang=\(language, privacy: .public) speaker=\(speaker) characters=\(text.count)")
         let clip: SupertonicClip
         do {
             clip = try await SupertonicSpeech.clip(text: text, language: language, speaker: speaker, cancel: cancel)
@@ -104,8 +104,8 @@ final class SpeechReader {
         }
         guard spokenTurn == turn, isSpeaking, !cancel.stopped else { return }
         guard !clip.samples.isEmpty else { return }
-        let seconds = Double(clip.samples.count) / Double(max(clip.sampleRate, 1))
-        Self.log.info("Listen supertonic play seconds=\(seconds)")
+        // let seconds = Double(clip.samples.count) / Double(max(clip.sampleRate, 1))
+        // Self.log.info("Listen supertonic play seconds=\(seconds)")
         await play(clip, turn: spokenTurn)
     }
 

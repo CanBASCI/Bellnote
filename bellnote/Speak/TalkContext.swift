@@ -47,7 +47,7 @@ enum TalkContext {
     }
 
     /// Structured facts about the library. Always offered to the model (budget-capped).
-    /// Wall clock is not stored here — `LocalModelRuntime.answer` attaches a fresh Device clock each call.
+    /// Wall clock is not stored here, `LocalModelRuntime.answer` attaches a fresh Device clock each call.
     /// Settings stay out of this catalogue so they do not spend the prompt budget.
     static func catalogTags(terms: [Term], session: AppSession) -> [WindowTag] {
         var lines: [String] = []

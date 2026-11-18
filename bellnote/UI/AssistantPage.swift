@@ -134,19 +134,19 @@ struct AssistantPage: View {
             CourseCabinetPage(course: jump.course, openSticky: jump.token)
         }
         .onAppear {
-            Self.log.info("Assistant appear busy=\(self.processingBusy) terms=\(self.terms.count) phase=\(String(describing: self.talk.phase), privacy: .public)")
+            // Self.log.info("Assistant appear busy=\(self.processingBusy) terms=\(self.terms.count) phase=\(String(describing: self.talk.phase), privacy: .public)")
             syncTalk()
         }
         .onDisappear {
-            Self.log.info("Assistant disappear phase=\(String(describing: self.talk.phase), privacy: .public)")
+            // Self.log.info("Assistant disappear phase=\(String(describing: self.talk.phase), privacy: .public)")
             talk.stop()
         }
         .onChange(of: processingBusy) { _, busy in
-            Self.log.info("Assistant processingBusy=\(busy)")
+            // Self.log.info("Assistant processingBusy=\(busy)")
             syncTalk()
         }
         .onChange(of: terms.count) { _, count in
-            Self.log.info("Assistant terms count=\(count)")
+            // Self.log.info("Assistant terms count=\(count)")
             syncTalk()
         }
         // Source push stops Talk; lecture playback releases the session asynchronously.
@@ -197,7 +197,7 @@ struct AssistantPage: View {
     private func resumeTalkAfterSource() {
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(450))
-            Self.log.info("Assistant resume after Source")
+            // Self.log.info("Assistant resume after Source")
             syncTalk()
         }
     }
@@ -339,7 +339,7 @@ struct AssistantPage: View {
     }
 
     /// Partial speech fills the same “You” card that later holds the final line.
-    /// While Speaking, keep the Bellnote reply — barge ASR often echoes TTS into partialTranscript
+    /// While Speaking, keep the Bellnote reply, barge ASR often echoes TTS into partialTranscript
     /// and would shrink the card to the first echoed line until playback ends.
     private var turnCardContent: (
         title: String,
@@ -376,12 +376,12 @@ struct AssistantPage: View {
         guard let latest = talk.turns.last, latest.role == .assistant else { return }
         let sources = latest.sources
         guard !sources.isEmpty else { return }
-        Self.log.info("Talk source menu open count=\(sources.count)")
-        for (index, item) in sources.enumerated() {
-            Self.log.info(
-                "Talk sourceMenuTap[\(index)] title=\(item.title, privacy: .public) target=\(String(describing: item.target), privacy: .public)"
-            )
-        }
+        // Self.log.info("Talk source menu open count=\(sources.count)")
+        // for (index, item) in sources.enumerated() {
+            // Self.log.info(
+                // "Talk sourceMenuTap[\(index)] title=\(item.title, privacy: .public) target=\(String(describing: item.target), privacy: .public)"
+            // )
+        // }
         if sources.count == 1 {
             openSourceItem(sources[0])
             return
@@ -397,7 +397,7 @@ struct AssistantPage: View {
                 Self.log.error("Talk source lecture missing block=\(blockID.uuidString, privacy: .public)")
                 return
             }
-            Self.log.info("Talk source open note second=\(second) lecture=\(host.title, privacy: .public)")
+            // Self.log.info("Talk source open note second=\(second) lecture=\(host.title, privacy: .public)")
             talk.stop()
             sourceJump = TalkSourceJump(
                 id: blockID.uuidString,
@@ -411,7 +411,7 @@ struct AssistantPage: View {
                 Self.log.error("Talk source term missing")
                 return
             }
-            Self.log.info("Talk source open timetable weekday=\(weekday) startMinutes=\(startMinutes)")
+            // Self.log.info("Talk source open timetable weekday=\(weekday) startMinutes=\(startMinutes)")
             talk.stop()
             timetableJump = TalkTimetableJump(term: term, weekday: weekday, startMinutes: startMinutes)
         case .assignment(let courseID, let assignmentID, let weekStart):
@@ -422,7 +422,7 @@ struct AssistantPage: View {
                 return
             }
             if let lecture = assignment.sourceLecture {
-                Self.log.info("Talk source open assignment on recording second=\(assignment.sourceSecond)")
+                // Self.log.info("Talk source open assignment on recording second=\(assignment.sourceSecond)")
                 talk.stop()
                 sourceJump = TalkSourceJump(
                     id: "assignment-\(String(describing: assignmentID))",
@@ -432,7 +432,7 @@ struct AssistantPage: View {
                     focusAssignmentID: assignmentID
                 )
             } else {
-                Self.log.info("Talk source open assignment week=\(weekStart.formatted(date: .abbreviated, time: .omitted), privacy: .public)")
+                // Self.log.info("Talk source open assignment week=\(weekStart.formatted(date: .abbreviated, time: .omitted), privacy: .public)")
                 talk.stop()
                 courseJump = TalkCourseJump(
                     id: "assignment-\(String(describing: assignmentID))",
@@ -446,7 +446,7 @@ struct AssistantPage: View {
                 Self.log.error("Talk source course missing")
                 return
             }
-            Self.log.info("Talk source open exam")
+            // Self.log.info("Talk source open exam")
             talk.stop()
             courseJump = TalkCourseJump(
                 id: "exam-\(String(describing: courseID))-\(weekStart?.timeIntervalSince1970 ?? 0)",
@@ -459,7 +459,7 @@ struct AssistantPage: View {
                 Self.log.error("Talk source course missing")
                 return
             }
-            Self.log.info("Talk source open inventory")
+            // Self.log.info("Talk source open inventory")
             talk.stop()
             courseJump = TalkCourseJump(
                 id: "inventory-\(String(describing: itemID))",
@@ -472,7 +472,7 @@ struct AssistantPage: View {
                 Self.log.error("Talk source lecturer missing")
                 return
             }
-            Self.log.info("Talk source open lecturer")
+            // Self.log.info("Talk source open lecturer")
             talk.stop()
             courseJump = TalkCourseJump(
                 id: "lecturer-\(String(describing: courseID))",
@@ -499,7 +499,7 @@ struct AssistantPage: View {
                 fileNotice = String(localized: "The file could not be opened.")
                 return
             }
-            Self.log.info("Talk source open file title=\(file.displayName, privacy: .public)")
+            // Self.log.info("Talk source open file title=\(file.displayName, privacy: .public)")
             talk.stop()
             filePreview = TalkFilePreview(
                 id: String(describing: fileID),
@@ -515,7 +515,7 @@ struct AssistantPage: View {
                 Self.log.error("Talk source sticky missing")
                 return
             }
-            Self.log.info("Talk source open sticky")
+            // Self.log.info("Talk source open sticky")
             talk.stop()
             stickyJump = TalkStickyJump(
                 id: "sticky-\(token.uuidString)",
@@ -527,7 +527,7 @@ struct AssistantPage: View {
                 Self.log.error("Talk source recording missing")
                 return
             }
-            Self.log.info("Talk source open recording title=\(lecture.title, privacy: .public)")
+            // Self.log.info("Talk source open recording title=\(lecture.title, privacy: .public)")
             talk.stop()
             sourceJump = TalkSourceJump(
                 id: "recording-\(String(describing: lectureID))",
@@ -590,17 +590,17 @@ struct AssistantPage: View {
 
     private func syncTalk() {
         if processingBusy {
-            Self.log.info("Assistant sync stop — pipeline busy")
+            // Self.log.info("Assistant sync stop — pipeline busy")
             talk.stop()
             return
         }
         switch talk.phase {
         case .preparing, .thinking, .speaking:
             // Do not cut warm-up or a live reply for a term-list refresh.
-            Self.log.info("Assistant sync skip phase=\(String(describing: self.talk.phase), privacy: .public)")
+            // Self.log.info("Assistant sync skip phase=\(String(describing: self.talk.phase), privacy: .public)")
             return
         case .idle, .listening, .needsMicrophone, .needsModel, .needsVoice, .failed:
-            Self.log.info("Assistant sync restart phase=\(String(describing: self.talk.phase), privacy: .public)")
+            // Self.log.info("Assistant sync restart phase=\(String(describing: self.talk.phase), privacy: .public)")
             talk.stop()
             talk.start(terms: terms, session: session)
         }
@@ -813,7 +813,7 @@ private struct TalkBubble: View {
     }
 }
 
-/// VoiceOrbs-style Particles Orb — rotating 3D point cloud (sphere ↔ ring). No Pill / no text.
+/// VoiceOrbs-style Particles Orb, rotating 3D point cloud (sphere ↔ ring). No Pill / no text.
 private struct AssistantVoiceOrb: View {
     var phase: TalkPhase
     /// Listening only: live transcript is on screen. Color and a pulse; resting shape stays.
@@ -851,7 +851,7 @@ private struct AssistantVoiceOrb: View {
         .accessibilityHidden(true)
     }
 
-    /// Listening / thinking only — values match the first Particles Orb (do not retune).
+    /// Listening / thinking only, values match the first Particles Orb (do not retune).
     private var ringTarget: CGFloat {
         switch phase {
         case .thinking:
@@ -867,12 +867,12 @@ private struct AssistantVoiceOrb: View {
         }
     }
 
-    /// Speaking only — frequency ribbon. Listening/thinking never use this.
+    /// Speaking only, frequency ribbon. Listening/thinking never use this.
     private var waveTarget: CGFloat {
         phase == .speaking ? 1 : 0
     }
 
-    /// Preparing only — double helix. Eases out into the sphere when listening starts.
+    /// Preparing only, double helix. Eases out into the sphere when listening starts.
     private var helixTarget: CGFloat {
         phase == .preparing ? 1 : 0
     }
@@ -945,7 +945,7 @@ private struct AssistantVoiceOrb: View {
         case .listening: 0.7
         case .thinking: 1.55
         case .preparing: 0.45
-        // Keep the waveform facing the student — slow yaw.
+        // Keep the waveform facing the student, slow yaw.
         case .speaking: 0.22
         default: 0.35
         }

@@ -19,7 +19,7 @@ actor LocalModelRuntime {
     nonisolated private static let log = Logger(subsystem: "app.bellnote", category: "model")
 
     private var resident: ModelRole?
-    /// True after weights were preloaded or used for a generation — not just `ensure` bookkeeping.
+    /// True after weights were preloaded or used for a generation, not just `ensure` bookkeeping.
     private var composeReady = false
     private var activeCalls = 0
     private var idleTask: Task<Void, Never>?
@@ -30,14 +30,14 @@ actor LocalModelRuntime {
 
     func reset() async {
         await evictResident()
-        Self.log.info("Model reset")
+        // Self.log.info("Model reset")
     }
 
     /// Frees the loaded text model. Skipped while a call is running.
     func unloadAll() async {
         guard activeCalls == 0, resident != nil else { return }
         await evictResident()
-        Self.log.info("Models unloaded")
+        // Self.log.info("Models unloaded")
     }
 
     /// `gate.unload()` only changes bookkeeping. The weights stay in MLX's cache until evicted.
@@ -49,7 +49,7 @@ actor LocalModelRuntime {
         await gate.unload()
         resident = nil
         composeReady = false
-        Self.log.info("Memory after evict \(MemoryProbe.summary())")
+        // Self.log.info("Memory after evict \(MemoryProbe.summary())")
     }
 
     /// Talk preparing: skip the warm UI when weights are already in memory (Ask / prior Talk / etc.).
@@ -78,7 +78,7 @@ actor LocalModelRuntime {
     func trimMemory(note: String) {
         guard activeCalls == 0 else { return }
         Memory.clearCache()
-        Self.log.info("Memory trimmed note=\(note, privacy: .public) \(MemoryProbe.summary())")
+        // Self.log.info("Memory trimmed note=\(note, privacy: .public) \(MemoryProbe.summary())")
     }
 
     private func beginCall() {
@@ -107,9 +107,9 @@ actor LocalModelRuntime {
         if hold {
             idleTask?.cancel()
             idleTask = nil
-            Self.log.info("Model hold on for Talk")
+            // Self.log.info("Model hold on for Talk")
         } else if activeCalls == 0 {
-            Self.log.info("Model hold off after Talk")
+            // Self.log.info("Model hold off after Talk")
             idleTask?.cancel()
             idleTask = Task { [weak self] in
                 try? await Task.sleep(for: .seconds(Self.idleSeconds))
@@ -126,29 +126,29 @@ actor LocalModelRuntime {
         defer { endCall() }
         let role = try composeRole()
         if isComposeModelReady() {
-            Self.log.info(
-                "Talk warm skip ready role=\(role.rawValue, privacy: .public) footprintMB=\(MemoryProbe.footprintMB())"
-            )
+            // Self.log.info(
+                // "Talk warm skip ready role=\(role.rawValue, privacy: .public) footprintMB=\(MemoryProbe.footprintMB())"
+            // )
             return
         }
-        let started = Date()
-        Self.log.info(
-            "Talk warm begin role=\(role.rawValue, privacy: .public) footprintMB=\(MemoryProbe.footprintMB())"
-        )
+        // let started = Date()
+        // Self.log.info(
+            // "Talk warm begin role=\(role.rawValue, privacy: .public) footprintMB=\(MemoryProbe.footprintMB())"
+        // )
         try await ensure(role)
         let model = try makeModel(role)
         try await model.preload()
         composeReady = true
-        Self.log.info(
-            "Talk warm ok role=\(role.rawValue, privacy: .public) ms=\(Int(Date().timeIntervalSince(started) * 1000)) footprintMB=\(MemoryProbe.footprintMB())"
-        )
+        // Self.log.info(
+            // "Talk warm ok role=\(role.rawValue, privacy: .public) ms=\(Int(Date().timeIntervalSince(started) * 1000)) footprintMB=\(MemoryProbe.footprintMB())"
+        // )
     }
 
     func tag(window: String, locale: Locale) async throws -> WindowTagging {
         beginCall()
         defer { endCall() }
         let role = try composeRole()
-        Self.log.info("Tag begin characters=\(window.count) locale=\(locale.identifier, privacy: .public) role=\(role.rawValue, privacy: .public)")
+        // Self.log.info("Tag begin characters=\(window.count) locale=\(locale.identifier, privacy: .public) role=\(role.rawValue, privacy: .public)")
         do {
             try await ensure(role)
             let session = try makeSession(role: role, instructions: tagInstructions)
@@ -161,10 +161,10 @@ actor LocalModelRuntime {
                 )
             }
             if TagValidator.validate(response.content) {
-                Self.log.info("Tag ok kind=\(response.content.kind, privacy: .public)")
+                // Self.log.info("Tag ok kind=\(response.content.kind, privacy: .public)")
                 return response.content
             }
-            Self.log.warning("Tag invalid, retrying")
+            // Self.log.warning("Tag invalid, retrying")
             let retry = try await guarded {
                 try await session.respond(
                     to: "Lecture language: \(language). Do not translate.\n\n\(window)",
@@ -176,7 +176,7 @@ actor LocalModelRuntime {
                 Self.log.error("Tag retry invalid")
                 throw LocalModelError.loadFailed
             }
-            Self.log.info("Tag retry ok kind=\(retry.content.kind, privacy: .public)")
+            // Self.log.info("Tag retry ok kind=\(retry.content.kind, privacy: .public)")
             return retry.content
         } catch {
             Self.log.error("Tag failed: \(error.localizedDescription, privacy: .public)")
@@ -188,13 +188,13 @@ actor LocalModelRuntime {
         beginCall()
         defer { endCall() }
         let role = try composeRole()
-        Self.log.info("Compose begin tags=\(tags.count) role=\(role.rawValue, privacy: .public)")
+        // Self.log.info("Compose begin tags=\(tags.count) role=\(role.rawValue, privacy: .public)")
         do {
             try await ensure(role)
             let session = try makeSession(role: role, instructions: pageInstructions)
             let source = tags.map(\.text).joined(separator: "\n")
             let response = try await guarded { try await session.respond(to: "\(task)\n\n\(source)") }
-            Self.log.info("Compose ok characters=\(response.content.count)")
+            // Self.log.info("Compose ok characters=\(response.content.count)")
             return response.content
         } catch {
             Self.log.error("Compose failed: \(error.localizedDescription, privacy: .public)")
@@ -202,7 +202,7 @@ actor LocalModelRuntime {
         }
     }
 
-    /// One question and its answer span for the Quiz tab. One call per question — a 2B model often
+    /// One question and its answer span for the Quiz tab. One call per question, a 2B model often
     /// fails to parse a batch of items. Swift builds the choices. Uses the Settings text model only.
     func makeQuizItem(
         materialId: String,
@@ -217,9 +217,9 @@ actor LocalModelRuntime {
         let started = Date()
         let role = try composeRole()
         let languageName = Self.replyLanguageName(replyLanguage)
-        Self.log.info(
-            "Quiz item begin id=\(materialId, privacy: .public) difficulty=\(difficulty, privacy: .public) role=\(role.rawValue, privacy: .public) material=\(materialText.count)"
-        )
+        // Self.log.info(
+            // "Quiz item begin id=\(materialId, privacy: .public) difficulty=\(difficulty, privacy: .public) role=\(role.rawValue, privacy: .public) material=\(materialText.count)"
+        // )
         do {
             try await ensure(role)
             let session = try makeSession(role: role, instructions: quizInstructions(replyLanguage: languageName))
@@ -251,9 +251,9 @@ actor LocalModelRuntime {
                     options: GenerationOptions(temperature: 0.4, maximumResponseTokens: 120)
                 )
             }
-            Self.log.info(
-                "Quiz item ok id=\(materialId, privacy: .public) ms=\(Int(Date().timeIntervalSince(started) * 1000))"
-            )
+            // Self.log.info(
+                // "Quiz item ok id=\(materialId, privacy: .public) ms=\(Int(Date().timeIntervalSince(started) * 1000))"
+            // )
             return response.content
         } catch {
             Self.log.error(
@@ -269,13 +269,13 @@ actor LocalModelRuntime {
         beginCall()
         defer { endCall() }
         let role = try composeRole()
-        Self.log.info("Correct begin characters=\(text.count) role=\(role.rawValue, privacy: .public) input=\(text, privacy: .public)")
+        // Self.log.info("Correct begin characters=\(text.count) role=\(role.rawValue, privacy: .public) input=\(text, privacy: .public)")
         do {
             try await ensure(role)
             let instructions = correctionInstructions(lectureName: lectureName, localeIdentifier: localeIdentifier)
             let session = try makeSession(role: role, instructions: instructions)
             let limit = min(1500, text.count / 2 + 300)
-            let started = Date()
+            // let started = Date()
             let response = try await guarded {
                 try await session.respond(
                     to: "Text:\n\(text)\n\nCorrected text:",
@@ -283,7 +283,7 @@ actor LocalModelRuntime {
                 )
             }
             let output = response.content.trimmingCharacters(in: .whitespacesAndNewlines)
-            Self.log.info("Correct ok characters=\(output.count) inputCharacters=\(text.count) tokenLimit=\(limit) modelSeconds=\(String(format: "%.1f", Date().timeIntervalSince(started))) text=\(output, privacy: .public)")
+            // Self.log.info("Correct ok characters=\(output.count) inputCharacters=\(text.count) tokenLimit=\(limit) modelSeconds=\(String(format: "%.1f", Date().timeIntervalSince(started))) text=\(output, privacy: .public)")
             return output
         } catch {
             Self.log.error("Correct failed: \(error.localizedDescription, privacy: .public)")
@@ -297,7 +297,7 @@ actor LocalModelRuntime {
         beginCall()
         defer { endCall() }
         let role = try composeRole()
-        Self.log.info("Headline begin characters=\(text.count) role=\(role.rawValue, privacy: .public)")
+        // Self.log.info("Headline begin characters=\(text.count) role=\(role.rawValue, privacy: .public)")
         do {
             try await ensure(role)
             let session = try makeSession(role: role, instructions: headlineInstructions)
@@ -308,7 +308,7 @@ actor LocalModelRuntime {
                 )
             }
             let output = response.content.trimmingCharacters(in: .whitespacesAndNewlines)
-            Self.log.info("Headline ok characters=\(output.count) text=\(output, privacy: .public)")
+            // Self.log.info("Headline ok characters=\(output.count) text=\(output, privacy: .public)")
             return output
         } catch {
             Self.log.error("Headline failed: \(error.localizedDescription, privacy: .public)")
@@ -332,27 +332,27 @@ actor LocalModelRuntime {
         let role = try composeRole()
         let started = Date()
         let languageName = Self.replyLanguageName(replyLanguage)
-        Self.log.info("Answer begin tags=\(tags.count) history=\(history.count) maxTokens=\(maximumResponseTokens) replyLanguage=\(languageName, privacy: .public) role=\(role.rawValue, privacy: .public) footprintMB=\(MemoryProbe.footprintMB())")
+        // Self.log.info("Answer begin tags=\(tags.count) history=\(history.count) maxTokens=\(maximumResponseTokens) replyLanguage=\(languageName, privacy: .public) role=\(role.rawValue, privacy: .public) footprintMB=\(MemoryProbe.footprintMB())")
         // The model call is silent while it reads the notes. This line says every 15 seconds that it still runs,
         // how much memory it uses and how warm the phone is.
-        let heartbeat = Task.detached {
-            while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(15))
-                guard !Task.isCancelled else { return }
-                Self.log.info("Answer still working seconds=\(Int(Date().timeIntervalSince(started))) footprintMB=\(MemoryProbe.footprintMB()) thermal=\(ProcessInfo.processInfo.thermalState.rawValue)")
-            }
-        }
-        defer { heartbeat.cancel() }
+        // let heartbeat = Task.detached {
+            // while !Task.isCancelled {
+                // try? await Task.sleep(for: .seconds(15))
+                // guard !Task.isCancelled else { return }
+                // Self.log.info("Answer still working seconds=\(Int(Date().timeIntervalSince(started))) footprintMB=\(MemoryProbe.footprintMB()) thermal=\(ProcessInfo.processInfo.thermalState.rawValue)")
+            // }
+        // }
+        // defer { heartbeat.cancel() }
         do {
             try Task.checkCancellation()
             try await ensure(role)
             try Task.checkCancellation()
-            Self.log.info("Answer model ready seconds=\(Int(Date().timeIntervalSince(started))) footprintMB=\(MemoryProbe.footprintMB())")
+            // Self.log.info("Answer model ready seconds=\(Int(Date().timeIntervalSince(started))) footprintMB=\(MemoryProbe.footprintMB())")
             let session = try makeSession(role: role, instructions: answerInstructions(replyLanguage: languageName))
             // Generation path loads weights; mark ready so Talk can skip preparing next time.
             composeReady = true
             let source = tags.map(\.text).joined(separator: "\n")
-            // Fresh from the phone each call — not a static catalogue line the model can confuse with notes.
+            // Fresh from the phone each call, not a static catalogue line the model can confuse with notes.
             let clock = Self.deviceClockBlock()
             var assembled = "Device clock (authoritative for today/tomorrow/yesterday; never invent dates):\n\(clock)\n\n"
             assembled += "Notes:\n\(source)\n\n"
@@ -366,9 +366,9 @@ actor LocalModelRuntime {
             }
             assembled += "Reply language: \(languageName). Write every word of the answer in \(languageName).\nQuestion: \(question)"
             let prompt = assembled
-            Self.log.info(
-                "Answer question=\(question, privacy: .public) clock=\(clock, privacy: .public) notesCharacters=\(source.count) notesHead=\(String(source.prefix(200)), privacy: .public)"
-            )
+            // Self.log.info(
+                // "Answer question=\(question, privacy: .public) clock=\(clock, privacy: .public) notesCharacters=\(source.count) notesHead=\(String(source.prefix(200)), privacy: .public)"
+            // )
             let options: GenerationOptions
             if let temperature {
                 options = GenerationOptions(temperature: temperature, maximumResponseTokens: maximumResponseTokens)
@@ -381,10 +381,10 @@ actor LocalModelRuntime {
             }
             try Task.checkCancellation()
             let text = response.content.trimmingCharacters(in: .whitespacesAndNewlines)
-            Self.log.info("Answer ok seconds=\(Int(Date().timeIntervalSince(started))) footprintMB=\(MemoryProbe.footprintMB()) characters=\(text.count) text=\(text, privacy: .public)")
+            // Self.log.info("Answer ok seconds=\(Int(Date().timeIntervalSince(started))) footprintMB=\(MemoryProbe.footprintMB()) characters=\(text.count) text=\(text, privacy: .public)")
             return text
         } catch is CancellationError {
-            Self.log.info("Answer cancelled seconds=\(Int(Date().timeIntervalSince(started))) footprintMB=\(MemoryProbe.footprintMB())")
+            // Self.log.info("Answer cancelled seconds=\(Int(Date().timeIntervalSince(started))) footprintMB=\(MemoryProbe.footprintMB())")
             throw CancellationError()
         } catch {
             Self.log.error("Answer failed seconds=\(Int(Date().timeIntervalSince(started))) footprintMB=\(MemoryProbe.footprintMB()) message=\(error.localizedDescription, privacy: .public)")
@@ -402,9 +402,9 @@ actor LocalModelRuntime {
         if role == .whisper {
             snapshot = WhisperASR.snapshot()
         }
-        Self.log.info(
-            "Probe role=\(role.rawValue, privacy: .public) repo=\(snapshot.repo, privacy: .public) path=\(snapshot.path, privacy: .public) directory=\(snapshot.directoryExists) config=\(snapshot.hasConfig) safetensors=\(snapshot.safetensorsCount) files=\(snapshot.fileCount) bytes=\(snapshot.bytes) names=\(snapshot.fileNames.joined(separator: ","), privacy: .public)"
-        )
+        // Self.log.info(
+            // "Probe role=\(role.rawValue, privacy: .public) repo=\(snapshot.repo, privacy: .public) path=\(snapshot.path, privacy: .public) directory=\(snapshot.directoryExists) config=\(snapshot.hasConfig) safetensors=\(snapshot.safetensorsCount) files=\(snapshot.fileCount) bytes=\(snapshot.bytes) names=\(snapshot.fileNames.joined(separator: ","), privacy: .public)"
+        // )
         return snapshot
     }
 
@@ -413,8 +413,8 @@ actor LocalModelRuntime {
         onProgress: (@Sendable (Double) -> Void)? = nil,
         onPreparing: (@Sendable () -> Void)? = nil
     ) async throws {
-        let repo = repoID(role)
-        Self.log.info("Download tapped role=\(role.rawValue, privacy: .public) repo=\(repo, privacy: .public)")
+        // let repo = repoID(role)
+        // Self.log.info("Download tapped role=\(role.rawValue, privacy: .public) repo=\(repo, privacy: .public)")
         _ = probe(role)
         if role == .whisper {
             try await WhisperASR.download(onProgress: onProgress, onPreparing: onPreparing)
@@ -423,15 +423,15 @@ actor LocalModelRuntime {
         }
         do {
             let model = try makeModel(role, onProgress: onProgress)
-            let available = await model.isAvailable
-            Self.log.info("Availability before preload role=\(role.rawValue, privacy: .public) available=\(available)")
+            // let available = await model.isAvailable
+            // Self.log.info("Availability before preload role=\(role.rawValue, privacy: .public) available=\(available)")
             onProgress?(0)
             try await model.preload()
             onProgress?(1)
             try await ensure(role)
-            let after = probe(role)
-            let availableAfter = await model.isAvailable
-            Self.log.info("Download finished role=\(role.rawValue, privacy: .public) available=\(availableAfter) bytes=\(after.bytes) config=\(after.hasConfig) safetensors=\(after.safetensorsCount)")
+            // let after = probe(role)
+            // let availableAfter = await model.isAvailable
+            // Self.log.info("Download finished role=\(role.rawValue, privacy: .public) available=\(availableAfter) bytes=\(after.bytes) config=\(after.hasConfig) safetensors=\(after.safetensorsCount)")
         } catch {
             let nsError = error as NSError
             _ = probe(role)
@@ -442,7 +442,7 @@ actor LocalModelRuntime {
 
     func delete(_ role: ModelRole) async throws {
         let repo = repoID(role)
-        Self.log.info("Delete tapped role=\(role.rawValue, privacy: .public) repo=\(repo, privacy: .public)")
+        // Self.log.info("Delete tapped role=\(role.rawValue, privacy: .public) repo=\(repo, privacy: .public)")
         if resident == role {
             await evictResident()
         }
@@ -452,7 +452,7 @@ actor LocalModelRuntime {
             try HubWeights.remove(repo)
         }
         _ = probe(role)
-        Self.log.info("Delete finished role=\(role.rawValue, privacy: .public)")
+        // Self.log.info("Delete finished role=\(role.rawValue, privacy: .public)")
     }
 
     func isInstalled(_ role: ModelRole) -> Bool {
@@ -486,14 +486,14 @@ actor LocalModelRuntime {
             throw LocalModelError.notInstalled
         }
         if let loaded = resident, loaded != role {
-            Self.log.info("Unload \(loaded.rawValue, privacy: .public) before \(role.rawValue, privacy: .public)")
+            // Self.log.info("Unload \(loaded.rawValue, privacy: .public) before \(role.rawValue, privacy: .public)")
             await evictResident()
         }
         if resident == role {
-            Self.log.info("Model already resident role=\(role.rawValue, privacy: .public)")
+            // Self.log.info("Model already resident role=\(role.rawValue, privacy: .public)")
             return
         }
-        Self.log.info("Ensure role=\(role.rawValue, privacy: .public) \(MemoryProbe.summary())")
+        // Self.log.info("Ensure role=\(role.rawValue, privacy: .public) \(MemoryProbe.summary())")
         Memory.cacheLimit = 128 * 1_024 * 1_024
         SupertonicSpeech.unload()
         switch role {
@@ -538,10 +538,10 @@ actor LocalModelRuntime {
     ) throws -> MLXLanguageModel {
         guard role.isTextModel else { throw LocalModelError.notInstalled }
         let repo = ModelCatalog.repo(for: role)
-        let disk = HubWeights.snapshot(for: repo)
-        Self.log.info("Make model role=\(role.rawValue, privacy: .public) repo=\(disk.repo, privacy: .public) path=\(disk.path, privacy: .public) bytes=\(disk.bytes) config=\(disk.hasConfig) safetensors=\(disk.safetensorsCount)")
+        // let disk = HubWeights.snapshot(for: repo)
+        // Self.log.info("Make model role=\(role.rawValue, privacy: .public) repo=\(disk.repo, privacy: .public) path=\(disk.path, privacy: .public) bytes=\(disk.bytes) config=\(disk.hasConfig) safetensors=\(disk.safetensorsCount)")
         let configuration = ModelConfiguration(id: repo, stopStrings: Self.stopStrings)
-        Self.log.info("Make model stop strings count=\(Self.stopStrings.count)")
+        // Self.log.info("Make model stop strings count=\(Self.stopStrings.count)")
         let model = MLXLanguageModel(
             configuration: configuration,
             capabilities: [.guidedGeneration],
@@ -549,22 +549,22 @@ actor LocalModelRuntime {
                 HubWeights.directory(for: id)
             },
             load: { configuration, progressHandler in
-                Self.log.info("Load container repo=\(configuration.name, privacy: .public)")
+                // Self.log.info("Load container repo=\(configuration.name, privacy: .public)")
                 do {
                     let container = try await loadModelContainer(
                         from: HubSnapshotDownloader(),
                         using: HuggingFaceTokenizerLoader(),
                         configuration: configuration,
                         progressHandler: { progress in
-                            if progress.fractionCompleted == 0 || progress.isFinished || Int(progress.fractionCompleted * 100) % 10 == 0 {
-                                Self.log.info("Load progress repo=\(configuration.name, privacy: .public) fraction=\(progress.fractionCompleted)")
-                            }
+                            // if progress.fractionCompleted == 0 || progress.isFinished || Int(progress.fractionCompleted * 100) % 10 == 0 {
+                                // Self.log.info("Load progress repo=\(configuration.name, privacy: .public) fraction=\(progress.fractionCompleted)")
+                            // }
                             onProgress?(progress.fractionCompleted)
                             progressHandler(progress)
                         }
                     )
-                    let after = HubWeights.snapshot(for: configuration.name)
-                    Self.log.info("Load container ok repo=\(configuration.name, privacy: .public) bytes=\(after.bytes) config=\(after.hasConfig) safetensors=\(after.safetensorsCount)")
+                    // let after = HubWeights.snapshot(for: configuration.name)
+                    // Self.log.info("Load container ok repo=\(configuration.name, privacy: .public) bytes=\(after.bytes) config=\(after.hasConfig) safetensors=\(after.safetensorsCount)")
                     return container
                 } catch {
                     let nsError = error as NSError
@@ -696,7 +696,7 @@ actor LocalModelRuntime {
         """
     }
 
-    /// Built at call time from `Date.now` + the phone time zone — not stored, not cached.
+    /// Built at call time from `Date.now` + the phone time zone, not stored, not cached.
     private static func deviceClockBlock() -> String {
         let calendar = Calendar.autoupdatingCurrent
         let zone = TimeZone.autoupdatingCurrent
@@ -753,20 +753,20 @@ struct HubSnapshotDownloader: Downloader {
             Self.log.error("Hub repo id invalid id=\(id, privacy: .public)")
             throw LocalModelError.loadFailed
         }
-        Self.log.info("Hub snapshot begin id=\(id, privacy: .public) revision=\(revision ?? "main", privacy: .public)")
+        // Self.log.info("Hub snapshot begin id=\(id, privacy: .public) revision=\(revision ?? "main", privacy: .public)")
         do {
             let url = try await HubClient().downloadSnapshot(
                 of: repo,
                 revision: revision ?? "main",
                 matching: patterns,
                 progressHandler: { @MainActor progress in
-                    if progress.fractionCompleted == 0 || progress.isFinished || Int(progress.fractionCompleted * 100) % 10 == 0 {
-                        Self.log.info("Hub progress id=\(id, privacy: .public) fraction=\(progress.fractionCompleted)")
-                    }
+                    // if progress.fractionCompleted == 0 || progress.isFinished || Int(progress.fractionCompleted * 100) % 10 == 0 {
+                        // Self.log.info("Hub progress id=\(id, privacy: .public) fraction=\(progress.fractionCompleted)")
+                    // }
                     progressHandler(progress)
                 }
             )
-            Self.log.info("Hub snapshot ok id=\(id, privacy: .public) path=\(url.path, privacy: .public)")
+            // Self.log.info("Hub snapshot ok id=\(id, privacy: .public) path=\(url.path, privacy: .public)")
             return url
         } catch {
             Self.log.error("Hub snapshot failed id=\(id, privacy: .public) message=\(error.localizedDescription, privacy: .public)")

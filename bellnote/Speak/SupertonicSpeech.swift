@@ -98,7 +98,7 @@ enum SupertonicSpeech {
     }
 
     static func download(onProgress: @Sendable @escaping (Double) -> Void) async throws {
-        log.info("Supertonic download begin")
+        // log.info("Supertonic download begin")
         let downloader = HubSnapshotDownloader()
         _ = try await downloader.download(
             id: ModelCatalog.supertonicRepo,
@@ -112,7 +112,7 @@ enum SupertonicSpeech {
             log.error("Supertonic download missing files")
             throw SupertonicError.failed
         }
-        log.info("Supertonic download ok")
+        // log.info("Supertonic download ok")
     }
 
     /// Drops the loaded voice model. It loads again on the next read.
@@ -120,7 +120,7 @@ enum SupertonicSpeech {
         queue.async {
             guard engine != nil else { return }
             engine = nil
-            log.info("Supertonic unloaded")
+            // log.info("Supertonic unloaded")
         }
     }
 
@@ -132,7 +132,7 @@ enum SupertonicSpeech {
                 do {
                     _ = try loaded()
                     markUsed()
-                    log.info("Supertonic warm ok")
+                    // log.info("Supertonic warm ok")
                 } catch {
                     log.error("Supertonic warm failed \(error.localizedDescription, privacy: .public)")
                 }
@@ -144,7 +144,7 @@ enum SupertonicSpeech {
     static func delete() throws {
         queue.async { engine = nil }
         try HubWeights.remove(ModelCatalog.supertonicRepo)
-        log.info("Supertonic delete ok")
+        // log.info("Supertonic delete ok")
     }
 
     static func clip(text: String, language: String, speaker voice: Int, cancel: SupertonicCancel) async throws -> SupertonicClip {
@@ -199,7 +199,7 @@ enum SupertonicSpeech {
         queue.asyncAfter(deadline: .now() + idleSeconds + 1) {
             guard engine != nil, Date().timeIntervalSince(lastUse) >= idleSeconds else { return }
             engine = nil
-            log.info("Supertonic unloaded after idle")
+            // log.info("Supertonic unloaded after idle")
         }
     }
 
@@ -223,7 +223,7 @@ enum SupertonicSpeech {
             log.error("Supertonic load failed")
             throw SupertonicError.failed
         }
-        log.info("Supertonic loaded rate=\(wrapper.sampleRate) speakers=\(wrapper.numSpeakers)")
+        // log.info("Supertonic loaded rate=\(wrapper.sampleRate) speakers=\(wrapper.numSpeakers)")
         engine = wrapper
         return wrapper
     }

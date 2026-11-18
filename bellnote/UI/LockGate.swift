@@ -19,7 +19,7 @@ struct LockGate: View {
                     .foregroundStyle(.secondary)
             }
             Button("Unlock") {
-                Self.log.info("Unlock button tapped")
+                // Self.log.info("Unlock button tapped")
                 Task { await unlock() }
             }
             // Glass, like the other buttons of the app. A prominent button takes the app tint, which is the primary
@@ -29,21 +29,18 @@ struct LockGate: View {
         }
         .padding()
         .task {
-            Self.log.info("Lock screen appeared, scene phase \(String(describing: scenePhase), privacy: .public)")
+            // Self.log.info("Lock screen appeared, scene phase \(String(describing: scenePhase), privacy: .public)")
             await unlock()
         }
-        .onChange(of: scenePhase) { old, new in
-            Self.log.info("Scene phase \(String(describing: old), privacy: .public) -> \(String(describing: new), privacy: .public)")
-        }
+        // .onChange(of: scenePhase) { old, new in
+        //     Self.log.info("Scene phase \(String(describing: old), privacy: .public) -> \(String(describing: new), privacy: .public)")
+        // }
     }
 
     private func unlock() async {
         let context = LAContext()
-        var error: NSError?
-        let canEvaluate = context.canEvaluatePolicy(.deviceOwnerAuthentication, error: &error)
-        let reason = error?.localizedDescription ?? "none"
-        let errorCode = error?.code ?? 0
-        Self.log.info("Can evaluate: \(canEvaluate, privacy: .public), biometry type: \(context.biometryType.rawValue, privacy: .public), error: \(reason, privacy: .public) (code \(errorCode, privacy: .public))")
+        let canEvaluate = context.canEvaluatePolicy(.deviceOwnerAuthentication, error: nil)
+        // Self.log.info("Can evaluate: \(canEvaluate, privacy: .public), biometry type: \(context.biometryType.rawValue, privacy: .public), error: \(reason, privacy: .public) (code \(errorCode, privacy: .public))")
         guard canEvaluate else {
             session.setLockEnabled(false)
             message = String(localized: "The device could not lock the notes, so the lock is off.")
@@ -51,12 +48,12 @@ struct LockGate: View {
             return
         }
         do {
-            Self.log.info("Asking the system to unlock, scene phase \(String(describing: scenePhase), privacy: .public)")
+            // Self.log.info("Asking the system to unlock, scene phase \(String(describing: scenePhase), privacy: .public)")
             let granted = try await context.evaluatePolicy(
                 .deviceOwnerAuthentication,
                 localizedReason: String(localized: "Unlock Bellnote")
             )
-            Self.log.info("The system answered: \(granted, privacy: .public)")
+            // Self.log.info("The system answered: \(granted, privacy: .public)")
             session.unlocked = granted
             if !granted {
                 message = String(localized: "Unlock was not completed.")

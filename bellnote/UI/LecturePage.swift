@@ -770,9 +770,9 @@ struct LectureNote: View {
         let text = lecture.summary.isEmpty
             ? chapters.map(\.text).joined(separator: "\n")
             : CorrectionText.plain(lecture.summary)
-        Logger(subsystem: "app.bellnote", category: "listen").info(
-            "Listen tap characters=\(text.count) locale=\(course.localeIdentifier, privacy: .public) speaking=\(reader.isSpeaking)"
-        )
+        // Logger(subsystem: "app.bellnote", category: "listen").info(
+            // "Listen tap characters=\(text.count) locale=\(course.localeIdentifier, privacy: .public) speaking=\(reader.isSpeaking)"
+        // )
         reader.read(text, locale: Locale(identifier: course.localeIdentifier))
     }
 

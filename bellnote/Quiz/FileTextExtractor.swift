@@ -52,7 +52,7 @@ enum FileTextExtractor {
             }
         }
         if pages.isEmpty {
-            Self.log.info("Quiz PDF empty path=\(url.lastPathComponent, privacy: .public)")
+            // Self.log.info("Quiz PDF empty path=\(url.lastPathComponent, privacy: .public)")
             throw FileTextExtractorError.empty
         }
         return pages

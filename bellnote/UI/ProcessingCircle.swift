@@ -40,7 +40,7 @@ struct ProcessingCircle: View {
                         .tint(Color.accentColor)
                         .scaleEffect(3)
                         .frame(width: 180, height: 180)
-                    // Keep the label block in the clear middle of the ring — short lines, not edge-to-edge.
+                    // Keep the label block in the clear middle of the ring, short lines, not edge-to-edge.
                     VStack(spacing: 6) {
                         Text(isStopping ? String(localized: "Cancelling…") : step.title)
                             .appFont(.footnote, weight: .semibold)

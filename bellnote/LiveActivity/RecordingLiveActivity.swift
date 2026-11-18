@@ -14,7 +14,7 @@ enum RecordingLiveActivity {
         await end()
         let info = ActivityAuthorizationInfo()
         guard info.areActivitiesEnabled else {
-            log.info("Live Activity skipped, activities are off")
+            // log.info("Live Activity skipped, activities are off")
             return
         }
         let attributes = RecordingAttributes(courseName: courseName)
@@ -25,7 +25,7 @@ enum RecordingLiveActivity {
                 content: ActivityContent(state: state, staleDate: nil),
                 pushType: nil
             )
-            log.info("Live Activity started course=\(courseName, privacy: .public)")
+            // log.info("Live Activity started course=\(courseName, privacy: .public)")
         } catch {
             log.error("Live Activity start failed message=\(error.localizedDescription, privacy: .public)")
         }
@@ -49,7 +49,7 @@ enum RecordingLiveActivity {
                 ActivityContent(state: final, staleDate: nil),
                 dismissalPolicy: .immediate
             )
-            log.info("Live Activity ended")
+            // log.info("Live Activity ended")
         }
         for leftover in Activity<RecordingAttributes>.activities {
             await leftover.end(nil, dismissalPolicy: .immediate)

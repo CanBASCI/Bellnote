@@ -81,12 +81,12 @@ final class PipelineActivity {
     func stop(_ lecture: Lecture) {
         let id = lecture.persistentModelID
         guard let stage = stages[id] else {
-            Self.log.info("Stop ignored: the lecture is not running")
+            // Self.log.info("Stop ignored: the lecture is not running")
             return
         }
         stopping.insert(id)
-        let hasTask = tasks[id] != nil
-        Self.log.info("Stop requested stage=\(stage.rawValue, privacy: .public) hasTask=\(hasTask)")
+        // let hasTask = tasks[id] != nil
+        // Self.log.info("Stop requested stage=\(stage.rawValue, privacy: .public) hasTask=\(hasTask)")
         tasks[id]?.cancel()
     }
 

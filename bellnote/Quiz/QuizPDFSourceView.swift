@@ -87,9 +87,9 @@ private struct QuizPDFKitView: UIViewRepresentable {
             if let first = hits.first {
                 view.currentSelection = first
                 view.go(to: first)
-                Self.log.info(
-                    "Quiz PDF jump find queryChars=\(query.count) page=\(self.pageIndex ?? -1)"
-                )
+                // Self.log.info(
+                    // "Quiz PDF jump find queryChars=\(query.count) page=\(self.pageIndex ?? -1)"
+                // )
                 return true
             }
         }
@@ -100,13 +100,13 @@ private struct QuizPDFKitView: UIViewRepresentable {
             let box = page.bounds(for: view.displayBox)
             let destination = PDFDestination(page: page, at: CGPoint(x: 0, y: box.maxY))
             view.go(to: destination)
-            Self.log.info("Quiz PDF jump page=\(pageIndex) (find miss)")
+            // Self.log.info("Quiz PDF jump page=\(pageIndex) (find miss)")
             return true
         }
 
-        Self.log.info(
-            "Quiz PDF jump missed page=\(self.pageIndex ?? -1) excerptChars=\(self.excerpt.count)"
-        )
+        // Self.log.info(
+            // "Quiz PDF jump missed page=\(self.pageIndex ?? -1) excerptChars=\(self.excerpt.count)"
+        // )
         return false
     }
 

@@ -63,7 +63,7 @@ struct TermHomeView: View {
                             QuizPage(term: term)
                         }
                     }
-                    // Off until the term has a course, and while a recording is processed — Quiz shares the text model.
+                    // Off until the term has a course, and while a recording is processed, Quiz shares the text model.
                     .disabled(term.courses.isEmpty || PipelineActivity.shared.isBusy || session.setupIncomplete)
 
                     Tab("Assistant", systemImage: "waveform.and.mic", value: HomeTab.assistant) {
@@ -71,7 +71,7 @@ struct TermHomeView: View {
                             AssistantPage()
                         }
                     }
-                    // Off while a recording is processed — Talk and the pipeline share the text model and memory.
+                    // Off while a recording is processed, Talk and the pipeline share the text model and memory.
                     .disabled(PipelineActivity.shared.isBusy || session.setupIncomplete)
 
                     Tab("Settings", systemImage: "gearshape", value: HomeTab.settings) {
@@ -79,7 +79,7 @@ struct TermHomeView: View {
                             SettingsPage(openModels: $openModels)
                         }
                     }
-                    // Off while a recording is processed — model changes must not race the pipeline.
+                    // Off while a recording is processed, model changes must not race the pipeline.
                     .disabled(PipelineActivity.shared.isBusy)
                 }
                 .tabBarMinimizeBehavior(.onScrollDown)
@@ -120,7 +120,7 @@ struct TermHomeView: View {
             }
         }
         .task {
-            Logger(subsystem: "app.bellnote", category: "home").info("Home appeared, \(terms.count, privacy: .public) terms")
+            // Logger(subsystem: "app.bellnote", category: "home").info("Home appeared, \(terms.count, privacy: .public) terms")
             // A lecture still saved as "processing" while nothing runs it goes back to paused.
             LecturePipeline.recoverInterrupted(context: modelContext)
             ReminderScheduler.resync(context: modelContext)
@@ -443,7 +443,7 @@ struct TodayPage: View {
                     showTimetable = true
                 }
                 .labelStyle(.iconOnly)
-                // Off while a recording is processed — keep focus on the run.
+                // Off while a recording is processed, keep focus on the run.
                 .disabled(PipelineActivity.shared.isBusy)
             }
             // Pending sits just left of Record. Record stays the outer trailing icon.
@@ -736,7 +736,7 @@ struct TodayPage: View {
     private func logOrder(_ event: String, _ courses: [Course]) {
         let line = courses.map { "\($0.name)=\($0.homeOrder)" }.joined(separator: " | ")
         print("home order \(event): \(line)")
-        Logger(subsystem: "app.bellnote", category: "home-order").notice("\(event, privacy: .public): \(line, privacy: .public)")
+        // Logger(subsystem: "app.bellnote", category: "home-order").notice("\(event, privacy: .public): \(line, privacy: .public)")
     }
 
     private var nextSlot: WeeklySlot? {

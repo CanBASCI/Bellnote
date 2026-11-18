@@ -1432,7 +1432,7 @@ private final class StoredFilePreviewCoordinator: NSObject, QLPreviewControllerD
             }
         }
         updatedInPlace = true
-        Logger(subsystem: "app.bellnote", category: "files").info("Preview wrote the open file in place")
+        // Logger(subsystem: "app.bellnote", category: "files").info("Preview wrote the open file in place")
         onMainActor {
             controller.refreshCurrentPreviewItem()
             self.onEdited()

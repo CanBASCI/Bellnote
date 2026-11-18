@@ -83,22 +83,22 @@ nonisolated final class CaptureSession: NSObject, @unchecked Sendable {
             throw error
         }
         observeSession(session)
-        Self.log.info("Capture started engineRunning=\(self.engine.isRunning)")
+        // Self.log.info("Capture started engineRunning=\(self.engine.isRunning)")
     }
 
     func pauseCapture() {
         lock.lock()
         let shouldPause = started && !paused
         if shouldPause { paused = true }
-        let frames = recordedFrames
+        // let frames = recordedFrames
         lock.unlock()
-        Self.log.info("Capture pause requested shouldPause=\(shouldPause) frames=\(frames)")
+        // Self.log.info("Capture pause requested shouldPause=\(shouldPause) frames=\(frames)")
         if shouldPause { engine.pause() }
     }
 
     func resumeCapture() async throws {
         let shouldResume = lock.withLock { started && paused }
-        Self.log.info("Capture resume requested shouldResume=\(shouldResume)")
+        // Self.log.info("Capture resume requested shouldResume=\(shouldResume)")
         guard shouldResume else { return }
         // After a local pause the session is usually still active. Re-setCategory from a
         // Live Activity intent in the background fails with OSStatus '!int' (560557684).
@@ -110,7 +110,7 @@ nonisolated final class CaptureSession: NSObject, @unchecked Sendable {
             try engine.start()
         }
         lock.withLock { paused = false }
-        Self.log.info("Capture resumed engineRunning=\(self.engine.isRunning)")
+        // Self.log.info("Capture resumed engineRunning=\(self.engine.isRunning)")
     }
 
     func stop() async throws {
@@ -226,20 +226,20 @@ nonisolated final class CaptureSession: NSObject, @unchecked Sendable {
     private func observeSession(_ session: AVAudioSession) {
         let center = NotificationCenter.default
         let inactive = center.addObserver(of: session, for: .didBecomeInactive) { [weak self] message in
-            Self.log.info("Session became inactive result=\(String(describing: message.deactivationResult), privacy: .public)")
+            // Self.log.info("Session became inactive result=\(String(describing: message.deactivationResult), privacy: .public)")
             guard case .systemInterruption = message.deactivationResult else { return }
             self?.pauseCapture()
             self?.onInterrupted?()
         }
         let resume = center.addObserver(of: session, for: .resumptionRecommendation) { [weak self] message in
-            Self.log.info("Session resumption recommendation=\(String(describing: message.recommendation), privacy: .public)")
+            // Self.log.info("Session resumption recommendation=\(String(describing: message.recommendation), privacy: .public)")
             guard message.recommendation == .shouldResume else { return }
             self?.onInterruptionEnded?()
         }
         // Only for the log: the engine stops by itself when the audio route changes.
-        let configuration = center.addObserver(forName: .AVAudioEngineConfigurationChange, object: engine, queue: nil) { [weak self] _ in
-            let running = self?.engine.isRunning ?? false
-            Self.log.info("Engine configuration changed engineRunning=\(running)")
+        let configuration = center.addObserver(forName: .AVAudioEngineConfigurationChange, object: engine, queue: nil) { _ in
+            // let running = self?.engine.isRunning ?? false
+            // Self.log.info("Engine configuration changed engineRunning=\(running)")
         }
         lock.lock()
         observationTokens = [inactive, resume]

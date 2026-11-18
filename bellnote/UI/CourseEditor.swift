@@ -65,9 +65,6 @@ struct CourseEditor: View {
                         Text("The language is fixed once a course has recordings.")
                     }
                 }
-                Section("Color") {
-                    colorChoices
-                }
                 Section("Times") {
                     ForEach(slots) { slot in
                         Button {
@@ -92,6 +89,9 @@ struct CourseEditor: View {
                         .buttonStyle(.plain)
                     }
                     Button("Add exam", systemImage: "plus") { addingExam = true }
+                }
+                Section("Color") {
+                    colorChoices
                 }
             }
             .navigationTitle("Edit course")

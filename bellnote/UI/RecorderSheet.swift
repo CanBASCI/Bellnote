@@ -208,7 +208,7 @@ struct RecorderSheet: View {
     }
 
     private func begin() async {
-        Self.log.info("Recorder sheet appeared, starting")
+        // Self.log.info("Recorder sheet appeared, starting")
         let permitted = await AVAudioApplication.requestRecordPermission()
         guard permitted else {
             Self.log.error("Recorder: microphone permission is off")
@@ -288,7 +288,7 @@ struct RecorderSheet: View {
         Self.tapFeedback()
         let second = capture.elapsedSeconds()
         lecture.flaggedSeconds.append(second)
-        Self.log.info("Recorder: flagged second=\(second) count=\(lecture.flaggedSeconds.count)")
+        // Self.log.info("Recorder: flagged second=\(second) count=\(lecture.flaggedSeconds.count)")
         Task {
             await RecordingLiveActivity.update(
                 elapsedSeconds: second,

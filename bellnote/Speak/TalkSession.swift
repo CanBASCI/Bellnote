@@ -119,7 +119,7 @@ final class TalkSession {
         self.locale = Locale(identifier: speechLanguage.speechLocaleIdentifier)
         refreshCache()
         guard !running else {
-            Self.log.info("Talk start ignored alreadyRunning phase=\(String(describing: self.phase), privacy: .public)")
+            // Self.log.info("Talk start ignored alreadyRunning phase=\(String(describing: self.phase), privacy: .public)")
             return
         }
         audioGeneration += 1
@@ -127,9 +127,9 @@ final class TalkSession {
         reader.ownsAudioSession = false
         // Same idea as processing: keep the screen awake so Talk is not cut by auto-lock.
         ScreenIdleGate.setTalkActive(true)
-        Self.log.info(
-            "Talk start terms=\(terms.count) locale=\(self.locale.identifier, privacy: .public) notes=\(self.cachedNotes.count) catalog=\(self.cachedCatalog.count)"
-        )
+        // Self.log.info(
+            // "Talk start terms=\(terms.count) locale=\(self.locale.identifier, privacy: .public) notes=\(self.cachedNotes.count) catalog=\(self.cachedCatalog.count)"
+        // )
         Task { await LocalModelRuntime.shared.setHoldResident(true) }
         loopTask?.cancel()
         loopTask = Task { await runLoop() }
@@ -137,7 +137,7 @@ final class TalkSession {
 
     func stop() {
         audioGeneration += 1
-        Self.log.info("Talk stop phase=\(String(describing: self.phase), privacy: .public) turns=\(self.turns.count)")
+        // Self.log.info("Talk stop phase=\(String(describing: self.phase), privacy: .public) turns=\(self.turns.count)")
         running = false
         loopTask?.cancel()
         loopTask = nil
@@ -179,7 +179,7 @@ final class TalkSession {
         }
         cachedNotes = TalkContext.noteBlocks(from: chosen)
         cachedCatalog = TalkContext.catalogTags(terms: chosen, session: session)
-        Self.log.info("Talk cache notes=\(self.cachedNotes.count) catalog=\(self.cachedCatalog.count)")
+        // Self.log.info("Talk cache notes=\(self.cachedNotes.count) catalog=\(self.cachedCatalog.count)")
     }
 
     private func runLoop() async {
@@ -212,15 +212,15 @@ final class TalkSession {
         if !alreadyReady {
             phase = .preparing
             statusLine = String(localized: "Preparing…")
-            Self.log.info("Talk phase=preparing")
-            let warmStarted = Date()
+            // Self.log.info("Talk phase=preparing")
+            // let warmStarted = Date()
             do {
                 async let voice: Void = SupertonicSpeech.warm()
                 try await LocalModelRuntime.shared.warmTextModel()
                 await voice
-                Self.log.info("Talk warm done ms=\(Int(Date().timeIntervalSince(warmStarted) * 1000))")
+                // Self.log.info("Talk warm done ms=\(Int(Date().timeIntervalSince(warmStarted) * 1000))")
             } catch is CancellationError {
-                Self.log.info("Talk warm cancelled")
+                // Self.log.info("Talk warm cancelled")
                 return
             } catch {
                 Self.log.error("Talk warm failed \(error.localizedDescription, privacy: .public)")
@@ -231,19 +231,19 @@ final class TalkSession {
             }
             guard running, !Task.isCancelled else { return }
         } else {
-            Self.log.info("Talk warm skipped model already ready")
+            // Self.log.info("Talk warm skipped model already ready")
             warmTask?.cancel()
             warmTask = Task { await SupertonicSpeech.warm() }
         }
 
-        Self.log.info("Talk loop ready")
+        // Self.log.info("Talk loop ready")
         while running, !Task.isCancelled {
             do {
                 phase = .listening
                 statusLine = String(localized: "Listening…")
                 partialTranscript = ""
-                Self.log.info("Talk phase=listening")
-                let listenStarted = Date()
+                // Self.log.info("Talk phase=listening")
+                // let listenStarted = Date()
                 let question: String
                 do {
                     async let turn = listen.listenTurn(locale: locale)
@@ -257,12 +257,12 @@ final class TalkSession {
                     question = try await turn
                 }
                 partialTranscript = question
-                Self.log.info(
-                    "Talk heard ms=\(Int(Date().timeIntervalSince(listenStarted) * 1000)) characters=\(question.count) text=\(question, privacy: .public)"
-                )
+                // Self.log.info(
+                    // "Talk heard ms=\(Int(Date().timeIntervalSince(listenStarted) * 1000)) characters=\(question.count) text=\(question, privacy: .public)"
+                // )
                 guard running, !Task.isCancelled else { break }
                 guard question.split(whereSeparator: \.isWhitespace).count >= 1 else {
-                    Self.log.info("Talk empty turn skipped")
+                    // Self.log.info("Talk empty turn skipped")
                     continue
                 }
 
@@ -277,14 +277,14 @@ final class TalkSession {
                     phase = .thinking
                     statusLine = String(localized: "Thinking…")
                     partialTranscript = ""
-                    Self.log.info("Talk phase=thinking question=\(activeQuestion, privacy: .public)")
-                    let thinkStarted = Date()
+                    // Self.log.info("Talk phase=thinking question=\(activeQuestion, privacy: .public)")
+                    // let thinkStarted = Date()
 
                     switch await thinkWhileListening(question: activeQuestion) {
                     case .answered(let reply):
-                        Self.log.info(
-                            "Talk answered ms=\(Int(Date().timeIntervalSince(thinkStarted) * 1000)) characters=\(reply.text.count) sources=\(reply.sources.count) text=\(reply.text, privacy: .public)"
-                        )
+                        // Self.log.info(
+                            // "Talk answered ms=\(Int(Date().timeIntervalSince(thinkStarted) * 1000)) characters=\(reply.text.count) sources=\(reply.sources.count) text=\(reply.text, privacy: .public)"
+                        // )
                         guard running, !Task.isCancelled else { break thinkLoop }
                         turns.append(
                             TalkTurn(
@@ -298,16 +298,16 @@ final class TalkSession {
 
                         phase = .speaking
                         statusLine = String(localized: "Speaking…")
-                        Self.log.info("Talk phase=speaking")
-                        let speakStarted = Date()
+                        // Self.log.info("Talk phase=speaking")
+                        // let speakStarted = Date()
                         switch await speak(reply.text) {
                         case .finished:
-                            Self.log.info("Talk spoke ms=\(Int(Date().timeIntervalSince(speakStarted) * 1000))")
+                            // Self.log.info("Talk spoke ms=\(Int(Date().timeIntervalSince(speakStarted) * 1000))")
                             break thinkLoop
                         case .bargedIn(let next):
-                            Self.log.info(
-                                "Talk speak barged ms=\(Int(Date().timeIntervalSince(speakStarted) * 1000)) next=\(next, privacy: .public)"
-                            )
+                            // Self.log.info(
+                                // "Talk speak barged ms=\(Int(Date().timeIntervalSince(speakStarted) * 1000)) next=\(next, privacy: .public)"
+                            // )
                             guard next.split(whereSeparator: \.isWhitespace).count >= 1 else {
                                 break thinkLoop
                             }
@@ -316,9 +316,9 @@ final class TalkSession {
                         }
 
                     case .interrupted(let next):
-                        Self.log.info(
-                            "Talk think interrupted ms=\(Int(Date().timeIntervalSince(thinkStarted) * 1000)) next=\(next, privacy: .public)"
-                        )
+                        // Self.log.info(
+                            // "Talk think interrupted ms=\(Int(Date().timeIntervalSince(thinkStarted) * 1000)) next=\(next, privacy: .public)"
+                        // )
                         guard next.split(whereSeparator: \.isWhitespace).count >= 1 else {
                             continue thinkLoop
                         }
@@ -327,7 +327,7 @@ final class TalkSession {
                     }
                 }
             } catch is CancellationError {
-                Self.log.info("Talk loop cancelled")
+                // Self.log.info("Talk loop cancelled")
                 break
             } catch TalkListenError.speechUnsupported {
                 Self.log.error("Talk speech locale unsupported")
@@ -346,7 +346,7 @@ final class TalkSession {
         if running == false, phase != .needsMicrophone, phase != .needsModel, phase != .needsVoice {
             phase = .idle
         }
-        Self.log.info("Talk loop ended phase=\(String(describing: self.phase), privacy: .public)")
+        // Self.log.info("Talk loop ended phase=\(String(describing: self.phase), privacy: .public)")
     }
 
     private struct TalkReply: Equatable {
@@ -363,7 +363,7 @@ final class TalkSession {
     /// Model runs while the mic stays open. A new spoken turn cancels that answer.
     private func thinkWhileListening(question: String) async -> ThinkRace {
         let generation = audioGeneration
-        // Hop via named MainActor methods — `addTask { @MainActor in }` trips the region checker.
+        // Hop via named MainActor methods, `addTask { @MainActor in }` trips the region checker.
         return await withTaskGroup(of: ThinkRace?.self) { group in
             group.addTask {
                 await self.thinkAnswerBranch(question: question)
@@ -414,7 +414,7 @@ final class TalkSession {
     private func pollThinkPartial() async {
         while !Task.isCancelled {
             let partial = listen.partialText
-            // Keep status on Thinking… — phase stays thinking until the race ends.
+            // Keep status on Thinking…, phase stays thinking until the race ends.
             // Partial still fills the You card so barge-in speech is visible.
             if !partial.isEmpty {
                 partialTranscript = partial
@@ -441,35 +441,35 @@ final class TalkSession {
             var style = Date.FormatStyle(date: .complete, time: .shortened).locale(locale)
             style.timeZone = TimeZone.autoupdatingCurrent
             let stamp = Date.now.formatted(style)
-            Self.log.info("Talk clock short-circuit local=\(stamp, privacy: .public)")
+            // Self.log.info("Talk clock short-circuit local=\(stamp, privacy: .public)")
             return TalkReply(text: stamp)
         }
         if let timetable = timetableReply(for: question) {
-            Self.log.info("Talk timetable short-circuit text=\(timetable.text, privacy: .public)")
+            // Self.log.info("Talk timetable short-circuit text=\(timetable.text, privacy: .public)")
             return timetable
         }
         if let recordings = unprocessedRecordingReply(for: question) {
-            Self.log.info("Talk recording short-circuit text=\(recordings.text, privacy: .public)")
+            // Self.log.info("Talk recording short-circuit text=\(recordings.text, privacy: .public)")
             return recordings
         }
         if let lecturer = lecturerReply(for: question) {
-            Self.log.info("Talk lecturer short-circuit text=\(lecturer.text, privacy: .public)")
+            // Self.log.info("Talk lecturer short-circuit text=\(lecturer.text, privacy: .public)")
             return lecturer
         }
         if let speaker = speakerReply(for: question) {
-            Self.log.info("Talk speaker short-circuit text=\(speaker.text, privacy: .public)")
+            // Self.log.info("Talk speaker short-circuit text=\(speaker.text, privacy: .public)")
             return speaker
         }
         if let covered = coveredThenReply(for: question) {
-            Self.log.info("Talk covered short-circuit text=\(covered.text, privacy: .public)")
+            // Self.log.info("Talk covered short-circuit text=\(covered.text, privacy: .public)")
             return covered
         }
         if let files = fileReply(for: question) {
-            Self.log.info("Talk file short-circuit text=\(files.text, privacy: .public)")
+            // Self.log.info("Talk file short-circuit text=\(files.text, privacy: .public)")
             return files
         }
         if let stickies = stickyReply(for: question, keys: nil) {
-            Self.log.info("Talk sticky short-circuit text=\(stickies.text, privacy: .public)")
+            // Self.log.info("Talk sticky short-circuit text=\(stickies.text, privacy: .public)")
             return stickies
         }
         if cachedTermID != selectedTerm?.persistentModelID
@@ -478,7 +478,7 @@ final class TalkSession {
         }
         // Fewer blocks + lower token cap = faster on-device replies for live talk.
         // A filler-only turn (“evet”) has no topic. BM25 would open whichever note says that word.
-        let retrieveStarted = Date()
+        // let retrieveStarted = Date()
         let topicKeys = Self.contentTokens(for: question)
         let catalogAsk =
             isScheduleQuestion(question) || isAssignmentCatalogQuestion(question)
@@ -486,9 +486,9 @@ final class TalkSession {
         let pick: StudySelection.Pick
         if catalogAsk || topicKeys.isEmpty {
             pick = StudySelection.Pick(blocks: [], source: nil)
-            Self.log.info(
-                "Talk retrieve skipped \(catalogAsk ? "catalogue" : "filler-only", privacy: .public) question=\(question, privacy: .public)"
-            )
+            // Self.log.info(
+                // "Talk retrieve skipped \(catalogAsk ? "catalogue" : "filler-only", privacy: .public) question=\(question, privacy: .public)"
+            // )
         } else {
             pick = StudySelection.relevant(
                 cachedNotes,
@@ -498,41 +498,41 @@ final class TalkSession {
                 topCount: 5
             )
         }
-        let retrieveMs = Int(Date().timeIntervalSince(retrieveStarted) * 1000)
-        let poolCharacters = cachedNotes.reduce(0) { $0 + $1.text.count }
-        let catalogCharacters = cachedCatalog.reduce(0) { $0 + $1.text.count }
-        let pickedCharacters = pick.blocks.reduce(0) { $0 + $1.text.count }
-        Self.log.info(
-            "Talk retrieve ms=\(retrieveMs) poolNotes=\(self.cachedNotes.count) poolCharacters=\(poolCharacters) catalogLines=\(self.cachedCatalog.count) catalogCharacters=\(catalogCharacters) picked=\(pick.blocks.count) pickedCharacters=\(pickedCharacters) question=\(question, privacy: .public)"
-        )
+        // let retrieveMs = Int(Date().timeIntervalSince(retrieveStarted) * 1000)
+        // let poolCharacters = cachedNotes.reduce(0) { $0 + $1.text.count }
+        // let catalogCharacters = cachedCatalog.reduce(0) { $0 + $1.text.count }
+        // let pickedCharacters = pick.blocks.reduce(0) { $0 + $1.text.count }
+        // Self.log.info(
+            // "Talk retrieve ms=\(retrieveMs) poolNotes=\(self.cachedNotes.count) poolCharacters=\(poolCharacters) catalogLines=\(self.cachedCatalog.count) catalogCharacters=\(catalogCharacters) picked=\(pick.blocks.count) pickedCharacters=\(pickedCharacters) question=\(question, privacy: .public)"
+        // )
         // A lecture that shares one word is not the source of a fact that lives on a sticky.
         if !catalogAsk, !topicKeys.isEmpty, !Self.spokenLectureInstead(Self.asciiFold(question)) {
             let lectureCovers = pick.blocks.contains { block in
                 topicKeys.allSatisfy { Self.topicScore(of: block, keys: [$0]) > 0 }
             }
             if !lectureCovers, let stickies = stickyReply(for: question, keys: topicKeys, requireAll: true) {
-                Self.log.info("Talk sticky covers question text=\(stickies.text, privacy: .public)")
+                // Self.log.info("Talk sticky covers question text=\(stickies.text, privacy: .public)")
                 return stickies
             }
         }
         // Aptal, manyak, slang, or any other words that are not in a note. No word list, no model, no Source.
         if !catalogAsk, !topicKeys.isEmpty,
            pick.blocks.allSatisfy({ Self.topicScore(of: $0, keys: topicKeys) == 0 }) {
-            Self.log.info("Talk answer skipped no topic hit question=\(question, privacy: .public)")
+            // Self.log.info("Talk answer skipped no topic hit question=\(question, privacy: .public)")
             return TalkReply(text: String(localized: "The lectures do not contain that."))
         }
-        if let source = pick.source {
-            Self.log.info(
-                "Talk source second=\(source.second) kind=\(source.kind.rawValue, privacy: .public) characters=\(source.text.count) head=\(String(source.text.prefix(120)), privacy: .public)"
-            )
-        } else {
-            Self.log.info("Talk source none")
-        }
-        for (index, block) in pick.blocks.enumerated() {
-            Self.log.info(
-                "Talk picked[\(index)] second=\(block.second) kind=\(block.kind.rawValue, privacy: .public) characters=\(block.text.count) head=\(String(block.text.prefix(100)), privacy: .public)"
-            )
-        }
+        // if let source = pick.source {
+            // Self.log.info(
+                // "Talk source second=\(source.second) kind=\(source.kind.rawValue, privacy: .public) characters=\(source.text.count) head=\(String(source.text.prefix(120)), privacy: .public)"
+            // )
+        // } else {
+            // Self.log.info("Talk source none")
+        // }
+        // for (index, block) in pick.blocks.enumerated() {
+            // Self.log.info(
+                // "Talk picked[\(index)] second=\(block.second) kind=\(block.kind.rawValue, privacy: .public) characters=\(block.text.count) head=\(String(block.text.prefix(100)), privacy: .public)"
+            // )
+        // }
 
         var tags = cachedCatalog
         tags.append(
@@ -549,29 +549,29 @@ final class TalkSession {
             }
         )
         guard !tags.isEmpty else {
-            Self.log.info("Talk answer empty tags ms=\(Int(Date().timeIntervalSince(answerStarted) * 1000))")
+            // Self.log.info("Talk answer empty tags ms=\(Int(Date().timeIntervalSince(answerStarted) * 1000))")
             return TalkReply(text: String(localized: "The lectures do not contain that."))
         }
 
         // Earlier turns were making the model repeat the last course or the last canned sentence.
         // The current question and the catalogue are the whole prompt.
         let history: [(role: String, text: String)] = []
-        Self.log.info("Talk history off")
-        Self.log.info("Talk history turns=\(history.count) (prior only; current question separate)")
-        for (index, turn) in history.enumerated() {
-            Self.log.info(
-                "Talk history[\(index)] role=\(turn.role, privacy: .public) characters=\(turn.text.count) text=\(turn.text, privacy: .public)"
-            )
-        }
+        // Self.log.info("Talk history off")
+        // Self.log.info("Talk history turns=\(history.count) (prior only; current question separate)")
+        // for (index, turn) in history.enumerated() {
+            // Self.log.info(
+                // "Talk history[\(index)] role=\(turn.role, privacy: .public) characters=\(turn.text.count) text=\(turn.text, privacy: .public)"
+            // )
+        // }
 
-        let promptCharacters = tags.reduce(0) { $0 + $1.text.count }
-            + history.reduce(0) { $0 + $1.text.count }
-            + question.count
-        Self.log.info(
-            "Talk model prompt tags=\(tags.count) promptCharacters≈\(promptCharacters) maxTokens=72 temperature=0"
-        )
+        // let promptCharacters = tags.reduce(0) { $0 + $1.text.count }
+            // + history.reduce(0) { $0 + $1.text.count }
+            // + question.count
+        // Self.log.info(
+            // "Talk model prompt tags=\(tags.count) promptCharacters≈\(promptCharacters) maxTokens=72 temperature=0"
+        // )
         do {
-            let modelStarted = Date()
+            // let modelStarted = Date()
             let reply = try await LocalModelRuntime.shared.answer(
                 question: question,
                 tags: tags,
@@ -580,36 +580,36 @@ final class TalkSession {
                 maximumResponseTokens: 72,
                 temperature: 0
             )
-            let modelMs = Int(Date().timeIntervalSince(modelStarted) * 1000)
-            let totalMs = Int(Date().timeIntervalSince(answerStarted) * 1000)
+            // let modelMs = Int(Date().timeIntervalSince(modelStarted) * 1000)
+            // let totalMs = Int(Date().timeIntervalSince(answerStarted) * 1000)
             let foldedReply = Self.asciiFold(reply)
             let missing = reply.contains("NOT_IN_NOTES") || reply.isEmpty
                 || Self.admitsMissing(foldedReply)
             let echoed = Self.repeatsQuestion(reply, question: question)
-            Self.log.info(
-                "Talk answer done modelMs=\(modelMs) totalMs=\(totalMs) retrieveMs=\(retrieveMs) notInNotes=\(missing) echo=\(echoed) characters=\(reply.count) text=\(reply, privacy: .public)"
-            )
+            // Self.log.info(
+                // "Talk answer done modelMs=\(modelMs) totalMs=\(totalMs) retrieveMs=\(retrieveMs) notInNotes=\(missing) echo=\(echoed) characters=\(reply.count) text=\(reply, privacy: .public)"
+            // )
             if missing || echoed {
                 return TalkReply(text: String(localized: "The lectures do not contain that."))
             }
             let sources = sourcesForAnswer(question: question, reply: reply, pick: pick)
-            let sourceKind =
-                isScheduleQuestion(question) ? "schedule"
-                : isAssignmentCatalogQuestion(question) ? "assignment"
-                : isExamCatalogQuestion(question) ? "exam"
-                : isInventoryCatalogQuestion(question) ? "inventory"
-                : "note"
-            Self.log.info(
-                "Talk sources count=\(sources.count) kind=\(sourceKind, privacy: .public) question=\(question, privacy: .public)"
-            )
-            for (index, item) in sources.enumerated() {
-                Self.log.info(
-                    "Talk sourceMenu[\(index)] title=\(item.title, privacy: .public) target=\(String(describing: item.target), privacy: .public)"
-                )
-            }
+            // let sourceKind =
+                // isScheduleQuestion(question) ? "schedule"
+                // : isAssignmentCatalogQuestion(question) ? "assignment"
+                // : isExamCatalogQuestion(question) ? "exam"
+                // : isInventoryCatalogQuestion(question) ? "inventory"
+                // : "note"
+            // Self.log.info(
+                // "Talk sources count=\(sources.count) kind=\(sourceKind, privacy: .public) question=\(question, privacy: .public)"
+            // )
+            // for (index, item) in sources.enumerated() {
+                // Self.log.info(
+                    // "Talk sourceMenu[\(index)] title=\(item.title, privacy: .public) target=\(String(describing: item.target), privacy: .public)"
+                // )
+            // }
             return TalkReply(text: reply, sources: sources)
         } catch is CancellationError {
-            Self.log.info("Talk answer cancelled ms=\(Int(Date().timeIntervalSince(answerStarted) * 1000))")
+            // Self.log.info("Talk answer cancelled ms=\(Int(Date().timeIntervalSince(answerStarted) * 1000))")
             return TalkReply(text: "")
         } catch {
             Self.log.error(
@@ -649,9 +649,9 @@ final class TalkSession {
     /// another picked block harder than that primary, use that block instead (still one row).
     private func noteSources(question: String, pick: StudySelection.Pick) -> [TalkSourceItem] {
         let keys = Self.contentTokens(for: question)
-        Self.log.info(
-            "Talk source keys count=\(keys.count) keys=\(keys.joined(separator: ","), privacy: .public) question=\(question, privacy: .public)"
-        )
+        // Self.log.info(
+            // "Talk source keys count=\(keys.count) keys=\(keys.joined(separator: ","), privacy: .public) question=\(question, privacy: .public)"
+        // )
         func score(_ block: StudyBlock) -> Int {
             Self.topicScore(of: block, keys: keys)
         }
@@ -667,9 +667,9 @@ final class TalkSession {
             return []
         }
         guard let chosen else { return [] }
-        Self.log.info(
-            "Talk source chosen score=\(score(chosen)) primaryScore=\(primary.map(score) ?? -1) second=\(chosen.second) title=\(Self.noteSourceTitle(chosen), privacy: .public)"
-        )
+        // Self.log.info(
+            // "Talk source chosen score=\(score(chosen)) primaryScore=\(primary.map(score) ?? -1) second=\(chosen.second) title=\(Self.noteSourceTitle(chosen), privacy: .public)"
+        // )
         return [
             TalkSourceItem(
                 title: Self.noteSourceTitle(chosen),
@@ -2007,7 +2007,7 @@ final class TalkSession {
         if rows.isEmpty {
             let quoted = quotedAssignmentSources(in: question, reply: reply)
             if !quoted.isEmpty {
-                Self.log.info("Talk assignment sources reply-fallback count=\(quoted.count)")
+                // Self.log.info("Talk assignment sources reply-fallback count=\(quoted.count)")
                 return quoted
             }
         }
@@ -2235,7 +2235,7 @@ final class TalkSession {
         return String(parts.joined(separator: " · ").prefix(64))
     }
 
-    /// How many classes / when is my slot — answered from the catalogue, not a lecture Raw block.
+    /// How many classes / when is my slot, answered from the catalogue, not a lecture Raw block.
     private func isScheduleQuestion(_ text: String) -> Bool {
         let folded = Self.asciiFold(text)
         if folded.contains("timetable") || folded.contains("ders program") || folded.contains("programim") {
@@ -2244,7 +2244,7 @@ final class TalkSession {
         if folded.contains("kac ders") || folded.contains("dersim var") || folded.contains("derslerim") {
             return true
         }
-        // “Dün hangi derslerim vardı”, “dersim yok muydu dün” — the timetable day, not a recording.
+        // “Dün hangi derslerim vardı”, “dersim yok muydu dün”, the timetable day, not a recording.
         if askedWeekday(in: text) != nil
             && (folded.contains("ders") || folded.contains("class") || folded.contains("lecture"))
             && !folded.contains("kayit") && !folded.contains("kayd") && !folded.contains("recording")
@@ -2309,14 +2309,14 @@ final class TalkSession {
         return false
     }
 
-    /// How many / list / due / “do I have any” assignments — catalogue; Source opens the course.
+    /// How many / list / due / “do I have any” assignments, catalogue; Source opens the course.
     /// Lecture-content asks (“what was in the notes”) stay on BM25 Raw notes.
     private func isAssignmentCatalogQuestion(_ text: String) -> Bool {
         let folded = Self.asciiFold(text)
         let hasTask =
             folded.contains("odev") || folded.contains("assignment") || folded.contains("homework")
         guard hasTask else { return false }
-        // “ödevlerde pardon notlarda…” — ASR keeps the slip; notes win over assignment Source.
+        // “ödevlerde pardon notlarda…”, ASR keeps the slip; notes win over assignment Source.
         if asksForLectureNotes(folded) { return false }
 
         if folded.contains("kac") || folded.contains("how many") || folded.contains("toplam") {
@@ -2355,7 +2355,7 @@ final class TalkSession {
         return false
     }
 
-    /// Exam dates / sittings from the catalogue — Source opens the course, not BM25 notes.
+    /// Exam dates / sittings from the catalogue, Source opens the course, not BM25 notes.
     private func isExamCatalogQuestion(_ text: String) -> Bool {
         let folded = Self.asciiFold(text)
         let hasExam =
@@ -2366,7 +2366,7 @@ final class TalkSession {
         return true
     }
 
-    /// Books / inventory rows — Source opens the course. “What did they say about the book” stays notes.
+    /// Books / inventory rows, Source opens the course. “What did they say about the book” stays notes.
     private func isInventoryCatalogQuestion(_ text: String) -> Bool {
         let folded = Self.asciiFold(text)
         let hasInv =
@@ -2421,7 +2421,7 @@ final class TalkSession {
         let cancel = SupertonicCancel()
         speakCancel = cancel
 
-        Self.log.info("Talk speak begin characters=\(text.count)")
+        // Self.log.info("Talk speak begin characters=\(text.count)")
         do {
             try await listen.startBargeMonitor(locale: locale, echoOf: "")
         } catch {
@@ -2432,7 +2432,7 @@ final class TalkSession {
             guard let self, generation == self.audioGeneration else { return }
             bargeFlag.value = true
             cancel.stopped = true
-            Self.log.info("Talk barge-in stop speech → listen")
+            // Self.log.info("Talk barge-in stop speech → listen")
             self.listen.stopPlayback()
         }
         let poll = Task { @MainActor in
@@ -2488,9 +2488,9 @@ final class TalkSession {
         if !wasBarged, !carried.isEmpty, !listen.looksLikeEcho(carried) {
             wasBarged = true
             listen.stopPlayback()
-            Self.log.info("Talk barge from leftover transcript characters=\(carried.count)")
+            // Self.log.info("Talk barge from leftover transcript characters=\(carried.count)")
         }
-        Self.log.info("Talk speak end barged=\(wasBarged) carried=\(carried.count)")
+        // Self.log.info("Talk speak end barged=\(wasBarged) carried=\(carried.count)")
 
         guard wasBarged, running, !Task.isCancelled else {
             endSpeakMic(generation: generation)
@@ -2546,7 +2546,7 @@ final class TalkSession {
         var value = false
     }
 
-    /// “What time is it” — answer from the device clock, not the model.
+    /// “What time is it”, answer from the device clock, not the model.
     /// “Saat kaçta” is a slot (“at what time”), so it must not match “saat kaç”.
     private func isClockQuestion(_ text: String) -> Bool {
         let folded = Self.asciiFold(text)
@@ -2588,7 +2588,7 @@ final class TalkSession {
 
     private func socialReply(for text: String) -> TalkReply? {
         guard let kind = socialKind(for: text) else { return nil }
-        Self.log.info("Talk social short-circuit kind=\(kind.rawValue, privacy: .public) text=\(text, privacy: .public)")
+        // Self.log.info("Talk social short-circuit kind=\(kind.rawValue, privacy: .public) text=\(text, privacy: .public)")
         let reply: String
         switch kind {
         case .greeting:
@@ -2669,7 +2669,7 @@ final class TalkSession {
             || tokens.contains(where: { ["whatsup", "wazzup", "sup"].contains($0) })
             || (tokens.contains("what") && tokens.contains("up"))
             || (tokens.contains("ne") && tokens.contains("haber"))
-            // OpenSubtitles top: “İyi misin?” — not a greeting root.
+            // OpenSubtitles top: “İyi misin?”, not a greeting root.
             || (tokens.contains("iyi")
                 && tokens.contains(where: { ["misin", "misiniz", "mi"].contains($0) }))
         guard ask else { return false }
@@ -2677,7 +2677,7 @@ final class TalkSession {
             "nasil", "nasilsin", "nasilsiniz", "gidiyor", "misin", "misiniz", "mi", "iyi",
             "how", "are", "is", "you", "ya", "u", "doing", "feeling", "today",
             "what", "up", "whatsup", "wazzup", "sup", "everything", "ne", "haber", "sen",
-            // “Selam ne haber nasılsın” — greeting words must not block how-are-you.
+            // “Selam ne haber nasılsın”, greeting words must not block how-are-you.
             "selam", "merhaba", "hey", "hi", "hello", "slm", "naber",
         ]
         return tokens.allSatisfy { filler.contains($0) || $0.hasPrefix("nasil") }
@@ -2702,7 +2702,7 @@ final class TalkSession {
             "eyvallah", "tesekkur", "tesekkurler", "tesekkurlerim", "ederim",
             "thanks", "thank", "thx", "you", "very", "much", "a", "lot", "cok",
             "yardim", "icin", "for", "that", "bu", "sana", "da", "de",
-            // “anladım tamam sağ ol” — acknowledgment in front of thanks.
+            // “anladım tamam sağ ol”, acknowledgment in front of thanks.
             "anladim", "anladik", "anlasildi", "anlasildim",
             "understood", "got", "it", "alright", "gotcha",
             // “neyse teşekkür ederim şimdilik bu kadar sağ olasın”
@@ -2942,11 +2942,11 @@ final class TalkSession {
         let tokens = Self.foldedTokens(text)
         guard !tokens.isEmpty else { return nil }
         if Self.matchesSwearing(tokens) {
-            Self.log.info("Talk unethical short-circuit kind=swearing")
+            // Self.log.info("Talk unethical short-circuit kind=swearing")
             return TalkReply(text: String(localized: "I can't swear."))
         }
         guard Self.isUnethicalTurn(tokens) else { return nil }
-        Self.log.info("Talk unethical short-circuit kind=refused")
+        // Self.log.info("Talk unethical short-circuit kind=refused")
         return TalkReply(text: String(localized: "I don't answer that."))
     }
 

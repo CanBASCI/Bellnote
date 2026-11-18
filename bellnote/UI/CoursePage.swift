@@ -101,12 +101,24 @@ struct CoursePage: View {
     @State private var pendingItem: InventoryItem?
     @State private var pendingAssignment: Assignment?
     @State private var deleteNotice: String?
-    @State private var selectedWeek: Date
+    /// Which list the page shows under the tiles. Recordings first; a hand-off to an assignment opens the other one.
+    @State private var pane: Pane
+    private enum Pane: Hashable {
+        case recordings
+        case assignments
+    }
+    /// A hand-off from Talk can name a week. The page scrolls to it; every week is on the page.
+    private let initialWeek: Date?
 
     init(course: Course, weekStart: Date? = nil, focus: Focus? = nil) {
         self.course = course
         self.focus = focus
-        _selectedWeek = State(initialValue: weekStart ?? Self.currentWeekStart)
+        self.initialWeek = weekStart
+        if case .assignment = focus {
+            _pane = State(initialValue: .assignments)
+        } else {
+            _pane = State(initialValue: .recordings)
+        }
         if case .inventory = focus {
             _showInventory = State(initialValue: true)
         } else {
@@ -127,10 +139,10 @@ struct CoursePage: View {
                 ScrollView(.horizontal) {
                     HStack(spacing: 10) {
                         statTile(value: visibleLectures.count, title: "Recordings", tint: CourseStyle.recordingsTint, details: lectureBreakdown(of: visibleLectures)) {
-                            scrollToRecordings(proxy)
+                            pane = .recordings
                         }
                         statTile(value: visibleAssignments.count, title: "Assignments", tint: CourseStyle.assignmentsTint, details: assignmentBreakdown(of: visibleAssignments)) {
-                            scrollToAssignments(proxy)
+                            pane = .assignments
                         }
                         statTile(value: visibleSittings.count, title: "Exams", tint: CourseStyle.examsTint, details: examLines(of: visibleSittings))
                     }
@@ -152,58 +164,58 @@ struct CoursePage: View {
                 // top space of that title.
                 .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
             }
+            // One segmented control picks the list: recordings, or assignments. Recordings are the default.
             Section {
-                if visibleLectures.isEmpty {
-                    Text("No lectures yet.")
-                        .foregroundStyle(.secondary)
-                        .id(Self.emptyLecturesID)
+                Picker("List", selection: $pane) {
+                    Text("Recordings").tag(Pane.recordings)
+                    Text("Assignments").tag(Pane.assignments)
                 }
-                ForEach(visibleLectures) { lecture in
-                    NavigationLink {
-                        LecturePage(lecture: lecture)
-                    } label: {
-                        lectureRow(lecture)
-                    }
-                    .askToDeleteSwipe { askDelete(lecture) }
-                    // Top and bottom only. The side space stays the one the list gives. Each row has 8 pt above and
-                    // 8 pt under it.
-                    .listRowInsets(.vertical, 8)
-                }
-            } header: {
-                Text(verbatim: weekTitle(selectedWeek))
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color.clear)
+                .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 4, trailing: 16))
             }
-            // TEMPORARY comparison, switched off: the same recordings with the old row. Remove the comment marks to
-            // see it again. Delete it, with `oldLectureRow`, after the look is decided.
-            // Section {
-            //     ForEach(visibleLectures) { lecture in
-            //         NavigationLink {
-            //             LecturePage(lecture: lecture)
-            //         } label: {
-            //             oldLectureRow(lecture)
-            //         }
-            //     }
-            // } header: {
-            //     Text(verbatim: "\(weekTitle(selectedWeek)) (old)")
-            // }
-            if !visibleAssignments.isEmpty {
+            if pane == .recordings {
+                // Every week is on the page, newest first. A header names the week, so no date has to be picked.
+                if lectureWeeks.isEmpty {
+                    Section {
+                        Text("No lectures yet.")
+                            .foregroundStyle(.secondary)
+                            .id(Self.emptyLecturesID)
+                    } header: {
+                        Text(verbatim: weekTitle(Self.currentWeekStart))
+                    }
+                }
+                ForEach(lectureWeeks, id: \.start) { week in
+                    Section {
+                        ForEach(week.lectures) { lecture in
+                            NavigationLink {
+                                LecturePage(lecture: lecture)
+                            } label: {
+                                lectureRow(lecture)
+                            }
+                            .askToDeleteSwipe { askDelete(lecture) }
+                            // Top and bottom only. The side space stays the one the list gives. Each row has 8 pt above and
+                            // 8 pt under it.
+                            .listRowInsets(.vertical, 8)
+                        }
+                    } header: {
+                        Text(verbatim: weekTitle(week.start))
+                    }
+                }
+            } else {
                 Section {
+                    if visibleAssignments.isEmpty {
+                        Text("No assignments yet.")
+                            .foregroundStyle(.secondary)
+                    }
                     ForEach(visibleAssignments) { assignment in
                         // The same row as the assignments of a recording: the same fonts, circle and spaces.
                         assignmentLink(assignment)
                             .askToDeleteSwipe { pendingAssignment = assignment }
                     }
-                } header: {
-                    Text("Assignments")
                 }
-                // TEMPORARY comparison, switched off: the same tasks with the old row. Remove the comment marks to
-                // see it again. Delete it after the look is decided.
-                // Section {
-                //     ForEach(visibleAssignments) { assignment in
-                //         AssignmentRow(assignment: assignment)
-                //     }
-                // } header: {
-                //     Text(verbatim: "Assignments (old)")
-                // }
             }
             // Nothing fills the inventory yet, so the section shows only when a row exists.
             if !course.inventory.isEmpty {
@@ -250,6 +262,13 @@ struct CoursePage: View {
     var body: some View {
         ScrollViewReader { proxy in
             statList(proxy)
+                .task {
+                    // A hand-off that names a week and no item lands on the first recording of that week.
+                    guard focus == nil, let initialWeek,
+                          let first = lectureWeeks.first(where: { $0.start == initialWeek })?.lectures.first else { return }
+                    try? await Task.sleep(for: .milliseconds(350))
+                    proxy.scrollTo(first.id, anchor: .top)
+                }
                 .task(id: focus) {
                     guard let focus else { return }
                     try? await Task.sleep(for: .milliseconds(350))
@@ -266,22 +285,46 @@ struct CoursePage: View {
         .confirmAssignmentDelete($pendingAssignment)
         .navigationTitle(course.name)
         .navigationBarTitleDisplayMode(.inline)
-        .navigationSubtitle(
-            selectedWeek == Self.currentWeekStart ? lecturerName : "\(lecturerName) · \(weekTitle(selectedWeek))"
-        )
         .toolbar {
+            // The course name with the lecturer under it. Tapping it opens the lecturer's details, the one place they
+            // are entered. A principal item is used because a plain title cannot be tapped.
+            ToolbarItem(placement: .principal) {
+                Button {
+                    showLecturer = true
+                } label: {
+                    VStack(spacing: 0) {
+                        // The small arrow after the name tells that it can be tapped, like the arrow of a title menu.
+                        HStack(spacing: 4) {
+                            Text(verbatim: course.name)
+                                .appFont(.headline)
+                                .foregroundStyle(.primary)
+                                .lineLimit(1)
+                            Image(systemName: "chevron.down")
+                                .font(.caption2.weight(.bold))
+                                .foregroundStyle(.secondary)
+                                .accessibilityHidden(true)
+                        }
+                        Text(verbatim: lecturerName)
+                            .appFont(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                    .frame(maxWidth: 220)
+                }
+                .buttonStyle(.plain)
+            }
+            .sharedBackgroundVisibility(.hidden)
             ToolbarItem(placement: .topBarTrailing) {
                 // Ask about all the recordings of this course. The Ask inside a recording uses only that recording.
                 Button("Ask", systemImage: "sparkles") { showAsk = true }
                     .labelStyle(.iconOnly)
             }
-            ToolbarItem(placement: .topBarTrailing) {
-                weekMenu
-            }
-            ToolbarItem(placement: .topBarTrailing) {
-                Button("Lecturer", systemImage: "person.crop.circle") { showLecturer = true }
-                    .labelStyle(.iconOnly)
-            }
+            // The sample weeks menu is off. Remove the comment marks to see it again in debug builds.
+            // #if DEBUG
+            // ToolbarItem(placement: .topBarTrailing) {
+            //     debugMenu
+            // }
+            // #endif
             ToolbarItem(placement: .primaryAction) {
                 Button("Record", systemImage: "record.circle") { showConsent = true }
                     .consentFlow(course: course, asPopover: true, isPresented: $showConsent) { course, faceID in
@@ -355,25 +398,18 @@ struct CoursePage: View {
         .onAppear(perform: ensureLecturer)
     }
 
-    /// Icon only. The icon changes when the page shows a week other than this one.
-    private var weekMenu: some View {
+    #if DEBUG
+    /// Debug builds only: past weeks of made-up recordings, to see how a long list looks.
+    private var debugMenu: some View {
         Menu {
-            Picker("Week", selection: $selectedWeek) {
-                ForEach(weekChoices, id: \.self) { start in
-                    Text(verbatim: weekTitle(start))
-                        .tag(start)
-                }
-            }
-            #if DEBUG
-            Divider()
             Button { addSampleWeeks() } label: { Text(verbatim: "Add sample past weeks (debug)") }
             Button(role: .destructive) { removeSampleWeeks() } label: { Text(verbatim: "Remove samples (debug)") }
-            #endif
         } label: {
-            Image(systemName: selectedWeek == Self.currentWeekStart ? "calendar" : "calendar.badge.clock")
+            Image(systemName: "ladybug")
         }
-        .accessibilityLabel(Text("Week"))
+        .accessibilityLabel(Text(verbatim: "Debug"))
     }
+    #endif
 
     #if DEBUG
     /// Debug builds only. These recordings carry a fixed title, so they can be told apart and removed again.
@@ -399,7 +435,6 @@ struct CoursePage: View {
         for lecture in course.lectures where lecture.title == Self.sampleTitle {
             modelContext.delete(lecture)
         }
-        selectedWeek = Self.currentWeekStart
         saveSamples()
     }
 
@@ -580,22 +615,11 @@ struct CoursePage: View {
         Calendar.current.dateInterval(of: .weekOfYear, for: .now)?.start ?? .now
     }
 
-    /// The recordings of the chosen week, newest first.
-    private var visibleLectures: [Lecture] {
-        lectureWeeks.first { $0.start == selectedWeek }?.lectures ?? []
-    }
+    /// Every recording of the course, newest first. The tiles count all of them.
+    private var visibleLectures: [Lecture] { lectures }
 
-    /// The assignments of the chosen week: the ones that came out of its recordings.
-    /// An assignment without a recording belongs to this week.
-    private var visibleAssignments: [Assignment] {
-        let calendar = Calendar.current
-        return sortedAssignments.filter { assignment in
-            let start = assignment.sourceLecture.flatMap {
-                calendar.dateInterval(of: .weekOfYear, for: $0.startedAt)?.start
-            } ?? Self.currentWeekStart
-            return start == selectedWeek
-        }
-    }
+    /// Every assignment of the course, by due date.
+    private var visibleAssignments: [Assignment] { sortedAssignments }
 
     /// Every sitting of this course through the end of its term. The week of the lecture list does not apply.
     private var visibleSittings: [ExamSitting] {
@@ -607,13 +631,6 @@ struct CoursePage: View {
             guard let date = sitting.date else { return true }
             return calendar.startOfDay(for: date) <= end
         }
-    }
-
-    /// The weeks the menu offers: this week, and every week that has a recording.
-    private var weekChoices: [Date] {
-        var starts = Set(lectureWeeks.map(\.start))
-        starts.insert(Self.currentWeekStart)
-        return starts.sorted(by: >)
     }
 
     private static let emptyLecturesID = "emptyLectures"
@@ -631,19 +648,6 @@ struct CoursePage: View {
     /// Recorded, Processing, Failed, Recording and Paused), and this is tall enough for them. It grows with the text
     /// size the student chose.
     @ScaledMetric(relativeTo: .footnote) private var tileSide: CGFloat = 180
-    private func scrollToRecordings(_ proxy: ScrollViewProxy) {
-        if let first = visibleLectures.first {
-            withAnimation { proxy.scrollTo(first.id, anchor: .top) }
-        } else {
-            withAnimation { proxy.scrollTo(Self.emptyLecturesID, anchor: .top) }
-        }
-    }
-
-    private func scrollToAssignments(_ proxy: ScrollViewProxy) {
-        guard let first = visibleAssignments.first else { return }
-        withAnimation { proxy.scrollTo(first.id, anchor: .top) }
-    }
-
     /// A tile is a button when it has an action, so a tap can take the student to its list.
     @ViewBuilder
     private func statTile(value: Int, title: LocalizedStringKey, tint: Color, details: [StatDetail] = [], action: (() -> Void)? = nil) -> some View {
@@ -765,39 +769,6 @@ struct CoursePage: View {
         }
     }
 
-    // TEMPORARY comparison: the recording row as it was before the date cover. Delete with the old sections.
-    private func oldLectureRow(_ lecture: Lecture) -> some View {
-        let separatorStart = Self.coverSize + Self.coverGap
-        return HStack(spacing: Self.coverGap) {
-            DateCover(date: lecture.startedAt, color: course.color, size: Self.coverSize)
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text(lecture.startedAt.formatted(.dateTime.hour().minute().locale(locale)))
-                        .appFont(.headline)
-                    if lecture.recordedSeconds >= 60 {
-                        Text(String(format: String(localized: "%lld min"), lecture.recordedSeconds / 60))
-                            .appFont(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
-                    Spacer(minLength: 8)
-                    StatusChip(title: lecture.statusTitle, tint: lecture.statusTint)
-                }
-                let excerpt = preview(lecture)
-                if !excerpt.isEmpty {
-                    Text(excerpt)
-                        .appFont(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(2)
-                }
-            }
-        }
-        .padding(.vertical, 2)
-        // The separator starts at the text, not under the cover, the same as in the row above.
-        .alignmentGuide(.listRowSeparatorLeading) { [separatorStart] _ in
-            separatorStart
-        }
-    }
-
     /// The headline of the lecture. A lecture from before the headlines has none, and shows the start of
     /// its AI correction instead.
     private func preview(_ lecture: Lecture) -> String {
@@ -821,6 +792,18 @@ struct CoursePage: View {
 struct LecturerEditor: View {
     @Bindable var contact: LecturerContact
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.openURL) private var openURL
+    /// What the student asked for with an icon. The system call or mail opens only after the confirmation.
+    @State private var pending: ContactAction?
+    @State private var notice: String?
+
+    private enum ContactAction {
+        case call
+        case mail
+    }
+
+    private var phone: String { contact.phone.trimmingCharacters(in: .whitespacesAndNewlines) }
+    private var email: String { contact.email.trimmingCharacters(in: .whitespacesAndNewlines) }
 
     var body: some View {
         NavigationStack {
@@ -828,8 +811,28 @@ struct LecturerEditor: View {
                 TextField("Title", text: $contact.title)
                 TextField("Given name", text: $contact.givenName)
                 TextField("Family name", text: $contact.familyName)
-                TextField("Phone", text: $contact.phone)
-                TextField("Email", text: $contact.email)
+                HStack(spacing: 12) {
+                    TextField("Phone", text: $contact.phone)
+                        .keyboardType(.phonePad)
+                        .textContentType(.telephoneNumber)
+                    if !phone.isEmpty {
+                        Button("Call", systemImage: "phone.fill") { pending = .call }
+                            .labelStyle(.iconOnly)
+                            .buttonStyle(.borderless)
+                    }
+                }
+                HStack(spacing: 12) {
+                    TextField("Email", text: $contact.email)
+                        .keyboardType(.emailAddress)
+                        .textContentType(.emailAddress)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                    if !email.isEmpty {
+                        Button("Write email", systemImage: "envelope.fill") { pending = .mail }
+                            .labelStyle(.iconOnly)
+                            .buttonStyle(.borderless)
+                    }
+                }
                 TextField("Other contact", text: $contact.extra)
             }
             .navigationTitle("Lecturer")
@@ -839,7 +842,81 @@ struct LecturerEditor: View {
                     Button("Done") { dismiss() }
                 }
             }
+            .confirmationDialog(
+                confirmationTitle,
+                isPresented: Binding(
+                    get: { pending != nil },
+                    set: { if !$0 { pending = nil } }
+                ),
+                titleVisibility: .visible
+            ) {
+                switch pending {
+                case .call:
+                    Button("Call") { open(.call) }
+                case .mail:
+                    Button("Write email") { open(.mail) }
+                case nil:
+                    EmptyView()
+                }
+                Button("Cancel", role: .cancel) {}
+            }
+            .alert(
+                notice ?? "",
+                isPresented: Binding(
+                    get: { notice != nil },
+                    set: { if !$0 { notice = nil } }
+                )
+            ) {
+                Button("OK", role: .cancel) { notice = nil }
+            }
         }
         .presentationDetents([.medium, .large])
+    }
+
+    private var confirmationTitle: Text {
+        switch pending {
+        case .call: Text(verbatim: String(format: String(localized: "Call %@?"), phone))
+        case .mail: Text(verbatim: String(format: String(localized: "Write to %@?"), email))
+        case nil: Text(verbatim: "")
+        }
+    }
+
+    /// `tel:` takes digits, a leading plus, and the dial characters. Spaces, dashes and brackets are dropped.
+    private var callURL: URL? {
+        let allowed = Set("0123456789+*#")
+        let digits = String(phone.filter { allowed.contains($0) })
+        guard !digits.isEmpty else { return nil }
+        var parts = URLComponents()
+        parts.scheme = "tel"
+        parts.path = digits
+        return parts.url
+    }
+
+    private var mailURL: URL? {
+        guard !email.isEmpty else { return nil }
+        var parts = URLComponents()
+        parts.scheme = "mailto"
+        parts.path = email
+        return parts.url
+    }
+
+    private func open(_ action: ContactAction) {
+        let url: URL?
+        let failure: String
+        switch action {
+        case .call:
+            url = callURL
+            failure = String(localized: "The call could not be started.")
+        case .mail:
+            url = mailURL
+            failure = String(localized: "The email could not be opened.")
+        }
+        guard let url else {
+            notice = failure
+            return
+        }
+        openURL(url) { accepted in
+            if !accepted { notice = failure }
+        }
     }
 }

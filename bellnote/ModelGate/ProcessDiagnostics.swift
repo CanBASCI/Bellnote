@@ -16,36 +16,38 @@ enum ProcessDiagnostics {
         _ = center.addObserver(forName: UIApplication.didReceiveMemoryWarningNotification, object: nil, queue: .main) { _ in
             log.error("Memory warning from iOS \(MemoryProbe.summary())")
         }
-        _ = center.addObserver(forName: ProcessInfo.thermalStateDidChangeNotification, object: nil, queue: .main) { _ in
-            log.warning("Thermal state changed \(MemoryProbe.summary())")
-        }
-        let lifecycle: [(Notification.Name, String)] = [
-            (UIApplication.willResignActiveNotification, "App will resign active"),
-            (UIApplication.didEnterBackgroundNotification, "App entered background"),
-            (UIApplication.willEnterForegroundNotification, "App will enter foreground"),
-            (UIApplication.didBecomeActiveNotification, "App became active"),
-            (UIApplication.willTerminateNotification, "App will terminate"),
-        ]
-        for (name, message) in lifecycle {
-            _ = center.addObserver(forName: name, object: nil, queue: .main) { _ in
-                log.info("\(message, privacy: .public) \(MemoryProbe.summary())")
-            }
-        }
-        log.info("Diagnostics started \(MemoryProbe.summary())")
+        // The heat and lifecycle lines are off with the other info logs. Remove the comment marks to see them again.
+        // _ = center.addObserver(forName: ProcessInfo.thermalStateDidChangeNotification, object: nil, queue: .main) { _ in
+        //     log.warning("Thermal state changed \(MemoryProbe.summary())")
+        // }
+        // let lifecycle: [(Notification.Name, String)] = [
+        //     (UIApplication.willResignActiveNotification, "App will resign active"),
+        //     (UIApplication.didEnterBackgroundNotification, "App entered background"),
+        //     (UIApplication.willEnterForegroundNotification, "App will enter foreground"),
+        //     (UIApplication.didBecomeActiveNotification, "App became active"),
+        //     (UIApplication.willTerminateNotification, "App will terminate"),
+        // ]
+        // for (name, message) in lifecycle {
+        //     _ = center.addObserver(forName: name, object: nil, queue: .main) { _ in
+        //         log.info("\(message, privacy: .public) \(MemoryProbe.summary())")
+        //     }
+        // }
+        // log.info("Diagnostics started \(MemoryProbe.summary())")
     }
 
-    /// Logs the memory numbers every 20 seconds until the returned task is cancelled. The last line before a
-    /// crash shows whether memory was climbing.
+    /// The memory heartbeat is off with the other info logs. The task is kept so a caller can still cancel it.
+    /// Remove the comment marks to log the memory numbers every 20 seconds again.
     nonisolated static func heartbeat(label: String) -> Task<Void, Never> {
-        Task.detached {
-            let log = Logger(subsystem: "app.bellnote", category: "diagnostics")
-            var seconds = 0
-            while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(20))
-                guard !Task.isCancelled else { return }
-                seconds += 20
-                log.info("Alive label=\(label, privacy: .public) seconds=\(seconds) \(MemoryProbe.summary())")
-            }
-        }
+        // Task.detached {
+        //     let log = Logger(subsystem: "app.bellnote", category: "diagnostics")
+        //     var seconds = 0
+        //     while !Task.isCancelled {
+        //         try? await Task.sleep(for: .seconds(20))
+        //         guard !Task.isCancelled else { return }
+        //         seconds += 20
+        //         log.info("Alive label=\(label, privacy: .public) seconds=\(seconds) \(MemoryProbe.summary())")
+        //     }
+        // }
+        Task {}
     }
 }

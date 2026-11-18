@@ -34,7 +34,7 @@ final class TalkListenEngine {
     private var lastActivity = Date.distantPast
     private var bargeInHandler: (() -> Void)?
     private var bargeInArmed = false
-    /// Mic energy barge — SpeechDetector often misses the user over the loudspeaker.
+    /// Mic energy barge, SpeechDetector often misses the user over the loudspeaker.
     private let bargeMeter = BargeMeter()
     /// Folded TTS text so loudspeaker echo is not treated as the student’s words.
     private var bargeEchoSource = ""
@@ -56,7 +56,7 @@ final class TalkListenEngine {
             guard self.bargeInHandler != nil else { return }
             self.bargeInArmed = true
             self.bargeMeter.arm()
-            Self.log.info("Talk barge-in armed")
+            // Self.log.info("Talk barge-in armed")
         }
     }
 
@@ -88,13 +88,13 @@ final class TalkListenEngine {
         guard input.isVoiceProcessingEnabled != enabled else { return }
         do {
             try input.setVoiceProcessingEnabled(enabled)
-            if enabled {
-                Self.log.info("Talk voice processing on")
-            } else {
-                Self.log.info("Talk voice processing off")
-            }
+            // if enabled {
+                // Self.log.info("Talk voice processing on")
+            // } else {
+                // Self.log.info("Talk voice processing off")
+            // }
         } catch {
-            Self.log.info(
+            Self.log.error(
                 "Talk voice processing change failed \(error.localizedDescription, privacy: .public)"
             )
         }
@@ -105,7 +105,7 @@ final class TalkListenEngine {
         bargeInArmed = false
         bargeInHandler = nil
         bargeMeter.disarm()
-        Self.log.info("Talk barge-in fire reason=\(reason, privacy: .public)")
+        // Self.log.info("Talk barge-in fire reason=\(reason, privacy: .public)")
         handler()
     }
 
@@ -119,9 +119,9 @@ final class TalkListenEngine {
         volatile = ""
         heardSpeech = !prefix.isEmpty
         lastActivity = Date()
-        if !prefix.isEmpty {
-            Self.log.info("Talk listen seed characters=\(prefix.count) head=\(String(prefix.prefix(60)), privacy: .public)")
-        }
+        // if !prefix.isEmpty {
+            // Self.log.info("Talk listen seed characters=\(prefix.count) head=\(String(prefix.prefix(60)), privacy: .public)")
+        // }
         try await Self.activateTalkSession()
         prepareEngineForInput()
         // Live talk uses Dictation (same family as the lecture transcript). Bare "tr" is not reservable;
@@ -147,12 +147,12 @@ final class TalkListenEngine {
 
         let input = engine.inputNode
         input.removeTap(onBus: 0)
-        // Listening has no loudspeaker playback — keep Voice Processing off.
+        // Listening has no loudspeaker playback, keep Voice Processing off.
         applyVoiceProcessing(false)
         var format = input.outputFormat(forBus: 0)
         // After Source → lecture playback, the first activate can still report 0 Hz.
         if format.sampleRate < 1 {
-            Self.log.info("Talk input format empty — reactivate session")
+            // Self.log.info("Talk input format empty — reactivate session")
             try await Self.activateTalkSession()
             prepareEngineForInput()
             format = engine.inputNode.outputFormat(forBus: 0)
@@ -176,7 +176,7 @@ final class TalkListenEngine {
         }
         engine.prepare()
         try engine.start()
-        Self.log.info("Talk mic started locale=\(resolved.identifier, privacy: .public)")
+        // Self.log.info("Talk mic started locale=\(resolved.identifier, privacy: .public)")
 
         feedTask = Task {
             do {
@@ -223,7 +223,7 @@ final class TalkListenEngine {
     }
 
     /// Mic + detector while Supertonic speaks. Speech requires a transcriber beside the detector.
-    /// `echoOf` is the reply being spoken — ASR hits that match its start are ignored (speaker bleed).
+    /// `echoOf` is the reply being spoken, ASR hits that match its start are ignored (speaker bleed).
     func startBargeMonitor(locale: Locale, echoOf spoken: String) async throws {
         stopListening(cancelTurn: false)
         await waitForTeardown()
@@ -292,7 +292,7 @@ final class TalkListenEngine {
                 Self.log.error("Talk barge feed failed \(error.localizedDescription, privacy: .public)")
             }
         }
-        // Detector OR transcript can interrupt — speaker echo alone often misses speechDetected.
+        // Detector OR transcript can interrupt, speaker echo alone often misses speechDetected.
         resultTask = Task { [weak self] in
             guard let self else { return }
             do {
@@ -317,7 +317,7 @@ final class TalkListenEngine {
                 Self.log.error("Talk barge detector failed \(error.localizedDescription, privacy: .public)")
             }
         }
-        Self.log.info("Talk barge monitor started voiceProcessing=\(self.engine.inputNode.isVoiceProcessingEnabled)")
+        // Self.log.info("Talk barge monitor started voiceProcessing=\(self.engine.inputNode.isVoiceProcessingEnabled)")
     }
 
     /// Plays a Supertonic clip on this engine (the barge mic must already be running).
@@ -349,12 +349,12 @@ final class TalkListenEngine {
         player.scheduleBuffer(buffer, completionCallbackType: .dataPlayedBack) { [weak self] _ in
             Task { @MainActor in
                 self?.isPlaybackActive = false
-                Self.log.info("Talk play finished")
+                // Self.log.info("Talk play finished")
             }
         }
         do {
             try player.playAudio()
-            Self.log.info("Talk play started seconds=\(Double(clip.samples.count) / Double(max(clip.sampleRate, 1)))")
+            // Self.log.info("Talk play started seconds=\(Double(clip.samples.count) / Double(max(clip.sampleRate, 1)))")
         } catch {
             isPlaybackActive = false
             Self.log.error("Talk play failed \(error.localizedDescription, privacy: .public)")
@@ -380,7 +380,7 @@ final class TalkListenEngine {
             engine.attach(player)
             try engine.connectNode(player, to: engine.mainMixerNode, format: format)
             playerReady = true
-            Self.log.info("Talk player attached")
+            // Self.log.info("Talk player attached")
         }
         engine.mainMixerNode.outputVolume = 1
         player.volume = 1
@@ -393,16 +393,16 @@ final class TalkListenEngine {
         bargeMeter.disarm()
         // Drop loudspeaker leftovers ("Deneme" from the reply) before collecting the real question.
         if isBargeEcho(partialText) {
-            Self.log.info("Talk barge drop echo characters=\(self.partialText.count)")
+            // Self.log.info("Talk barge drop echo characters=\(self.partialText.count)")
             committed = ""
             volatile = ""
             heardSpeech = false
         }
         if !partialText.isEmpty { heardSpeech = true }
         lastActivity = Date()
-        Self.log.info(
-            "Talk barge finish-listen characters=\(self.partialText.count) head=\(String(self.partialText.prefix(60)), privacy: .public)"
-        )
+        // Self.log.info(
+            // "Talk barge finish-listen characters=\(self.partialText.count) head=\(String(self.partialText.prefix(60)), privacy: .public)"
+        // )
         return try await withCheckedThrowingContinuation { continuation in
             turnContinuation = continuation
             bumpSilenceWatch()
@@ -426,7 +426,7 @@ final class TalkListenEngine {
         analyzer = nil
         let locale = reservedLocale
         reservedLocale = nil
-        // Do not start a new SpeechAnalyzer until this finishes — otherwise ASR accepts no audio.
+        // Do not start a new SpeechAnalyzer until this finishes, otherwise ASR accepts no audio.
         teardownTask = Task {
             if let finishing {
                 await finishing.cancelAndFinishNow()
@@ -459,7 +459,7 @@ final class TalkListenEngine {
         let text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
         if isFinal {
-            // Final supersedes the current volatile hypothesis — do not append both.
+            // Final supersedes the current volatile hypothesis, do not append both.
             volatile = ""
             if !committed.isEmpty { committed += " " }
             committed += text
@@ -474,9 +474,9 @@ final class TalkListenEngine {
         heardSpeech = true
         lastActivity = Date()
         bumpSilenceWatch()
-        Self.log.info(
-            "Talk partial final=\(isFinal) characters=\(self.partialText.count) head=\(String(self.partialText.prefix(60)), privacy: .public)"
-        )
+        // Self.log.info(
+            // "Talk partial final=\(isFinal) characters=\(self.partialText.count) head=\(String(self.partialText.prefix(60)), privacy: .public)"
+        // )
     }
 
     /// Moves the current volatile hypothesis into the stable turn text.
@@ -535,9 +535,9 @@ final class TalkListenEngine {
         let language = preferred.language.languageCode?.identifier
             ?? preferred.identifier.split(whereSeparator: { $0 == "_" || $0 == "-" }).first.map(String.init)
             ?? preferred.identifier
-        Self.log.info(
-            "Talk locale resolve preferred=\(preferred.identifier, privacy: .public) language=\(language, privacy: .public)"
-        )
+        // Self.log.info(
+            // "Talk locale resolve preferred=\(preferred.identifier, privacy: .public) language=\(language, privacy: .public)"
+        // )
 
         var candidates: [Locale] = []
         func append(_ locale: Locale?) {
@@ -571,16 +571,16 @@ final class TalkListenEngine {
 
         for candidate in candidates {
             if let resolved = await DictationTranscriber.supportedLocale(equivalentTo: candidate) {
-                // Skip bare language codes — AssetInventory rejects "tr".
+                // Skip bare language codes, AssetInventory rejects "tr".
                 let id = resolved.identifier
                 if id.count > 2, id.contains("_") || id.contains("-") || resolved.region != nil {
-                    Self.log.info("Talk locale resolved=\(id, privacy: .public)")
+                    // Self.log.info("Talk locale resolved=\(id, privacy: .public)")
                     return resolved
                 }
             }
             let id = candidate.identifier
             if id.count > 2, id.contains("_") || id.contains("-") {
-                Self.log.info("Talk locale candidate=\(id, privacy: .public)")
+                // Self.log.info("Talk locale candidate=\(id, privacy: .public)")
                 return candidate
             }
         }
@@ -593,10 +593,10 @@ final class TalkListenEngine {
             heardSpeech = true
             lastActivity = Date()
             bumpSilenceWatch()
-            // While TTS plays, detector hears the loudspeaker — only mic-energy may barge.
+            // While TTS plays, detector hears the loudspeaker, only mic-energy may barge.
             if turnContinuation != nil { return }
         } else if heardSpeech {
-            // Pause between phrases — lock what was heard so the next partial cannot wipe it.
+            // Pause between phrases, lock what was heard so the next partial cannot wipe it.
             commitVolatile()
             bumpSilenceWatch()
         }
@@ -605,7 +605,7 @@ final class TalkListenEngine {
     private func handleBargeTranscript(_ text: String) async {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
-        // After TTS stopped we already have a turn continuation — treat like a normal listen.
+        // After TTS stopped we already have a turn continuation, treat like a normal listen.
         if turnContinuation != nil {
             if isBargeEcho(trimmed) { return }
             await handleTranscript(text: trimmed, isFinal: false)
@@ -613,7 +613,7 @@ final class TalkListenEngine {
         }
         // While Supertonic plays: never barge on transcript (echo of "Deneme…"). Mic-energy only.
         if isBargeEcho(trimmed) {
-            Self.log.info("Talk barge ignore echo head=\(String(trimmed.prefix(40)), privacy: .public)")
+            // Self.log.info("Talk barge ignore echo head=\(String(trimmed.prefix(40)), privacy: .public)")
             return
         }
         if shouldCommitVolatile(before: trimmed) {
@@ -622,9 +622,9 @@ final class TalkListenEngine {
         volatile = trimmed
         heardSpeech = true
         lastActivity = Date()
-        Self.log.info(
-            "Talk barge partial characters=\(self.partialText.count) head=\(String(self.partialText.prefix(60)), privacy: .public)"
-        )
+        // Self.log.info(
+            // "Talk barge partial characters=\(self.partialText.count) head=\(String(self.partialText.prefix(60)), privacy: .public)"
+        // )
         // AEC can keep mic energy under the trip threshold. A non-echo phrase is the student.
         let words = partialText.split(whereSeparator: \.isWhitespace).count
         guard words >= 2 || partialText.count >= 12 else { return }
@@ -696,7 +696,7 @@ final class TalkListenEngine {
             bumpSilenceWatch()
             return
         }
-        Self.log.info("Talk turn end characters=\(text.count)")
+        // Self.log.info("Talk turn end characters=\(text.count)")
         self.turnContinuation = nil
         silenceTask?.cancel()
         silenceTask = nil
@@ -743,7 +743,7 @@ final class TalkListenEngine {
             throw error
         }
         let status = await AssetInventory.status(forModules: modules)
-        Self.log.info("Talk asset status=\(String(describing: status), privacy: .public)")
+        // Self.log.info("Talk asset status=\(String(describing: status), privacy: .public)")
         switch status {
         case .installed:
             break
@@ -813,10 +813,10 @@ final class TalkListenEngine {
         let hasExternal = session.currentRoute.outputs.contains { external.contains($0.portType) }
         if hasExternal {
             try session.overrideOutputAudioPort(.none)
-            log.info("Talk audio route external")
+            // log.info("Talk audio route external")
         } else {
             try session.overrideOutputAudioPort(.speaker)
-            log.info("Talk audio route speaker handsfree")
+            // log.info("Talk audio route speaker handsfree")
         }
     }
 }

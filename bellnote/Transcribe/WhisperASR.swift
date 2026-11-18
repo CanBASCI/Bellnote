@@ -69,7 +69,7 @@ enum WhisperASR {
         var values = URLResourceValues()
         values.isExcludedFromBackup = true
         try? excluded.setResourceValues(values)
-        log.info("Whisper download begin variant=\(ModelCatalog.whisperVariant, privacy: .public)")
+        // log.info("Whisper download begin variant=\(ModelCatalog.whisperVariant, privacy: .public)")
         onProgress?(0)
         _ = try await WhisperKit.download(
             variant: ModelCatalog.whisperVariant,
@@ -82,8 +82,8 @@ enum WhisperASR {
             from: HubApiWrapper.Repo(id: ModelCatalog.whisperTokenizerRepo),
             matching: ["config.json", "tokenizer.json", "tokenizer_config.json"]
         )
-        let after = snapshot()
-        log.info("Whisper download finished bytes=\(after.bytes) coreML=\(after.coreMLCount) ready=\(after.isReady)")
+        // let after = snapshot()
+        // log.info("Whisper download finished bytes=\(after.bytes) coreML=\(after.coreMLCount) ready=\(after.isReady)")
         onProgress?(1)
         onPreparing?()
         await prepare()
@@ -106,7 +106,7 @@ enum WhisperASR {
     /// A failure here is not fatal: the same work then happens on the first lecture.
     private static func prepare() async {
         let started = Date()
-        log.info("Whisper prepare begin")
+        // log.info("Whisper prepare begin")
         do {
             let kit = try await WhisperKit(makeConfig())
             do {
@@ -118,7 +118,7 @@ enum WhisperASR {
             await kit.unloadModels()
             let seconds = Int(Date().timeIntervalSince(started))
             rememberPrepare(seconds: seconds)
-            log.info("Whisper prepare done seconds=\(seconds)")
+            // log.info("Whisper prepare done seconds=\(seconds)")
         } catch {
             log.error("Whisper prepare failed message=\(error.localizedDescription, privacy: .public)")
         }
@@ -153,28 +153,28 @@ enum WhisperASR {
         onStep: @escaping @MainActor @Sendable (Step) -> Void
     ) async throws -> [TranscriptLine] {
         guard isInstalled() else { throw TranscriptError.whisperMissing }
-        let disk = snapshot()
-        log.info(
-            "Whisper files path=\(modelDirectory().path, privacy: .public) bytes=\(disk.bytes) coreML=\(disk.coreMLCount) tokenizer=\(tokenizerIsInstalled()) runs=\(runs.count) locale=\(locale.identifier, privacy: .public)"
-        )
+        // let disk = snapshot()
+        // log.info(
+            // "Whisper files path=\(modelDirectory().path, privacy: .public) bytes=\(disk.bytes) coreML=\(disk.coreMLCount) tokenizer=\(tokenizerIsInstalled()) runs=\(runs.count) locale=\(locale.identifier, privacy: .public)"
+        // )
         await LocalModelRuntime.shared.unloadAll()
-        log.info("Whisper load \(MemoryProbe.summary())")
+        // log.info("Whisper load \(MemoryProbe.summary())")
         let kit = try await WhisperKit(makeConfig())
         kit.modelStateCallback = { _, state in
-            log.info("Whisper model state=\(state.description, privacy: .public)")
+            // log.info("Whisper model state=\(state.description, privacy: .public)")
         }
         let started = Date()
         // A line every 10 s tells a slow Core ML preparation from a real hang.
-        let heartbeat = Task {
-            while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(10))
-                guard !Task.isCancelled else { return }
-                log.info(
-                    "Whisper still working seconds=\(Int(Date().timeIntervalSince(started))) footprintMB=\(MemoryProbe.footprintMB()) thermal=\(ProcessInfo.processInfo.thermalState.rawValue)"
-                )
-            }
-        }
-        defer { heartbeat.cancel() }
+        // let heartbeat = Task {
+            // while !Task.isCancelled {
+                // try? await Task.sleep(for: .seconds(10))
+                // guard !Task.isCancelled else { return }
+                // log.info(
+                    // "Whisper still working seconds=\(Int(Date().timeIntervalSince(started))) footprintMB=\(MemoryProbe.footprintMB()) thermal=\(ProcessInfo.processInfo.thermalState.rawValue)"
+                // )
+            // }
+        // }
+        // defer { heartbeat.cancel() }
         do {
             let expected = expectedPrepareSeconds()
             await onStep(.preparing(elapsed: 0, expected: expected))
@@ -195,14 +195,14 @@ enum WhisperASR {
             try Task.checkCancellation()
             let prepared = Int(Date().timeIntervalSince(started))
             rememberPrepare(seconds: prepared)
-            log.info("Whisper prepare done seconds=\(prepared)")
+            // log.info("Whisper prepare done seconds=\(prepared)")
             await onStep(.loading)
             try await kit.loadModels()
             try Task.checkCancellation()
-            log.info("Whisper loaded seconds=\(Int(Date().timeIntervalSince(started))) \(MemoryProbe.summary()) tokenizer=\(kit.tokenizer != nil)")
+            // log.info("Whisper loaded seconds=\(Int(Date().timeIntervalSince(started))) \(MemoryProbe.summary()) tokenizer=\(kit.tokenizer != nil)")
         } catch is CancellationError {
             await kit.unloadModels()
-            log.info("Whisper cancelled while it got ready seconds=\(Int(Date().timeIntervalSince(started)))")
+            // log.info("Whisper cancelled while it got ready seconds=\(Int(Date().timeIntervalSince(started)))")
             throw CancellationError()
         } catch {
             log.error("Whisper load failed seconds=\(Int(Date().timeIntervalSince(started))) type=\(String(describing: type(of: error)), privacy: .public) message=\(error.localizedDescription, privacy: .public) detail=\(String(describing: error), privacy: .public)")
@@ -213,11 +213,11 @@ enum WhisperASR {
             lines = try await write(url: url, locale: locale, runs: runs, kit: kit, onStep: onStep)
         } catch {
             await kit.unloadModels()
-            log.info("Whisper unloaded \(MemoryProbe.summary())")
+            // log.info("Whisper unloaded \(MemoryProbe.summary())")
             throw error
         }
         await kit.unloadModels()
-        log.info("Whisper unloaded \(MemoryProbe.summary())")
+        // log.info("Whisper unloaded \(MemoryProbe.summary())")
         return lines
     }
 
@@ -231,8 +231,8 @@ enum WhisperASR {
         kit: WhisperKit,
         onStep: @escaping @MainActor @Sendable (Step) -> Void
     ) async throws -> [TranscriptLine] {
-        let begun = Date()
-        log.info("Whisper whole recording begin runs=\(runs.count) \(MemoryProbe.summary())")
+        // let begun = Date()
+        // log.info("Whisper whole recording begin runs=\(runs.count) \(MemoryProbe.summary())")
         await onStep(.writing(0))
         // WhisperKit counts the audio it has read. The bar follows that count.
         let counter = kit.progress
@@ -247,15 +247,15 @@ enum WhisperASR {
         let results: [TranscriptionResult]
         do {
             var samples = try AudioProcessor.loadAudioAsFloatArray(fromPath: url.path)
-            let gain = louder(&samples)
-            log.info("Whisper audio samples=\(samples.count) gain=\(String(format: "%.2f", gain)) \(MemoryProbe.summary())")
+            _ = louder(&samples)
+            // log.info("Whisper audio samples=\(samples.count) gain=\(String(format: "%.2f", gain)) \(MemoryProbe.summary())")
             try Task.checkCancellation()
             results = try await kit.transcribe(
                 audioArray: samples,
                 decodeOptions: options(for: locale, words: !runs.isEmpty)
             )
         } catch is CancellationError {
-            log.info("Whisper cancelled before it wrote")
+            // log.info("Whisper cancelled before it wrote")
             throw CancellationError()
         } catch {
             log.error("Whisper transcribe failed type=\(String(describing: type(of: error)), privacy: .public) message=\(error.localizedDescription, privacy: .public) detail=\(String(describing: error), privacy: .public)")
@@ -263,23 +263,23 @@ enum WhisperASR {
         }
         let segments = results.flatMap(\.segments).filter { segment in
             if isRunaway(segment.text) {
-                log.warning("Whisper dropped a repeating segment start=\(segment.start)")
+                // log.warning("Whisper dropped a repeating segment start=\(segment.start)")
                 return false
             }
             if isInvented(segment.text) {
-                log.warning("Whisper dropped an invented caption start=\(segment.start) text=\(segment.text, privacy: .public)")
+                // log.warning("Whisper dropped an invented caption start=\(segment.start) text=\(segment.text, privacy: .public)")
                 return false
             }
             return true
         }
-        log.info(
-            "Whisper transcribed seconds=\(String(format: "%.1f", Date().timeIntervalSince(begun))) results=\(results.count) segments=\(segments.count) language=\(results.first?.language ?? "", privacy: .public) \(MemoryProbe.summary())"
-        )
-        for segment in segments {
-            log.info(
-                "Whisper segment start=\(String(format: "%.1f", segment.start)) end=\(String(format: "%.1f", segment.end)) noSpeech=\(String(format: "%.2f", segment.noSpeechProb)) words=\(segment.words?.count ?? 0) text=\(segment.text, privacy: .public)"
-            )
-        }
+        // log.info(
+            // "Whisper transcribed seconds=\(String(format: "%.1f", Date().timeIntervalSince(begun))) results=\(results.count) segments=\(segments.count) language=\(results.first?.language ?? "", privacy: .public) \(MemoryProbe.summary())"
+        // )
+        // for segment in segments {
+            // log.info(
+                // "Whisper segment start=\(String(format: "%.1f", segment.start)) end=\(String(format: "%.1f", segment.end)) noSpeech=\(String(format: "%.2f", segment.noSpeechProb)) words=\(segment.words?.count ?? 0) text=\(segment.text, privacy: .public)"
+            // )
+        // }
 
         var lines: [TranscriptLine]
         if runs.isEmpty {
@@ -299,12 +299,12 @@ enum WhisperASR {
             }
             lines = LectureTranscriber.speakerLines(words: words, runs: runs)
         }
-        for line in lines {
-            log.info(
-                "Whisper line speaker=\(line.speaker) role=\(line.role.rawValue, privacy: .public) start=\(line.second) words=\(line.text.split(whereSeparator: \.isWhitespace).count) text=\(line.text, privacy: .public)"
-            )
-        }
-        log.info("Whisper lines=\(lines.count) speakers=\(Set(lines.map(\.speaker)).count)")
+        // for line in lines {
+            // log.info(
+                // "Whisper line speaker=\(line.speaker) role=\(line.role.rawValue, privacy: .public) start=\(line.second) words=\(line.text.split(whereSeparator: \.isWhitespace).count) text=\(line.text, privacy: .public)"
+            // )
+        // }
+        // log.info("Whisper lines=\(lines.count) speakers=\(Set(lines.map(\.speaker)).count)")
         guard !lines.isEmpty else { throw TranscriptError.qualityFailed }
         return lines
     }

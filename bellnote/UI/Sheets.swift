@@ -607,14 +607,14 @@ struct ModelsPage: View {
                     }
                 } else if ready {
                     Button("Delete", role: .destructive) {
-                        Self.log.info("UI delete tap fluidAudio")
+                        // Self.log.info("UI delete tap fluidAudio")
                         pendingDelete = .fluidAudio
                     }
                     .buttonStyle(.borderless)
                     .disabled(anyDownload)
                 } else {
                     Button("Download") {
-                        Self.log.info("UI download tap fluidAudio")
+                        // Self.log.info("UI download tap fluidAudio")
                         downloadingFluid = true
                         downloadProgress = 0
                         fluidStatus = nil
@@ -628,7 +628,7 @@ struct ModelsPage: View {
                                 }
                                 finished = true
                                 fluidStatus = String(localized: "Download finished.")
-                                Self.log.info("UI download ok fluidAudio")
+                                // Self.log.info("UI download ok fluidAudio")
                             } catch {
                                 let nsError = error as NSError
                                 fluidStatus = String(localized: "A model is not available.")
@@ -689,14 +689,14 @@ struct ModelsPage: View {
                     }
                 } else if ready || supertonicPartial {
                     Button("Delete", role: .destructive) {
-                        Self.log.info("UI delete tap supertonic")
+                        // Self.log.info("UI delete tap supertonic")
                         pendingDelete = .supertonic
                     }
                     .buttonStyle(.borderless)
                     .disabled(anyDownload)
                 } else {
                     Button("Download") {
-                        Self.log.info("UI download tap supertonic")
+                        // Self.log.info("UI download tap supertonic")
                         downloadingSupertonic = true
                         downloadProgress = 0
                         supertonicStatus = nil
@@ -710,7 +710,7 @@ struct ModelsPage: View {
                                 }
                                 finished = true
                                 supertonicStatus = String(localized: "Download finished.")
-                                Self.log.info("UI download ok supertonic")
+                                // Self.log.info("UI download ok supertonic")
                             } catch {
                                 let nsError = error as NSError
                                 supertonicStatus = String(localized: "A model is not available.")
@@ -740,7 +740,7 @@ struct ModelsPage: View {
         do {
             try SupertonicSpeech.delete()
             supertonicStatus = nil
-            Self.log.info("UI delete ok supertonic")
+            // Self.log.info("UI delete ok supertonic")
         } catch {
             let nsError = error as NSError
             supertonicStatus = String(localized: "A model is not available.")
@@ -752,7 +752,7 @@ struct ModelsPage: View {
     private func deleteFluidAudio() async {
         SpeakerPass.deleteModels()
         fluidStatus = nil
-        Self.log.info("UI delete ok fluidAudio")
+        // Self.log.info("UI delete ok fluidAudio")
         await refreshInstalled()
     }
 
@@ -804,14 +804,14 @@ struct ModelsPage: View {
                     }
                 } else if ready || leftover[role] == true {
                     Button("Delete", role: .destructive) {
-                        Self.log.info("UI delete tap role=\(role.rawValue, privacy: .public) title=\(title, privacy: .public)")
+                        // Self.log.info("UI delete tap role=\(role.rawValue, privacy: .public) title=\(title, privacy: .public)")
                         pendingDelete = .mlx(role)
                     }
                     .buttonStyle(.borderless)
                     .disabled(downloading != nil || downloadingFluid || downloadingSupertonic)
                 } else if !locked {
                     Button("Download") {
-                        Self.log.info("UI download tap role=\(role.rawValue, privacy: .public) title=\(title, privacy: .public)")
+                        // Self.log.info("UI download tap role=\(role.rawValue, privacy: .public) title=\(title, privacy: .public)")
                         downloading = role
                         downloadProgress = 0
                         status[role] = nil
@@ -827,7 +827,7 @@ struct ModelsPage: View {
                                 })
                                 finished = true
                                 status[role] = String(localized: "Download finished.")
-                                Self.log.info("UI download ok role=\(role.rawValue, privacy: .public)")
+                                // Self.log.info("UI download ok role=\(role.rawValue, privacy: .public)")
                             } catch {
                                 let nsError = error as NSError
                                 status[role] = String(localized: "A model is not available.")
@@ -856,7 +856,7 @@ struct ModelsPage: View {
         do {
             try await LocalModelRuntime.shared.delete(role)
             status[role] = nil
-            Self.log.info("UI delete ok role=\(role.rawValue, privacy: .public)")
+            // Self.log.info("UI delete ok role=\(role.rawValue, privacy: .public)")
         } catch {
             let nsError = error as NSError
             status[role] = String(localized: "A model is not available.")
@@ -961,11 +961,11 @@ struct ModelsPage: View {
         let values = try? home.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey])
         let free = values?.volumeAvailableCapacityForImportantUsage ?? 0
         budget = DeviceBudget(freeDiskBytes: free, physicalMemoryBytes: ProcessInfo.processInfo.physicalMemory)
-        Self.log.info("Budget freeDisk=\(free) physicalMemory=\(ProcessInfo.processInfo.physicalMemory) taggerLocked=\(ModelLock.taggerLocked(budget)) pageLocked=\(ModelLock.pageLocked(budget))")
+        // Self.log.info("Budget freeDisk=\(free) physicalMemory=\(ProcessInfo.processInfo.physicalMemory) taggerLocked=\(ModelLock.taggerLocked(budget)) pageLocked=\(ModelLock.pageLocked(budget))")
     }
 
     private func refreshInstalled() async {
-        Self.log.info("Models page open")
+        // Self.log.info("Models page open")
         let tagger = await LocalModelRuntime.shared.probe(.tagger)
         let page = await LocalModelRuntime.shared.probe(.page)
         let whisper = await LocalModelRuntime.shared.probe(.whisper)
@@ -2119,7 +2119,7 @@ struct StudySheet: View {
         // From the course page only the recordings that are finished count. A failed, paused or still running one
         // does not.
         let lectures = lecture.map { [$0] } ?? course.lectures.filter { $0.state == LectureState.ready.rawValue }
-        Self.log.info("Study run tapped lectures=\(lectures.count) ofOneRecording=\(lecture != nil) question=\(question, privacy: .public)")
+        // Self.log.info("Study run tapped lectures=\(lectures.count) ofOneRecording=\(lecture != nil) question=\(question, privacy: .public)")
         let blocks = lectures.flatMap { lecture in
             lecture.blocks.map { block in
                 StudyBlock(
@@ -2138,12 +2138,12 @@ struct StudySheet: View {
         }
         let everything = StudySelection.select(blocks, filter: .wholeCourse)
         let pick = StudySelection.relevant(everything, to: question, locale: Locale(identifier: course.localeIdentifier))
-        Self.log.info("Study blocks total=\(blocks.count) selected=\(pick.blocks.count) characters=\(pick.blocks.reduce(0) { $0 + $1.text.count }) of=\(everything.reduce(0) { $0 + $1.text.count })")
-        for block in pick.blocks {
-            Self.log.info("Study picked second=\(block.second) characters=\(block.text.count) head=\(String(block.text.prefix(80)), privacy: .public)")
-        }
+        // Self.log.info("Study blocks total=\(blocks.count) selected=\(pick.blocks.count) characters=\(pick.blocks.reduce(0) { $0 + $1.text.count }) of=\(everything.reduce(0) { $0 + $1.text.count })")
+        // for block in pick.blocks {
+            // Self.log.info("Study picked second=\(block.second) characters=\(block.text.count) head=\(String(block.text.prefix(80)), privacy: .public)")
+        // }
         guard !pick.blocks.isEmpty else {
-            Self.log.info("Study no blocks selected")
+            // Self.log.info("Study no blocks selected")
             answer = String(localized: "The lectures do not contain that.")
             return
         }
@@ -2165,7 +2165,7 @@ struct StudySheet: View {
                 replyLanguage: session.locale
             )
             let missing = reply.contains("NOT_IN_NOTES") || reply.isEmpty
-            Self.log.info("Study answer shown notInNotes=\(missing) characters=\(reply.count) sourceSecond=\(pick.source?.second ?? -1)")
+            // Self.log.info("Study answer shown notInNotes=\(missing) characters=\(reply.count) sourceSecond=\(pick.source?.second ?? -1)")
             answer = missing ? String(localized: "The lectures do not contain that.") : reply
             sourceBlock = missing ? nil : pick.source
         } catch {
@@ -2185,7 +2185,7 @@ struct StudySheet: View {
             Self.log.error("Study source lecture missing block=\(sourceBlock.id.uuidString, privacy: .public)")
             return
         }
-        Self.log.info("Study source open second=\(sourceBlock.second)")
+        // Self.log.info("Study source open second=\(sourceBlock.second)")
         // Hand off first so the host can push the recording, then close the sheet.
         onOpenSource?(host, sourceBlock.id, sourceBlock.second)
         dismiss()

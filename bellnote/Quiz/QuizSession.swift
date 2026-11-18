@@ -25,7 +25,7 @@ final class QuizSession {
     private static let maxWindowsPerSource = 48
     /// Cap for the whole quiz pool (notes + files).
     private static let maxWindowsTotal = 96
-    /// Soft ceiling — named labels, not paragraph distractors.
+    /// Soft ceiling, named labels, not paragraph distractors.
     private static let maxChoiceCharacters = 90
     private static let maxStemCharacters = 500
     /// How many questions the text model may write per quiz. 0 builds every question in Swift, so no model runs
@@ -99,14 +99,14 @@ final class QuizSession {
         if isBackground {
             lastBackgroundedAt = Date()
         }
-        Self.log.info("Quiz app background=\(isBackground) phase=\(String(describing: self.phase), privacy: .public)")
+        // Self.log.info("Quiz app background=\(isBackground) phase=\(String(describing: self.phase), privacy: .public)")
     }
 
     /// Holds the write loop while the app is in the background and continues when it comes back.
     private func waitForForeground() async {
         guard isInBackground, phase == .preparing else { return }
-        let started = Date()
-        Self.log.info("Quiz pause: app is in the background")
+        // let started = Date()
+        // Self.log.info("Quiz pause: app is in the background")
         while isInBackground, phase == .preparing {
             do {
                 try await Task.sleep(for: .milliseconds(500))
@@ -114,7 +114,7 @@ final class QuizSession {
                 return
             }
         }
-        Self.log.info("Quiz resume after background ms=\(Int(Date().timeIntervalSince(started) * 1000))")
+        // Self.log.info("Quiz resume after background ms=\(Int(Date().timeIntervalSince(started) * 1000))")
     }
 
     private struct Material {
@@ -241,7 +241,7 @@ final class QuizSession {
         }
     }
 
-    /// Selects a letter and advances immediately — no separate Next tap.
+    /// Selects a letter and advances immediately, no separate Next tap.
     func pick(_ choice: QuizChoice) {
         guard phase == .taking, let question = current else { return }
         let started = questionStartedAt ?? Date()
@@ -254,9 +254,9 @@ final class QuizSession {
             phase = .results
             questionStartedAt = nil
             statusLine = ""
-            Self.log.info(
-                "Quiz finished correct=\(self.correctCount) wrong=\(self.wrongCount) totalSec=\(Int(self.totalSeconds))"
-            )
+            // Self.log.info(
+                // "Quiz finished correct=\(self.correctCount) wrong=\(self.wrongCount) totalSec=\(Int(self.totalSeconds))"
+            // )
         } else {
             index += 1
             questionStartedAt = Date()
@@ -298,7 +298,7 @@ final class QuizSession {
     private func prepare(course: Course, replyLanguage: Locale) async {
         let prepareStarted = Date()
         do {
-            Self.log.info("Quiz prepare begin target=\(self.questionCount.rawValue) difficulty=\(self.difficulty.rawValue, privacy: .public)")
+            // Self.log.info("Quiz prepare begin target=\(self.questionCount.rawValue) difficulty=\(self.difficulty.rawValue, privacy: .public)")
             let usesModel = Self.modelQuestionBudget > 0
             if usesModel {
                 setStage(
@@ -324,21 +324,21 @@ final class QuizSession {
                 return
             }
             materialIndex = Dictionary(uniqueKeysWithValues: materials.map { ($0.id, $0) })
-            Self.log.info(
-                "Quiz prepare materials=\(materials.count) ms=\(Int(Date().timeIntervalSince(prepareStarted) * 1000))"
-            )
+            // Self.log.info(
+                // "Quiz prepare materials=\(materials.count) ms=\(Int(Date().timeIntervalSince(prepareStarted) * 1000))"
+            // )
 
             if usesModel {
-                // Cold start can take many seconds — keep 1 / 10 off screen until weights are resident.
+                // Cold start can take many seconds, keep 1 / 10 off screen until weights are resident.
                 setStage(
                     String(localized: "Checking the model"),
                     String(localized: "The quiz uses the text model chosen in Settings."),
                     fraction: 0.4
                 )
                 try await LocalModelRuntime.shared.warmTextModel()
-                Self.log.info(
-                    "Quiz prepare warm done ms=\(Int(Date().timeIntervalSince(prepareStarted) * 1000))"
-                )
+                // Self.log.info(
+                    // "Quiz prepare warm done ms=\(Int(Date().timeIntervalSince(prepareStarted) * 1000))"
+                // )
             }
 
             var drafts: [PendingItem] = []
@@ -347,9 +347,9 @@ final class QuizSession {
             let modelTarget = usesModel ? min(target, Self.modelQuestionBudget) : 0
             var cursor = 0
             var misses = 0
-            /// Windows that already produced an accepted question — never reused this prepare.
+            /// Windows that already produced an accepted question, never reused this prepare.
             var acceptedIds: Set<String> = []
-            /// Windows that already failed a check — never retried this prepare (retrying them burned heat).
+            /// Windows that already failed a check, never retried this prepare (retrying them burned heat).
             var rejectedIds: Set<String> = []
             let missLimit = max(materials.count * 4, target * 3)
 
@@ -366,17 +366,17 @@ final class QuizSession {
 
             while drafts.count < modelTarget && misses < missLimit {
                 guard let material = nextMaterial() else {
-                    Self.log.info(
-                        "Quiz pool exhausted accepted=\(acceptedIds.count) drafts=\(drafts.count) target=\(target) ms=\(Int(Date().timeIntervalSince(prepareStarted) * 1000))"
-                    )
+                    // Self.log.info(
+                        // "Quiz pool exhausted accepted=\(acceptedIds.count) drafts=\(drafts.count) target=\(target) ms=\(Int(Date().timeIntervalSince(prepareStarted) * 1000))"
+                    // )
                     break
                 }
                 await waitForForeground()
                 // A hot phone slows the GPU and fails more calls. Pace, pause, or end early with what is ready.
                 if await paceForHeat(draftCount: drafts.count, target: target) == .finishEarly {
-                    Self.log.warning(
-                        "Quiz heat finish early drafts=\(drafts.count) target=\(target) ms=\(Int(Date().timeIntervalSince(prepareStarted) * 1000))"
-                    )
+                    // Self.log.warning(
+                        // "Quiz heat finish early drafts=\(drafts.count) target=\(target) ms=\(Int(Date().timeIntervalSince(prepareStarted) * 1000))"
+                    // )
                     break
                 }
                 let writeFraction = 0.45 + (Double(drafts.count) / Double(max(target, 1))) * 0.5
@@ -392,7 +392,7 @@ final class QuizSession {
                 )
                 let itemStarted = Date()
                 do {
-                    // One call per window — no parse-fail retry (that path burned heat on 1111…).
+                    // One call per window, no parse-fail retry (that path burned heat on 1111…).
                     let draft = try await LocalModelRuntime.shared.makeQuizItem(
                         materialId: material.id,
                         materialTitle: material.title,
@@ -412,27 +412,27 @@ final class QuizSession {
                         seenStems.append(normalizedStem(item.prompt))
                         acceptedIds.insert(material.id)
                         misses = 0
-                        Self.log.info(
-                            "Quiz item accepted id=\(material.id, privacy: .public) ms=\(itemMs) drafts=\(drafts.count)/\(target) totalMs=\(Int(Date().timeIntervalSince(prepareStarted) * 1000))"
-                        )
+                        // Self.log.info(
+                            // "Quiz item accepted id=\(material.id, privacy: .public) ms=\(itemMs) drafts=\(drafts.count)/\(target) totalMs=\(Int(Date().timeIntervalSince(prepareStarted) * 1000))"
+                        // )
                     } else {
                         rejectedIds.insert(material.id)
                         misses += 1
                     }
                 } catch {
-                    let itemMs = Int(Date().timeIntervalSince(itemStarted) * 1000)
+                    // let itemMs = Int(Date().timeIntervalSince(itemStarted) * 1000)
                     // The app left the screen during this call. The window is not at fault, so it stays in the pool.
                     if let left = lastBackgroundedAt, left >= itemStarted {
-                        Self.log.info(
-                            "Quiz item interrupted by background id=\(material.id, privacy: .public) ms=\(itemMs) \(error.localizedDescription, privacy: .public)"
-                        )
+                        // Self.log.info(
+                            // "Quiz item interrupted by background id=\(material.id, privacy: .public) ms=\(itemMs) \(error.localizedDescription, privacy: .public)"
+                        // )
                         continue
                     }
                     rejectedIds.insert(material.id)
                     misses += 1
-                    Self.log.warning(
-                        "Quiz item skip id=\(material.id, privacy: .public) ms=\(itemMs) totalMs=\(Int(Date().timeIntervalSince(prepareStarted) * 1000)) \(error.localizedDescription, privacy: .public)"
-                    )
+                    // Self.log.warning(
+                        // "Quiz item skip id=\(material.id, privacy: .public) ms=\(itemMs) totalMs=\(Int(Date().timeIntervalSince(prepareStarted) * 1000)) \(error.localizedDescription, privacy: .public)"
+                    // )
                 }
             }
 
@@ -443,12 +443,12 @@ final class QuizSession {
                     writingDetail(from: materials),
                     fraction: 0.9
                 )
-                let clozeStarted = Date()
+                // let clozeStarted = Date()
                 let filled = buildClozeItems(needed: target - drafts.count, materials: materials, existing: drafts)
                 drafts.append(contentsOf: filled)
-                Self.log.info(
-                    "Quiz cloze built count=\(filled.count) wanted=\(target - (drafts.count - filled.count)) ms=\(Int(Date().timeIntervalSince(clozeStarted) * 1000))"
-                )
+                // Self.log.info(
+                    // "Quiz cloze built count=\(filled.count) wanted=\(target - (drafts.count - filled.count)) ms=\(Int(Date().timeIntervalSince(clozeStarted) * 1000))"
+                // )
             }
 
             // The model gave only a question and an answer. Swift builds the wrong choices and the key letter.
@@ -478,9 +478,9 @@ final class QuizSession {
             statusDetail = ""
             statusCaption = ""
             prepareFraction = 0
-            Self.log.info(
-                "Quiz ready count=\(built.count) difficulty=\(self.difficulty.rawValue, privacy: .public) ms=\(Int(Date().timeIntervalSince(prepareStarted) * 1000))"
-            )
+            // Self.log.info(
+                // "Quiz ready count=\(built.count) difficulty=\(self.difficulty.rawValue, privacy: .public) ms=\(Int(Date().timeIntervalSince(prepareStarted) * 1000))"
+            // )
             #if DEBUG
             logQuestions(built)
             #endif
@@ -505,12 +505,12 @@ final class QuizSession {
     /// Debug builds only: writes every question with its choices and key so the log shows what the student sees.
     private func logQuestions(_ questions: [QuizQuestion]) {
         for (offset, question) in questions.enumerated() {
-            let choices = question.choiceLines
-                .map { "\($0.0.rawValue): \($0.1)" }
-                .joined(separator: " | ")
-            Self.log.info(
-                "Quiz q\(offset + 1)/\(questions.count) key=\(question.correct.rawValue, privacy: .public) source=\(question.sourceTitle, privacy: .public) :: \(question.prompt, privacy: .public) | \(choices, privacy: .public)"
-            )
+            // let choices = question.choiceLines
+                // .map { "\($0.0.rawValue): \($0.1)" }
+                // .joined(separator: " | ")
+            // Self.log.info(
+                // "Quiz q\(offset + 1)/\(questions.count) key=\(question.correct.rawValue, privacy: .public) source=\(question.sourceTitle, privacy: .public) :: \(question.prompt, privacy: .public) | \(choices, privacy: .public)"
+            // )
         }
     }
 
@@ -571,7 +571,7 @@ final class QuizSession {
         var state = ProcessInfo.processInfo.thermalState
         guard state == .serious || state == .critical else { return .go }
         if state == .serious {
-            Self.log.info("Quiz heat serious pause drafts=\(draftCount)")
+            // Self.log.info("Quiz heat serious pause drafts=\(draftCount)")
             do {
                 try await Task.sleep(for: .seconds(2.5))
             } catch {
@@ -581,7 +581,7 @@ final class QuizSession {
         }
         let limit: TimeInterval = draftCount == 0 ? 180 : 150
         let started = Date()
-        Self.log.warning("Quiz heat critical pause begin drafts=\(draftCount) limitSeconds=\(Int(limit))")
+        // Self.log.warning("Quiz heat critical pause begin drafts=\(draftCount) limitSeconds=\(Int(limit))")
         setStage(
             String(localized: "Device is cooling down"),
             String(localized: "Writing continues when the device has cooled."),
@@ -594,7 +594,7 @@ final class QuizSession {
         )
         while state == .critical {
             if Date().timeIntervalSince(started) >= limit {
-                Self.log.warning("Quiz heat critical pause gave up seconds=\(Int(limit))")
+                // Self.log.warning("Quiz heat critical pause gave up seconds=\(Int(limit))")
                 return .finishEarly
             }
             do {
@@ -604,9 +604,9 @@ final class QuizSession {
             }
             state = ProcessInfo.processInfo.thermalState
         }
-        Self.log.info(
-            "Quiz heat critical pause end seconds=\(Int(Date().timeIntervalSince(started))) state=\(state.rawValue)"
-        )
+        // Self.log.info(
+            // "Quiz heat critical pause end seconds=\(Int(Date().timeIntervalSince(started))) state=\(state.rawValue)"
+        // )
         return .go
     }
 
@@ -622,7 +622,7 @@ final class QuizSession {
         prepareFraction = min(max(fraction, 0), 1)
     }
 
-    /// Matches what the student actually put in the pool — recordings only, files only, or both.
+    /// Matches what the student actually put in the pool, recordings only, files only, or both.
     private func writingDetail(from materials: [Material]) -> String {
         let hasNotes = materials.contains { $0.kind == .block }
         let hasFiles = materials.contains { $0.kind == .file }
@@ -671,20 +671,20 @@ final class QuizSession {
         switch mapDraft(draft, fallback: material) {
         case .success(let item):
             guard !isDuplicate(item.prompt, in: seenStems) else {
-                Self.log.warning(
-                    "Quiz item rejected id=\(material.id, privacy: .public) reason=duplicate ms=\(elapsedMs)"
-                )
+                // Self.log.warning(
+                    // "Quiz item rejected id=\(material.id, privacy: .public) reason=duplicate ms=\(elapsedMs)"
+                // )
                 return nil
             }
             return item
         case .failure(let reason):
-            Self.log.warning(
-                "Quiz item rejected id=\(material.id, privacy: .public) reason=\(reason.rawValue, privacy: .public) ms=\(elapsedMs)"
-            )
+            // Self.log.warning(
+                // "Quiz item rejected id=\(material.id, privacy: .public) reason=\(reason.rawValue, privacy: .public) ms=\(elapsedMs)"
+            // )
             #if DEBUG
-            Self.log.info(
-                "Quiz draft detail id=\(material.id, privacy: .public) q=\(draft.question, privacy: .public) | a=\(draft.answer, privacy: .public)"
-            )
+            // Self.log.info(
+                // "Quiz draft detail id=\(material.id, privacy: .public) q=\(draft.question, privacy: .public) | a=\(draft.answer, privacy: .public)"
+            // )
             #endif
             return nil
         }
@@ -709,7 +709,7 @@ final class QuizSession {
         if prompt == nil, let answer, let blanked = clozeStem(draft.question, answer: answer, material: fallback.text) {
             prompt = blanked
             isCloze = true
-            Self.log.info("Quiz item cloze id=\(fallback.id, privacy: .public)")
+            // Self.log.info("Quiz item cloze id=\(fallback.id, privacy: .public)")
         }
         guard let prompt else { return .failure(.badStem) }
         if !isCloze, isCopiedStem(prompt, from: fallback.text) { return .failure(.copiedStem) }
@@ -772,7 +772,7 @@ final class QuizSession {
         for item in drafts {
             let others = drafts.filter { $0.material.id != item.material.id }
             guard let wrong = pickWrongChoices(for: item, others: others, materials: materials, used: used) else {
-                Self.log.warning("Quiz item dropped id=\(item.material.id, privacy: .public) reason=noWrongChoices")
+                // Self.log.warning("Quiz item dropped id=\(item.material.id, privacy: .public) reason=noWrongChoices")
                 continue
             }
             for text in wrong { used[text.lowercased(), default: 0] += 1 }
@@ -881,7 +881,7 @@ final class QuizSession {
         return score
     }
 
-    /// Passage snippet for PDFKit find — first solid line, soft hyphens stripped, capped.
+    /// Passage snippet for PDFKit find, first solid line, soft hyphens stripped, capped.
     private static func excerptForFind(_ text: String) -> String {
         let cleaned = text
             .replacingOccurrences(of: "\u{00AD}", with: "")
@@ -901,7 +901,7 @@ final class QuizSession {
         return String(compact[..<end])
     }
 
-    /// Short named phrases from a material window — filler when the quiz has too few other answers.
+    /// Short named phrases from a material window, filler when the quiz has too few other answers.
     private func distractorPool(from text: String, excluding: Set<String>) -> [String] {
         let separators = CharacterSet(charactersIn: ".\n;!?|/•·")
         var seen = Set<String>()
@@ -1415,7 +1415,7 @@ final class QuizSession {
     }
 
     /// True when the model pasted a clause/paragraph instead of a short label.
-    /// Titles like “Dr. George Engel, 1977” keep their abbreviation periods — those are not sentences.
+    /// Titles like “Dr. George Engel, 1977” keep their abbreviation periods, those are not sentences.
     private func looksLikeSentenceChoice(_ text: String) -> Bool {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         let withoutTitles = trimmed.replacingOccurrences(
@@ -1588,15 +1588,15 @@ final class QuizSession {
             do {
                 pages = try await FileTextExtractor.pages(at: url, kind: kind)
             } catch {
-                Self.log.info("Quiz skip file=\(file.displayName, privacy: .public) \(error.localizedDescription, privacy: .public)")
+                // Self.log.info("Quiz skip file=\(file.displayName, privacy: .public) \(error.localizedDescription, privacy: .public)")
                 continue
             }
             // Whole file is chunked first; then windows are spread across start → end (not prefix-only).
             let allChunks = chunkedPages(pages, size: Self.chunkSize)
             let picked = spreadPick(allChunks, limit: min(Self.maxWindowsPerSource, room))
-            Self.log.info(
-                "Quiz file windows name=\(file.displayName, privacy: .public) chunks=\(allChunks.count) picked=\(picked.count)"
-            )
+            // Self.log.info(
+                // "Quiz file windows name=\(file.displayName, privacy: .public) chunks=\(allChunks.count) picked=\(picked.count)"
+            // )
             for chunk in picked {
                 let id = "F\(fileIndex)"
                 fileIndex += 1

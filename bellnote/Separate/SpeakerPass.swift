@@ -18,17 +18,17 @@ enum SpeakerPass {
 
     /// Download and compile FluidAudio offline diarizer models, reporting [0, 1] progress.
     static func downloadModels(onProgress: @Sendable @escaping (Double) -> Void) async throws {
-        log.info("FluidAudio download begin")
+        // log.info("FluidAudio download begin")
         try await store.downloadAndPrepare { progress in
             onProgress(progress.fractionCompleted)
         }
-        log.info("FluidAudio download ok")
+        // log.info("FluidAudio download ok")
     }
 
     static func deleteModels() {
-        log.info("FluidAudio delete begin")
+        // log.info("FluidAudio delete begin")
         store.deleteCache()
-        log.info("FluidAudio delete ok")
+        // log.info("FluidAudio delete ok")
     }
 
     static func installedByteCount() -> Int64 {
@@ -36,11 +36,11 @@ enum SpeakerPass {
     }
 
     static func runs(url: URL) async throws -> [SpeechRun] {
-        log.info("Diarize begin path=\(url.lastPathComponent, privacy: .public) \(MemoryProbe.summary())")
+        // log.info("Diarize begin path=\(url.lastPathComponent, privacy: .public) \(MemoryProbe.summary())")
         let result = try await store.process(url)
         let runs = speechRuns(from: result.segments)
-        let spans = runs.map { "\($0.cluster):\($0.start)-\($0.end)" }.joined(separator: " ")
-        log.info("Diarize ok segments=\(result.segments.count) runs=\(runs.count) \(MemoryProbe.summary()) spans=\(spans, privacy: .public)")
+        // let spans = runs.map { "\($0.cluster):\($0.start)-\($0.end)" }.joined(separator: " ")
+        // log.info("Diarize ok segments=\(result.segments.count) runs=\(runs.count) \(MemoryProbe.summary()) spans=\(spans, privacy: .public)")
         if runs.isEmpty {
             return try fallbackSingleNarrator(url: url)
         }
@@ -50,7 +50,7 @@ enum SpeakerPass {
     /// Frees the diarizer models once the speaker runs are known.
     static func release() {
         store.release()
-        log.info("Diarizer released \(MemoryProbe.summary())")
+        // log.info("Diarizer released \(MemoryProbe.summary())")
     }
 
     static func narratorRanges(_ runs: [SpeechRun]) -> [ClosedRange<Int>] {
@@ -100,7 +100,7 @@ enum SpeakerPass {
         guard rate > 0 else { throw SpeakerPassError.noSpeech }
         let seconds = Int(Double(file.length) / rate)
         guard seconds > 0 else { throw SpeakerPassError.noSpeech }
-        log.info("Diarize empty; fallback single narrator seconds=\(seconds)")
+        // log.info("Diarize empty; fallback single narrator seconds=\(seconds)")
         return [
             SpeechRun(
                 start: 0,
