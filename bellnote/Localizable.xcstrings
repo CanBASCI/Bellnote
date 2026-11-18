@@ -2158,50 +2158,34 @@
         }
       }
     },
-    "Each question is prepared only from the lecture notes you included." : {
+    "Each question is prepared only from the recordings and files you selected." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Each question is prepared only from the lecture notes you included."
+            "value" : "Each question is prepared only from the recordings and files you selected."
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Her soru yalnızca dahil ettiğin ders notlarından hazırlanır."
+            "value" : "Her soru yalnızca seçtiğin kayıt ve dosyalardan hazırlanır."
           }
         }
       }
     },
-    "Each question is prepared only from the material you selected." : {
+    "Each question is prepared only from the recordings you selected." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Each question is prepared only from the material you selected."
+            "value" : "Each question is prepared only from the recordings you selected."
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Her soru yalnızca seçtiğin malzemeden hazırlanır."
-          }
-        }
-      }
-    },
-    "Each question is prepared only from the notes and files you selected." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Each question is prepared only from the notes and files you selected."
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Her soru yalnızca seçtiğin not ve dosyalardan hazırlanır."
+            "value" : "Her soru yalnızca seçtiğin kayıtlardan hazırlanır."
           }
         }
       }
@@ -4722,6 +4706,22 @@
         }
       }
     },
+    "Phone is cooling down" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Phone is cooling down"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Telefon soğuyor"
+          }
+        }
+      }
+    },
     "Photo" : {
       "localizations" : {
         "en" : {
@@ -6504,19 +6504,19 @@
         }
       }
     },
-    "Tags, AI correction and Ask use this model." : {
+    "Tags, AI correction, Ask, Assistant and Quiz use this model." : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tags, AI correction and Ask use this model."
+            "value" : "Tags, AI correction, Ask, Assistant and Quiz use this model."
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Etiketleme, yapay zekâ düzeltme ve Ask bu modeli kullanır."
+            "value" : "Etiketleme, yapay zekâ düzeltme, Ask, Asistan ve Sınav bu modeli kullanır."
           }
         }
       }
@@ -8066,6 +8066,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Yaz"
+          }
+        }
+      }
+    },
+    "Writing continues when the phone has cooled." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Writing continues when the phone has cooled."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Telefon soğuyunca yazmaya devam edilir."
           }
         }
       }

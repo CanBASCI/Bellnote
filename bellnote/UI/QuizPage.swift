@@ -10,6 +10,7 @@ struct QuizPage: View {
     @Environment(AppSession.self) private var session
     @Environment(\.locale) private var locale
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.scenePhase) private var scenePhase
 
     @State private var quiz = QuizSession()
     @State private var sourceJump: QuizSourceJump?
@@ -90,6 +91,18 @@ struct QuizPage: View {
                     }
                 }
             }
+            #if DEBUG
+            if quiz.phase == .pickCourse || quiz.phase == .setup {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button {
+                        quiz.loadDummyResults()
+                    } label: {
+                        Image(systemName: "eye")
+                    }
+                    .accessibilityLabel(Text(verbatim: "Dummy results"))
+                }
+            }
+            #endif
             if quiz.phase == .setup, let course = quiz.course {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Prepare") {
@@ -105,6 +118,9 @@ struct QuizPage: View {
                     }
                 }
             }
+        }
+        .onChange(of: scenePhase, initial: true) { _, phase in
+            quiz.appPhaseChanged(isBackground: phase == .background)
         }
         .navigationDestination(item: $sourceJump) { jump in
             LecturePage(
@@ -277,6 +293,7 @@ struct QuizPage: View {
     private func setupView(_ course: Course, quiz: QuizSession) -> some View {
         @Bindable var quiz = quiz
         let media = quizFiles(course)
+        let recordings = readyLectures(course)
         // Same plain list as the course page. Prepare sits in the navigation bar.
         return List {
             Section {
@@ -319,6 +336,45 @@ struct QuizPage: View {
                 )
             }
 
+            if quiz.includeLectureNotes, !recordings.isEmpty {
+                Section {
+                    ForEach(recordings) { lecture in
+                        let picked = quiz.selectedLectureIDs.contains(lecture.persistentModelID)
+                        Button {
+                            quiz.toggleLecture(lecture.persistentModelID)
+                        } label: {
+                            HStack(alignment: .center, spacing: 12) {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(verbatim: lecture.startedAt.formatted(date: .abbreviated, time: .omitted))
+                                        .appFont(.subheadline, weight: .medium)
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(1)
+                                    Text(verbatim: lecture.title.isEmpty
+                                        ? lecture.startedAt.formatted(date: .abbreviated, time: .shortened)
+                                        : lecture.title)
+                                        .appFont(.subheadline)
+                                        .foregroundStyle(.primary)
+                                        .multilineTextAlignment(.leading)
+                                        .lineLimit(2)
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                Image(systemName: picked ? "checkmark.circle.fill" : "circle")
+                                    .appFont(.title3)
+                                    .foregroundStyle(picked ? Color.accentColor : Color.secondary)
+                                    .accessibilityHidden(true)
+                            }
+                            .contentShape(.rect)
+                        }
+                        .buttonStyle(.plain)
+                        .listRowBackground(Color.clear)
+                        .listRowInsets(.vertical, 8)
+                        .accessibilityAddTraits(picked ? .isSelected : [])
+                    }
+                } header: {
+                    sectionTitle("Recordings")
+                }
+            }
+
             Section {
                 if media.isEmpty {
                     Text("Add a PDF or image in Files for this course to include it here.")
@@ -354,6 +410,8 @@ struct QuizPage: View {
                                     .foregroundStyle(selected ? Color.accentColor : Color.secondary)
                                     .accessibilityHidden(true)
                             }
+                            // Empty space between the name and the mark must hit too — same as Recordings.
+                            .contentShape(.rect)
                         }
                         .buttonStyle(.plain)
                         .listRowBackground(Color.clear)
@@ -670,10 +728,17 @@ struct QuizPage: View {
         let hasFile = !quiz.selectedFileIDs.isEmpty
         if hasFile { return true }
         guard quiz.includeLectureNotes else { return false }
-        return course.lectures.contains {
-            $0.state == LectureState.ready.rawValue
-                && $0.blocks.contains { !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
-        }
+        return readyLectures(course).contains { quiz.selectedLectureIDs.contains($0.persistentModelID) }
+    }
+
+    /// Ready recordings that hold some text, newest first — the ones the quiz can use.
+    private func readyLectures(_ course: Course) -> [Lecture] {
+        course.lectures
+            .filter { lecture in
+                lecture.state == LectureState.ready.rawValue
+                    && lecture.blocks.contains { !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+            }
+            .sorted { $0.startedAt > $1.startedAt }
     }
 
     private func quizFiles(_ course: Course) -> [CourseFile] {

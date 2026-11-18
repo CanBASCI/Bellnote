@@ -29,6 +29,8 @@ final class QuizSession {
     private static let maxChoiceCharacters = 90
     private static let maxStemCharacters = 500
     private static let maxChoiceWords = 8
+    /// The answer the model copies from the material. A name or a term, not a clause.
+    private static let maxAnswerWords = 6
     /// Salvage prefers mid-length noun phrases, not the shortest token in the window.
     private static let idealChoiceCharacters = 28
     /// Discourse / glue words that look like “terms” after a period split (EN + TR).
@@ -46,6 +48,8 @@ final class QuizSession {
     var questionCount: QuizQuestionCount = .ten
     /// Off by default. When on, ready lecture notes of the course join the pool.
     var includeLectureNotes = false
+    /// Ready recordings the student picked. None are picked until the student taps them.
+    var selectedLectureIDs: Set<PersistentIdentifier> = []
     /// Selected course file persistent ids.
     var selectedFileIDs: Set<PersistentIdentifier> = []
 
@@ -75,6 +79,36 @@ final class QuizSession {
     }
 
     private var materialIndex: [String: Material] = [:]
+
+    /// True while the app is in the background. iOS gives no GPU time there, so no model call is started.
+    private var isInBackground = false
+    /// When the app last went to the background. A call that failed after this moment failed because of it.
+    private var lastBackgroundedAt: Date?
+
+    /// Fed by the quiz page from the scene phase.
+    func appPhaseChanged(isBackground: Bool) {
+        guard isBackground != isInBackground else { return }
+        isInBackground = isBackground
+        if isBackground {
+            lastBackgroundedAt = Date()
+        }
+        Self.log.info("Quiz app background=\(isBackground) phase=\(String(describing: self.phase), privacy: .public)")
+    }
+
+    /// Holds the write loop while the app is in the background and continues when it comes back.
+    private func waitForForeground() async {
+        guard isInBackground, phase == .preparing else { return }
+        let started = Date()
+        Self.log.info("Quiz pause: app is in the background")
+        while isInBackground, phase == .preparing {
+            do {
+                try await Task.sleep(for: .milliseconds(500))
+            } catch {
+                return
+            }
+        }
+        Self.log.info("Quiz resume after background ms=\(Int(Date().timeIntervalSince(started) * 1000))")
+    }
 
     private struct Material {
         var id: String
@@ -122,6 +156,7 @@ final class QuizSession {
         course = nil
         selectedFileIDs = []
         includeLectureNotes = false
+        selectedLectureIDs = []
         questions = []
         answers = []
         index = 0
@@ -139,6 +174,7 @@ final class QuizSession {
         self.course = course
         selectedFileIDs = []
         includeLectureNotes = false
+        selectedLectureIDs = []
         difficulty = .medium
         questionCount = .ten
         phase = .setup
@@ -164,6 +200,14 @@ final class QuizSession {
             selectedFileIDs.remove(id)
         } else {
             selectedFileIDs.insert(id)
+        }
+    }
+
+    func toggleLecture(_ id: PersistentIdentifier) {
+        if selectedLectureIDs.contains(id) {
+            selectedLectureIDs.remove(id)
+        } else {
+            selectedLectureIDs.insert(id)
         }
     }
 
@@ -243,7 +287,9 @@ final class QuizSession {
     }
 
     private func prepare(course: Course, replyLanguage: Locale) async {
+        let prepareStarted = Date()
         do {
+            Self.log.info("Quiz prepare begin target=\(self.questionCount.rawValue) difficulty=\(self.difficulty.rawValue, privacy: .public)")
             setStage(
                 String(localized: "Checking the model"),
                 String(localized: "The quiz uses the text model chosen in Settings."),
@@ -266,6 +312,9 @@ final class QuizSession {
                 return
             }
             materialIndex = Dictionary(uniqueKeysWithValues: materials.map { ($0.id, $0) })
+            Self.log.info(
+                "Quiz prepare materials=\(materials.count) ms=\(Int(Date().timeIntervalSince(prepareStarted) * 1000))"
+            )
 
             // Cold start can take many seconds — keep 1 / 10 off screen until weights are resident.
             setStage(
@@ -274,55 +323,59 @@ final class QuizSession {
                 fraction: 0.4
             )
             try await LocalModelRuntime.shared.warmTextModel()
+            Self.log.info(
+                "Quiz prepare warm done ms=\(Int(Date().timeIntervalSince(prepareStarted) * 1000))"
+            )
 
-            var built: [QuizQuestion] = []
+            var drafts: [PendingItem] = []
             var seenStems: [String] = []
             let target = questionCount.rawValue
             var cursor = 0
             var misses = 0
             /// Windows that already produced an accepted question — never reused this prepare.
             var acceptedIds: Set<String> = []
-            /// Windows that just failed — skip until the rest of the unused pool has been tried once.
-            var coolDownIds: Set<String> = []
+            /// Windows that already failed a check — never retried this prepare (retrying them burned heat).
+            var rejectedIds: Set<String> = []
             let missLimit = max(materials.count * 4, target * 3)
 
-            func nextMaterial(clearCoolDownIfStuck: Bool) -> Material? {
-                func pick(skipping cool: Set<String>) -> Material? {
-                    for _ in 0..<materials.count {
-                        let candidate = materials[cursor % materials.count]
-                        cursor += 1
-                        if acceptedIds.contains(candidate.id) { continue }
-                        if cool.contains(candidate.id) { continue }
-                        return candidate
-                    }
-                    return nil
+            func nextMaterial() -> Material? {
+                for _ in 0..<materials.count {
+                    let candidate = materials[cursor % materials.count]
+                    cursor += 1
+                    if acceptedIds.contains(candidate.id) { continue }
+                    if rejectedIds.contains(candidate.id) { continue }
+                    return candidate
                 }
-                if let material = pick(skipping: coolDownIds) {
-                    return material
-                }
-                guard clearCoolDownIfStuck, !coolDownIds.isEmpty else { return nil }
-                coolDownIds.removeAll()
-                return pick(skipping: [])
+                return nil
             }
 
-            while built.count < target && misses < missLimit {
-                guard let material = nextMaterial(clearCoolDownIfStuck: true) else {
+            while drafts.count < target && misses < missLimit {
+                guard let material = nextMaterial() else {
                     Self.log.info(
-                        "Quiz pool exhausted accepted=\(acceptedIds.count) built=\(built.count) target=\(target)"
+                        "Quiz pool exhausted accepted=\(acceptedIds.count) drafts=\(drafts.count) target=\(target) ms=\(Int(Date().timeIntervalSince(prepareStarted) * 1000))"
                     )
                     break
                 }
-                let writeFraction = 0.45 + (Double(built.count) / Double(max(target, 1))) * 0.5
+                await waitForForeground()
+                // A hot phone slows the GPU and fails more calls. Pace, pause, or end early with what is ready.
+                if await paceForHeat(draftCount: drafts.count, target: target) == .finishEarly {
+                    Self.log.warning(
+                        "Quiz heat finish early drafts=\(drafts.count) target=\(target) ms=\(Int(Date().timeIntervalSince(prepareStarted) * 1000))"
+                    )
+                    break
+                }
+                let writeFraction = 0.45 + (Double(drafts.count) / Double(max(target, 1))) * 0.5
                 setStage(
                     String(localized: "Preparing questions"),
                     writingDetail(from: materials),
                     fraction: writeFraction,
                     caption: String(
                         format: String(localized: "%1$lld / %2$lld"),
-                        built.count + 1,
+                        drafts.count + 1,
                         target
                     )
                 )
+                let itemStarted = Date()
                 do {
                     // One call per window — no parse-fail retry (that path burned heat on 1111…).
                     let draft = try await LocalModelRuntime.shared.makeQuizItem(
@@ -333,34 +386,52 @@ final class QuizSession {
                         replyLanguage: replyLanguage,
                         avoidStems: Array(seenStems.suffix(8))
                     )
-                    if let question = acceptDraft(draft, material: material, seenStems: seenStems) {
-                        built.append(question)
-                        seenStems.append(normalizedStem(question.prompt))
+                    let itemMs = Int(Date().timeIntervalSince(itemStarted) * 1000)
+                    if let item = acceptDraft(
+                        draft,
+                        material: material,
+                        seenStems: seenStems,
+                        elapsedMs: itemMs
+                    ) {
+                        drafts.append(item)
+                        seenStems.append(normalizedStem(item.prompt))
                         acceptedIds.insert(material.id)
-                        coolDownIds.remove(material.id)
                         misses = 0
+                        Self.log.info(
+                            "Quiz item accepted id=\(material.id, privacy: .public) ms=\(itemMs) drafts=\(drafts.count)/\(target) totalMs=\(Int(Date().timeIntervalSince(prepareStarted) * 1000))"
+                        )
                     } else {
-                        coolDownIds.insert(material.id)
+                        rejectedIds.insert(material.id)
                         misses += 1
                     }
                 } catch {
-                    coolDownIds.insert(material.id)
+                    let itemMs = Int(Date().timeIntervalSince(itemStarted) * 1000)
+                    // The app left the screen during this call. The window is not at fault, so it stays in the pool.
+                    if let left = lastBackgroundedAt, left >= itemStarted {
+                        Self.log.info(
+                            "Quiz item interrupted by background id=\(material.id, privacy: .public) ms=\(itemMs) \(error.localizedDescription, privacy: .public)"
+                        )
+                        continue
+                    }
+                    rejectedIds.insert(material.id)
                     misses += 1
                     Self.log.warning(
-                        "Quiz item skip id=\(material.id, privacy: .public) \(error.localizedDescription, privacy: .public)"
+                        "Quiz item skip id=\(material.id, privacy: .public) ms=\(itemMs) totalMs=\(Int(Date().timeIntervalSince(prepareStarted) * 1000)) \(error.localizedDescription, privacy: .public)"
                     )
                 }
             }
 
+            // The model gave only a question and an answer. Swift builds the wrong choices and the key letter.
+            let built = buildQuestions(from: drafts, materials: materials)
             guard !built.isEmpty else {
+                Self.log.error(
+                    "Quiz prepare empty drafts=\(drafts.count) ms=\(Int(Date().timeIntervalSince(prepareStarted) * 1000))"
+                )
                 phase = .failed(String(localized: "The model could not prepare questions. Try again."))
                 statusDetail = ""
                 statusCaption = ""
                 prepareFraction = 0
                 return
-            }
-            if built.count > target {
-                built = Array(built.prefix(target))
             }
             setStage(
                 String(localized: "Almost ready"),
@@ -377,7 +448,12 @@ final class QuizSession {
             statusDetail = ""
             statusCaption = ""
             prepareFraction = 0
-            Self.log.info("Quiz ready count=\(built.count) difficulty=\(self.difficulty.rawValue, privacy: .public)")
+            Self.log.info(
+                "Quiz ready count=\(built.count) difficulty=\(self.difficulty.rawValue, privacy: .public) ms=\(Int(Date().timeIntervalSince(prepareStarted) * 1000))"
+            )
+            #if DEBUG
+            logQuestions(built)
+            #endif
         } catch LocalModelError.notInstalled {
             phase = .needsModel
             statusLine = String(localized: "Download a text model in Settings.")
@@ -385,12 +461,123 @@ final class QuizSession {
             statusCaption = ""
             prepareFraction = 0
         } catch {
-            Self.log.error("Quiz prepare failed \(error.localizedDescription, privacy: .public)")
+            Self.log.error(
+                "Quiz prepare failed ms=\(Int(Date().timeIntervalSince(prepareStarted) * 1000)) \(error.localizedDescription, privacy: .public)"
+            )
             phase = .failed(String(localized: "The model could not prepare questions. Try again."))
             statusDetail = ""
             statusCaption = ""
             prepareFraction = 0
         }
+    }
+
+    #if DEBUG
+    /// Debug builds only: writes every question with its choices and key so the log shows what the student sees.
+    private func logQuestions(_ questions: [QuizQuestion]) {
+        for (offset, question) in questions.enumerated() {
+            let choices = question.choiceLines
+                .map { "\($0.0.rawValue): \($0.1)" }
+                .joined(separator: " | ")
+            Self.log.info(
+                "Quiz q\(offset + 1)/\(questions.count) key=\(question.correct.rawValue, privacy: .public) source=\(question.sourceTitle, privacy: .public) :: \(question.prompt, privacy: .public) | \(choices, privacy: .public)"
+            )
+        }
+    }
+
+    /// Debug builds only: fills the session with made-up answers and opens the results page for layout work.
+    func loadDummyResults() {
+        let samples: [(prompt: String, key: QuizChoice, choices: [QuizChoice: String], picked: QuizChoice, seconds: TimeInterval)] = [
+            ("Which organelle produces most of the cell's ATP?", .a, [.a: "Mitochondria", .b: "Ribosome", .c: "Golgi apparatus"], .a, 6.4),
+            ("What is the capital of Australia?", .b, [.a: "Sydney", .b: "Canberra", .c: "Melbourne"], .a, 11.2),
+            ("Who wrote the novel Saatleri Ayarlama Enstitüsü?", .c, [.a: "Orhan Pamuk", .b: "Yaşar Kemal", .c: "Ahmet Hamdi Tanpınar"], .c, 8.9),
+            ("What does the acronym CPU stand for?", .a, [.a: "Central processing unit", .b: "Computer personal unit", .c: "Control program utility"], .b, 14.7),
+            ("Which year did the Republic of Türkiye begin?", .b, [.a: "1920", .b: "1923", .c: "1938"], .b, 5.1),
+            ("Which gas do plants take in for photosynthesis?", .c, [.a: "Oxygen", .b: "Nitrogen", .c: "Carbon dioxide"], .c, 4.8),
+            ("What is the derivative of sin(x)?", .a, [.a: "cos(x)", .b: "-sin(x)", .c: "tan(x)"], .c, 19.3),
+            ("Which layer of the OSI model handles routing?", .b, [.a: "Data link", .b: "Network", .c: "Transport"], .b, 9.6),
+            ("What is the unit of electrical resistance?", .c, [.a: "Volt", .b: "Watt", .c: "Ohm"], .c, 3.7),
+            ("Which sorting algorithm has O(n log n) worst case?", .a, [.a: "Merge sort", .b: "Bubble sort", .c: "Insertion sort"], .b, 16.0),
+        ]
+        let built = samples.map { sample in
+            QuizQuestion(
+                id: UUID(),
+                prompt: sample.prompt,
+                choices: sample.choices,
+                correct: sample.key,
+                sourceKind: .block,
+                sourceTitle: "Dummy source",
+                blockToken: nil,
+                second: nil,
+                lectureID: nil,
+                fileID: nil,
+                courseID: nil,
+                stickyToken: nil,
+                sourceExcerpt: "",
+                sourcePageIndex: nil
+            )
+        }
+        questions = built
+        answers = zip(built, samples).map { question, sample in
+            QuizAnswerRecord(id: UUID(), question: question, picked: sample.picked, seconds: sample.seconds)
+        }
+        index = built.count - 1
+        reviewIndex = 0
+        picked = nil
+        questionStartedAt = nil
+        phase = .results
+    }
+    #endif
+
+    private enum HeatVerdict {
+        case go
+        case finishEarly
+    }
+
+    /// Reads the thermal state before each model call.
+    /// Serious: a short pause between questions. Critical: writing stops, the ring says the phone is cooling,
+    /// and it resumes once the state drops below critical. If it stays critical too long, the quiz opens
+    /// with the questions already accepted (or fails when there are none).
+    private func paceForHeat(draftCount: Int, target: Int) async -> HeatVerdict {
+        var state = ProcessInfo.processInfo.thermalState
+        guard state == .serious || state == .critical else { return .go }
+        if state == .serious {
+            Self.log.info("Quiz heat serious pause drafts=\(draftCount)")
+            do {
+                try await Task.sleep(for: .seconds(2.5))
+            } catch {
+                return .finishEarly
+            }
+            return .go
+        }
+        let limit: TimeInterval = draftCount == 0 ? 180 : 60
+        let started = Date()
+        Self.log.warning("Quiz heat critical pause begin drafts=\(draftCount) limitSeconds=\(Int(limit))")
+        setStage(
+            String(localized: "Phone is cooling down"),
+            String(localized: "Writing continues when the phone has cooled."),
+            fraction: 0.45 + (Double(draftCount) / Double(max(target, 1))) * 0.5,
+            caption: String(
+                format: String(localized: "%1$lld / %2$lld"),
+                draftCount + 1,
+                target
+            )
+        )
+        while state == .critical {
+            if Date().timeIntervalSince(started) >= limit {
+                Self.log.warning("Quiz heat critical pause gave up seconds=\(Int(limit))")
+                return .finishEarly
+            }
+            do {
+                try await Task.sleep(for: .seconds(3))
+            } catch {
+                return .finishEarly
+            }
+            state = ProcessInfo.processInfo.thermalState
+        }
+        Self.log.info(
+            "Quiz heat critical pause end seconds=\(Int(Date().timeIntervalSince(started))) state=\(state.rawValue)"
+        )
+        return .go
     }
 
     private func setStage(
@@ -405,92 +592,201 @@ final class QuizSession {
         prepareFraction = min(max(fraction, 0), 1)
     }
 
-    /// Matches what the student actually put in the pool — notes only, files only, or both.
+    /// Matches what the student actually put in the pool — recordings only, files only, or both.
     private func writingDetail(from materials: [Material]) -> String {
         let hasNotes = materials.contains { $0.kind == .block }
         let hasFiles = materials.contains { $0.kind == .file }
         switch (hasNotes, hasFiles) {
         case (true, true):
-            return String(localized: "Each question is prepared only from the notes and files you selected.")
+            return String(localized: "Each question is prepared only from the recordings and files you selected.")
         case (true, false):
-            return String(localized: "Each question is prepared only from the lecture notes you included.")
-        case (false, true):
+            return String(localized: "Each question is prepared only from the recordings you selected.")
+        case (false, _):
+            // Prepare stays off with nothing selected, and an empty pool fails before this line is shown.
             return String(localized: "Each question is prepared only from the files you selected.")
-        case (false, false):
-            return String(localized: "Each question is prepared only from the material you selected.")
         }
     }
 
-    /// Maps a draft and checks duplicates. Logs why a draft was dropped.
+    /// A question the model wrote, checked against its material. Choices are added later in Swift.
+    private struct PendingItem {
+        var prompt: String
+        var answer: String
+        var material: Material
+    }
+
+    /// Checks a draft and its duplicates. Logs why a draft was dropped.
     private func acceptDraft(
         _ draft: QuizDraftItem,
         material: Material,
-        seenStems: [String]
-    ) -> QuizQuestion? {
+        seenStems: [String],
+        elapsedMs: Int
+    ) -> PendingItem? {
         switch mapDraft(draft, fallback: material) {
-        case .success(let question):
-            guard !isDuplicate(question.prompt, in: seenStems) else {
-                Self.log.warning("Quiz item rejected id=\(material.id, privacy: .public) reason=duplicate")
+        case .success(let item):
+            guard !isDuplicate(item.prompt, in: seenStems) else {
+                Self.log.warning(
+                    "Quiz item rejected id=\(material.id, privacy: .public) reason=duplicate ms=\(elapsedMs)"
+                )
                 return nil
             }
-            return question
+            return item
         case .failure(let reason):
             Self.log.warning(
-                "Quiz item rejected id=\(material.id, privacy: .public) reason=\(reason.rawValue, privacy: .public)"
+                "Quiz item rejected id=\(material.id, privacy: .public) reason=\(reason.rawValue, privacy: .public) ms=\(elapsedMs)"
             )
             return nil
         }
     }
 
     private enum DraftRejectReason: String, Error {
-        case badCorrect
         case badStem
         case copiedStem
-        case badChoice
-        case duplicateChoices
+        case badAnswer
+        case answerNotInMaterial
+        case answerInStem
     }
 
-    private func mapDraft(_ draft: QuizDraftItem, fallback: Material) -> Result<QuizQuestion, DraftRejectReason> {
-        guard let correct = QuizChoice(rawValue: draft.correct.rawValue) else {
-            return .failure(.badCorrect)
-        }
-        // 2B often pastes A) B) C) into the stem and leaves choice fields as junk / numbers.
-        let embedded = parseEmbeddedChoices(draft.question)
-        let rawA = embedded?.choices[.a] ?? draft.choiceA
-        let rawB = embedded?.choices[.b] ?? draft.choiceB
-        let rawC = embedded?.choices[.c] ?? draft.choiceC
-        let stemSource = embedded?.stem ?? draft.question
-        guard let prompt = clippedStem(stemSource) else { return .failure(.badStem) }
+    /// The stem must be a complete question, the answer must be words that the material really holds,
+    /// and the stem must not give the answer away. The model never picks the key.
+    private func mapDraft(_ draft: QuizDraftItem, fallback: Material) -> Result<PendingItem, DraftRejectReason> {
+        guard let prompt = clippedStem(draft.question) else { return .failure(.badStem) }
         guard !isCopiedStem(prompt, from: fallback.text) else { return .failure(.copiedStem) }
-        var slots: [String?] = [clippedChoice(rawA), clippedChoice(rawB), clippedChoice(rawC)]
-        let hadNil = slots.contains(where: { $0 == nil })
-        guard let filled = completeChoices(
-            &slots,
-            materialText: fallback.text,
-            materialId: fallback.id
-        ) else {
-            return .failure(hadNil ? .badChoice : .duplicateChoices)
+        guard let answer = clippedAnswer(draft.answer) else { return .failure(.badAnswer) }
+        guard answerAppears(in: fallback.text, answer: answer) else {
+            return .failure(.answerNotInMaterial)
         }
-        // Always keep the material we asked for — the model often invents sourceId.
-        let material = fallback
-        return .success(
-            QuizQuestion(
-                id: UUID(),
-                prompt: prompt,
-                choices: [.a: filled[0], .b: filled[1], .c: filled[2]],
-                correct: correct,
-                sourceKind: material.kind,
-                sourceTitle: material.title,
-                blockToken: material.blockToken,
-                second: material.second,
-                lectureID: material.lectureID,
-                fileID: material.fileID,
-                courseID: material.courseID,
-                stickyToken: material.stickyToken,
-                sourceExcerpt: Self.excerptForFind(material.text),
-                sourcePageIndex: material.pageIndex
+        // The full answer as a phrase in the stem gives the key away. A single shared topic word is allowed.
+        if answerPhraseAppears(in: prompt, answer: answer) { return .failure(.answerInStem) }
+        return .success(PendingItem(prompt: prompt, answer: answer, material: fallback))
+    }
+
+    /// True when every answer word of length 2+ appears in the material (order does not matter).
+    /// Contiguous match is preferred; word-bag match recovers “Bilişsel gelişim” vs hyphenation or reordering.
+    private func answerAppears(in material: String, answer: String) -> Bool {
+        let answerNorm = normalizedStem(answer)
+        guard !answerNorm.isEmpty else { return false }
+        let materialNorm = " \(normalizedStem(material)) "
+        if materialNorm.contains(" \(answerNorm) ") { return true }
+        let words = answerNorm.split(separator: " ").map(String.init).filter { $0.count >= 2 }
+        guard !words.isEmpty else { return false }
+        return words.allSatisfy { materialNorm.contains(" \($0) ") }
+    }
+
+    /// True when the answer’s words sit as one contiguous phrase inside the stem.
+    private func answerPhraseAppears(in stem: String, answer: String) -> Bool {
+        let answerNorm = normalizedStem(answer)
+        guard !answerNorm.isEmpty else { return false }
+        let words = answerNorm.split(separator: " ").map(String.init)
+        // One short shared word (e.g. a topic name of 1 token) is not enough to call it a giveaway.
+        guard words.count >= 2 || answerNorm.count >= 8 else { return false }
+        return " \(normalizedStem(stem)) ".contains(" \(answerNorm) ")
+    }
+
+    /// Short words the model says answer the question. One word is fine here (a name, a date);
+    /// the material check in `mapDraft` is what keeps it honest.
+    private func clippedAnswer(_ raw: String) -> String? {
+        var text = cleanedChoice(raw)
+        let edge = CharacterSet(charactersIn: ".,;:!?\"'“”‘’()[]")
+        text = text.trimmingCharacters(in: edge.union(.whitespacesAndNewlines))
+        guard text.count >= 2 else { return nil }
+        guard !isDegenerateText(text) else { return nil }
+        guard !isWeakChoiceLabel(text) else { return nil }
+        guard !looksLikeSentenceChoice(text) else { return nil }
+        let words = text.split { $0.isWhitespace || $0.isNewline }.filter { !$0.isEmpty }
+        guard !words.isEmpty, words.count <= Self.maxAnswerWords else { return nil }
+        guard text.count <= Self.maxChoiceCharacters else { return nil }
+        let lettersOnly = text.trimmingCharacters(in: CharacterSet.alphanumerics.inverted).uppercased()
+        if lettersOnly.count == 1, QuizChoice(rawValue: lettersOnly) != nil { return nil }
+        return text
+    }
+
+    /// Turns each checked question into A–C. The wrong choices are the other answers of this quiz,
+    /// picked for a similar shape, and none of them may appear in this question's own passage.
+    /// The key letter is a Swift shuffle. A question that cannot get two wrong choices is dropped.
+    private func buildQuestions(from drafts: [PendingItem], materials: [Material]) -> [QuizQuestion] {
+        var out: [QuizQuestion] = []
+        for item in drafts {
+            let others = drafts
+                .filter { $0.material.id != item.material.id }
+                .map(\.answer)
+            guard let wrong = pickWrongChoices(for: item, others: others, materials: materials) else {
+                Self.log.warning("Quiz item dropped id=\(item.material.id, privacy: .public) reason=noWrongChoices")
+                continue
+            }
+            let shuffled = ([item.answer] + wrong).shuffled()
+            guard let keyIndex = shuffled.firstIndex(of: item.answer), shuffled.count == 3 else { continue }
+            let keys = QuizChoice.allCases
+            var choices: [QuizChoice: String] = [:]
+            for (place, text) in shuffled.enumerated() { choices[keys[place]] = text }
+            let material = item.material
+            out.append(
+                QuizQuestion(
+                    id: UUID(),
+                    prompt: item.prompt,
+                    choices: choices,
+                    correct: keys[keyIndex],
+                    sourceKind: material.kind,
+                    sourceTitle: material.title,
+                    blockToken: material.blockToken,
+                    second: material.second,
+                    lectureID: material.lectureID,
+                    fileID: material.fileID,
+                    courseID: material.courseID,
+                    stickyToken: material.stickyToken,
+                    sourceExcerpt: Self.excerptForFind(material.text),
+                    sourcePageIndex: material.pageIndex
+                )
             )
-        )
+        }
+        return out
+    }
+
+    /// Two wrong choices that look like the answer (a number next to a number, a name next to a name,
+    /// a similar length) and are not in the question's own passage. With too few other answers,
+    /// short phrases from other passages fill in.
+    private func pickWrongChoices(for item: PendingItem, others: [String], materials: [Material]) -> [String]? {
+        let ownText = " \(normalizedStem(item.material.text)) "
+        var excluding: Set<String> = [item.answer.lowercased()]
+
+        func usable(_ candidate: String) -> Bool {
+            let fold = candidate.lowercased()
+            if excluding.contains(where: { choicesNearlySame($0, fold) }) { return false }
+            let norm = normalizedStem(candidate)
+            guard !norm.isEmpty else { return false }
+            return !ownText.contains(" \(norm) ")
+        }
+
+        var candidates = others.filter(usable)
+        if candidates.count < 4 {
+            let rest = materials.filter { $0.id != item.material.id }.shuffled().prefix(4)
+            for other in rest {
+                candidates.append(contentsOf: distractorPool(from: other.text, excluding: excluding).filter(usable))
+            }
+        }
+        let ranked = candidates.shuffled().sorted {
+            shapeScore(of: $0, like: item.answer) > shapeScore(of: $1, like: item.answer)
+        }
+        var picked: [String] = []
+        for candidate in ranked {
+            let fold = candidate.lowercased()
+            if excluding.contains(where: { choicesNearlySame($0, fold) }) { continue }
+            excluding.insert(fold)
+            picked.append(candidate)
+            if picked.count == 2 { return picked }
+        }
+        return nil
+    }
+
+    /// Higher is closer to the answer in shape: a digit next to a digit, a capital next to a capital,
+    /// a similar number of words and letters.
+    private func shapeScore(of candidate: String, like answer: String) -> Double {
+        var score = 0.0
+        if candidate.contains(where: \.isNumber) == answer.contains(where: \.isNumber) { score += 2 }
+        if (candidate.first?.isUppercase ?? false) == (answer.first?.isUppercase ?? false) { score += 1 }
+        let words = { (text: String) in text.split { $0.isWhitespace || $0.isNewline }.count }
+        score -= Double(abs(words(candidate) - words(answer)))
+        score -= Double(abs(candidate.count - answer.count)) / 10
+        return score
     }
 
     /// Passage snippet for PDFKit find — first solid line, soft hyphens stripped, capped.
@@ -513,64 +809,7 @@ final class QuizSession {
         return String(compact[..<end])
     }
 
-    /// Fills missing choices and replaces duplicates with short phrases taken from the same material.
-    private func completeChoices(
-        _ slots: inout [String?],
-        materialText: String,
-        materialId: String
-    ) -> [String]? {
-        var excluding = Set(slots.compactMap { $0?.lowercased() })
-        var pool = distractorPool(from: materialText, excluding: excluding)
-        var salvaged = 0
-        for index in slots.indices where slots[index] == nil {
-            guard let next = takeDistractor(from: &pool, excluding: &excluding) else { return nil }
-            slots[index] = next
-            salvaged += 1
-        }
-        var seen: [String] = []
-        for index in slots.indices {
-            guard let current = slots[index] else { return nil }
-            let fold = current.lowercased()
-            if seen.contains(where: { choicesNearlySame($0, fold) }) {
-                guard let next = takeDistractor(from: &pool, excluding: &excluding) else { return nil }
-                slots[index] = next
-                seen.append(next.lowercased())
-                salvaged += 1
-            } else {
-                seen.append(fold)
-            }
-        }
-        let filled = slots.compactMap { $0 }
-        guard filled.count == 3 else { return nil }
-        let folds = filled.map { $0.lowercased() }
-        guard Set(folds).count == 3 else { return nil }
-        // One soft repair is OK; two+ means the draft was mostly junk — drop it.
-        guard salvaged <= 1 else {
-            Self.log.info(
-                "Quiz choices salvage rejected id=\(materialId, privacy: .public) count=\(salvaged)"
-            )
-            return nil
-        }
-        if salvaged > 0 {
-            Self.log.info(
-                "Quiz choices salvaged id=\(materialId, privacy: .public) count=\(salvaged)"
-            )
-        }
-        return filled
-    }
-
-    private func takeDistractor(from pool: inout [String], excluding: inout Set<String>) -> String? {
-        while let next = pool.first {
-            pool.removeFirst()
-            let fold = next.lowercased()
-            if excluding.contains(where: { choicesNearlySame($0, fold) }) { continue }
-            excluding.insert(fold)
-            return next
-        }
-        return nil
-    }
-
-    /// Named phrases from the material window — used only to repair one junk/duplicate choice.
+    /// Short named phrases from a material window — filler when the quiz has too few other answers.
     private func distractorPool(from text: String, excluding: Set<String>) -> [String] {
         let separators = CharacterSet(charactersIn: ".\n;!?|/•·")
         var seen = Set<String>()
@@ -611,62 +850,41 @@ final class QuizSession {
         return Double(leftWords.intersection(rightWords).count) / Double(base) >= 0.8
     }
 
-    /// When the model stuffs `A) … B) … C) …` into `question`, pull stem + three choices out.
-    private func parseEmbeddedChoices(
-        _ raw: String
-    ) -> (stem: String, choices: [QuizChoice: String])? {
-        let text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let a = choiceMarkerRange("A", in: text),
-              let b = choiceMarkerRange("B", in: text, after: a.upperBound),
-              let c = choiceMarkerRange("C", in: text, after: b.upperBound)
-        else { return nil }
-        let stem = String(text[..<a.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
-        let choiceA = String(text[a.upperBound..<b.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
-        let choiceB = String(text[b.upperBound..<c.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
-        // Ignore a trailing “D)” the model sometimes still appends.
-        var choiceC = String(text[c.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
-        if let d = choiceMarkerRange("D", in: choiceC) {
-            choiceC = String(choiceC[..<d.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
-        }
-        guard !stem.isEmpty, !choiceA.isEmpty, !choiceB.isEmpty, !choiceC.isEmpty else {
-            return nil
-        }
-        return (stem, [.a: choiceA, .b: choiceB, .c: choiceC])
-    }
-
-    private func choiceMarkerRange(
-        _ letter: String,
-        in text: String,
-        after start: String.Index? = nil
-    ) -> Range<String.Index>? {
-        let from = start ?? text.startIndex
-        let slice = text[from...]
-        for marker in [" \(letter))", " \(letter).", " \(letter):", "\n\(letter))", "\n\(letter).", "\n\(letter):"] {
-            if let range = slice.range(of: marker, options: [.caseInsensitive]) {
-                return range
-            }
-        }
-        // Leading “A)” with no space before it.
-        if start == nil {
-            for marker in ["\(letter))", "\(letter).", "\(letter):"] {
-                if text.range(of: marker, options: [.caseInsensitive, .anchored]) != nil {
-                    return text.range(of: marker, options: [.caseInsensitive, .anchored])
-                }
-            }
-        }
-        return nil
-    }
-
-    /// Keeps a complete question through its first `?`. Never mid-sentence soft-clip; never invents `?`.
+    /// Keeps a complete question through its first `?`. A short stem with no mark gets one `?` added
+    /// when it already reads as a question (nedir / mi / what / …); statements and pastes stay rejected.
     private func clippedStem(_ raw: String) -> String? {
-        let text = cleanedStem(raw)
+        var text = cleanedStem(raw)
         guard !isDegenerateText(text) else { return nil }
+        if text.firstIndex(of: "?") == nil {
+            let compact = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard compact.count >= 12, compact.count <= 140 else { return nil }
+            guard looksLikeQuestionStem(compact) else { return nil }
+            text = compact + "?"
+        }
         guard let q = text.firstIndex(of: "?") else { return nil }
         let throughQ = String(text[...q]).trimmingCharacters(in: .whitespacesAndNewlines)
         let count = throughQ.count
         guard count >= 12 && count <= Self.maxStemCharacters else { return nil }
         guard !isDegenerateText(throughQ) else { return nil }
         return throughQ
+    }
+
+    /// Heuristic for a stem that forgot its `?` but is still a question, not a pasted sentence.
+    private func looksLikeQuestionStem(_ text: String) -> Bool {
+        let fold = text.lowercased()
+        let cues = [
+            "nedir", "nelerdir", "hangisi", "hangileri", "kimdir", "nasıl", "neden", "niçin",
+            "kaç", "ne zaman", "hangi", " midir", " mıdır", " mudur", " müdür",
+            " mi?", " mı?", " mu?", " mü?",
+            "what ", "which ", "who ", "when ", "where ", "why ", "how ",
+        ]
+        if cues.contains(where: { fold.contains($0) }) { return true }
+        // Trailing Turkish question particle without the mark: "... midir" already covered; bare "mi"/"mı" at end.
+        let trimmed = fold.trimmingCharacters(in: .whitespacesAndNewlines)
+        for ending in [" mi", " mı", " mu", " mü", " midir", " mıdır", " mudur", " müdür"] {
+            if trimmed.hasSuffix(ending) { return true }
+        }
+        return false
     }
 
     /// True when the stem is mostly a paste of the material window, not a real question.
@@ -702,10 +920,20 @@ final class QuizSession {
     }
 
     /// True when the model pasted a clause/paragraph instead of a short label.
+    /// Titles like “Dr. George Engel, 1977” keep their abbreviation periods — those are not sentences.
     private func looksLikeSentenceChoice(_ text: String) -> Bool {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.contains(". ") || trimmed.contains("! ") || trimmed.contains("? ") { return true }
-        if trimmed.hasSuffix(".") || trimmed.hasSuffix("!") || trimmed.hasSuffix("?") { return true }
+        let withoutTitles = trimmed.replacingOccurrences(
+            of: #"\b(Dr|Mr|Mrs|Ms|Prof|Doç|Yrd|Jr|Sr)\."#,
+            with: "$1",
+            options: [.regularExpression, .caseInsensitive]
+        )
+        if withoutTitles.contains(". ") || withoutTitles.contains("! ") || withoutTitles.contains("? ") {
+            return true
+        }
+        if withoutTitles.hasSuffix(".") || withoutTitles.hasSuffix("!") || withoutTitles.hasSuffix("?") {
+            return true
+        }
         if trimmed.contains(";") { return true }
         let words = trimmed.split { $0.isWhitespace || $0.isNewline }.filter { !$0.isEmpty }
         return words.count > Self.maxChoiceWords
@@ -789,7 +1017,7 @@ final class QuizSession {
                 fraction: 0.22
             )
             let ready = course.lectures
-                .filter { $0.state == LectureState.ready.rawValue }
+                .filter { $0.state == LectureState.ready.rawValue && selectedLectureIDs.contains($0.persistentModelID) }
                 .sorted { $0.startedAt > $1.startedAt }
             var noteWindows: [(chunk: String, title: String, block: Block, lecture: Lecture)] = []
             for lecture in ready {

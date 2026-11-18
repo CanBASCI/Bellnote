@@ -418,7 +418,7 @@ struct ModelsPage: View {
                         }
                     }
                     .pickerStyle(.menu)
-                    Text("Tags, AI correction and Ask use this model.")
+                    Text("Tags, AI correction, Ask, Assistant and Quiz use this model.")
                         .appFont(.caption)
                         .foregroundStyle(.secondary)
                 }

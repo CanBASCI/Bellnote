@@ -202,8 +202,8 @@ actor LocalModelRuntime {
         }
     }
 
-    /// One multiple-choice item for the Quiz tab. One call per question — a 2B model often
-    /// fails to parse a batch of items. Uses the Settings text model only.
+    /// One question and its answer span for the Quiz tab. One call per question — a 2B model often
+    /// fails to parse a batch of items. Swift builds the choices. Uses the Settings text model only.
     func makeQuizItem(
         materialId: String,
         materialTitle: String,
@@ -214,6 +214,7 @@ actor LocalModelRuntime {
     ) async throws -> QuizDraftItem {
         beginCall()
         defer { endCall() }
+        let started = Date()
         let role = try composeRole()
         let languageName = Self.replyLanguageName(replyLanguage)
         Self.log.info(
@@ -231,29 +232,32 @@ actor LocalModelRuntime {
             }
             let prompt = """
                 Difficulty: \(difficulty).
-                Write exactly one NEW multiple-choice question from this material.
-                sourceId must be \(materialId).
-                question = one short complete stem ending with ?. Ceiling 140 — stop when done. Ask; do not paste material. No A) B) C) inside.
-                choiceA, choiceB, choiceC = three DIFFERENT short named concepts from THIS material (2–8 words, under 90 characters). Labels only — no full sentences, no commas that start a clause.
-                Prefer theory names, author names, and technical terms. No discourse words. No lone letter A/B/C. No bare number. No D.
-                correct = A or B or C.
+                Write exactly one NEW question from this material.
+                question = one short complete question ending with ?. At most 140 characters. Never put the answer in it. No A) B) C).
+                answer = the exact words copied from the material that answer the question: a name, term, number, or short phrase of 1 to 6 words. Not a sentence.
+                Ask about a named concept, person, term, date, or definition that the material states.
                 \(avoidBlock)
                 Material:
                 [\(materialId)] \(materialTitle)
                 \(materialText)
                 """
             // One attempt only. A parse/length fail retry on 2B usually wastes 15–20s on 1111… junk.
+            // Two short fields fit well inside this budget; the old six-field form needed about 260.
             let response = try await guarded {
                 try await session.respond(
                     to: prompt,
                     generating: QuizDraftItem.self,
-                    options: GenerationOptions(temperature: 0.55, maximumResponseTokens: 260)
+                    options: GenerationOptions(temperature: 0.4, maximumResponseTokens: 120)
                 )
             }
-            Self.log.info("Quiz item ok source=\(response.content.sourceId, privacy: .public)")
+            Self.log.info(
+                "Quiz item ok id=\(materialId, privacy: .public) ms=\(Int(Date().timeIntervalSince(started) * 1000))"
+            )
             return response.content
         } catch {
-            Self.log.error("Quiz item failed: \(error.localizedDescription, privacy: .public)")
+            Self.log.error(
+                "Quiz item failed id=\(materialId, privacy: .public) ms=\(Int(Date().timeIntervalSince(started) * 1000)) \(error.localizedDescription, privacy: .public)"
+            )
             throw error
         }
     }
@@ -723,14 +727,12 @@ actor LocalModelRuntime {
 
     private func quizInstructions(replyLanguage: String) -> String {
         """
-        You write one multiple-choice study question from the given material only. \
+        You write one study question from the given material only, with the short answer the material gives. \
         Do not use outside knowledge. Do not invent a fact that is not in the material. \
-        Write in \(replyLanguage). \
-        Order: question, choiceA, choiceB, choiceC, correct, sourceId. \
-        question is one short complete stem ending with ? (ceiling 140 — stop when done, do not pad or paste). \
-        Exactly three choices A B C — short named concepts from the material (2–8 words), never full sentences, never discourse words, never the same twice, never a lone letter, no D. \
-        correct is A, B, or C. Prefer named terms over full sentences. \
-        Wrong choices must be plausible but false. Never repeat a prior question. \
+        Write the question in \(replyLanguage). \
+        question is one short complete question ending with ? (at most 140 characters, never the answer inside). \
+        answer is copied word for word from the material: 1 to 6 words, a name, term, number, or short phrase. \
+        Never repeat a prior question. \
         Thinking is off.
         """
     }

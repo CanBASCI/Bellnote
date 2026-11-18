@@ -2,38 +2,20 @@ import Foundation
 import FoundationModels
 import SwiftData
 
-/// Forced A–C letter so GuidedGen cannot omit or invent `correct`.
-@Generable
-enum QuizDraftLetter: String, Sendable {
-    case a = "A"
-    case b = "B"
-    case c = "C"
-}
-
-/// One multiple-choice item. Generated alone — a 2B model often breaks on a batch array.
-/// Field order matters: question and choices first so a short token budget still fills them.
+/// One question and its answer span. Generated alone — a 2B model often breaks on a batch array.
+/// The model writes only these two fields. Swift checks the answer against the material, builds the
+/// wrong choices, and shuffles the letter, so the model never picks the key.
+/// The order in the encoded schema is not under our control, so neither field may depend on the other.
 @Generable
 struct QuizDraftItem {
-    /// Stem only. Never include A, B, C or the choice text here.
+    /// Stem only. Never include the answer or A, B, C here.
     /// No Regex pattern on the stem — length patterns made GuidedGen stall mid-field on 2B.
-    @Guide(description: "One short complete question ending with ?. At most 140 characters — stop when done, do not paste material. No A/B/C inside.")
+    @Guide(description: "One short complete question ending with ?. At most 140 characters. Never include the answer in it. No A/B/C.")
     var question: String
 
-    @Guide(description: "Short named concept from the material for A, 2–8 words, under 90 characters. Not a sentence. Not only a letter.")
-    var choiceA: String
-
-    @Guide(description: "Short named concept from the material for B, different from A and C, 2–8 words, under 90 characters. Not a sentence.")
-    var choiceB: String
-
-    @Guide(description: "Short named concept from the material for C, different from A and B, 2–8 words, under 90 characters. Not a sentence.")
-    var choiceC: String
-
-    @Guide(description: "The one correct choice letter: A, B, or C.")
-    var correct: QuizDraftLetter
-
-    /// Short id from the materials list, such as B0 or F1.
-    @Guide(description: "Material id such as B0 or F1.")
-    var sourceId: String
+    /// Words copied from the material, so Swift can check the fact is really there.
+    @Guide(description: "The exact words from the material that answer the question: a name, term, number, or short phrase of 1 to 6 words, copied as written. Not a sentence.")
+    var answer: String
 }
 
 enum QuizDifficulty: String, CaseIterable, Identifiable, Sendable {
