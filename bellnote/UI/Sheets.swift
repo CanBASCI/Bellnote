@@ -1394,7 +1394,7 @@ private struct HourLabelHeightKey: PreferenceKey {
 
 struct ProgramPage: View {
     @Bindable var term: Term
-    /// Set when Assistant Source opens a slot. Nil on the Timetable tab, which starts on today.
+    /// Set when Assistant Source opens a slot. Nil from Home, which starts on today.
     var focusMinutes: Int?
     @Environment(\.modelContext) private var modelContext
     @Environment(\.colorScheme) private var colorScheme

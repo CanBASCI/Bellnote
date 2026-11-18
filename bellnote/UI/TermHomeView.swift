@@ -6,8 +6,8 @@ import UIKit
 
 private enum HomeTab: Hashable {
     case home
-    case timetable
     case files
+    case quiz
     case assistant
     case settings
 }
@@ -47,20 +47,20 @@ struct TermHomeView: View {
                     .tag(HomeTab.home)
 
                     NavigationStack {
-                        ProgramPage(term: term)
-                    }
-                    .tabItem { Label("Timetable", systemImage: "calendar.day.timeline.left") }
-                    .tag(HomeTab.timetable)
-                    // Off while a recording is processed — keep focus on the run.
-                    .disabled(PipelineActivity.shared.isBusy)
-
-                    NavigationStack {
                         FilesPage(term: term)
                     }
                     .tabItem { Label("Files", systemImage: "folder") }
                     .tag(HomeTab.files)
                     // Off until the term has a course. A file belongs to a course.
                     .disabled(term.courses.isEmpty)
+
+                    NavigationStack {
+                        QuizPage(term: term)
+                    }
+                    .tabItem { Label("Quiz", systemImage: "checkmark.seal") }
+                    .tag(HomeTab.quiz)
+                    // Off until the term has a course, and while a recording is processed — Quiz shares the text model.
+                    .disabled(term.courses.isEmpty || PipelineActivity.shared.isBusy)
 
                     NavigationStack {
                         AssistantPage()
@@ -80,7 +80,11 @@ struct TermHomeView: View {
                 }
                 .tabBarMinimizeBehavior(.onScrollDown)
                 .onChange(of: term.courses.isEmpty) { _, empty in
-                    if empty, tab == .files { tab = .home }
+                    if empty, tab == .files || tab == .quiz { tab = .home }
+                }
+                .onChange(of: PipelineActivity.shared.isBusy) { _, busy in
+                    // Quiz shares the text model with the pipeline; leave the tab when a run starts.
+                    if busy, tab == .quiz { tab = .home }
                 }
                 .tabViewBottomAccessory(isEnabled: session.player != nil) {
                     if let player = session.player {
@@ -203,6 +207,8 @@ struct TodayPage: View {
     @State private var examKind: ExamKind = .midterm
     @State private var pendingTermDelete = false
     @State private var showEditTerm = false
+    /// Timetable is a push from Home, not a tab, so the bar stays at five items.
+    @State private var showTimetable = false
     /// The side of the badge. It matches one line of the course name plus the lecturer, and it grows
     /// with the text size. It is not measured from the laid out texts, so the badge and the texts cannot
     /// push each other around in a loop.
@@ -375,9 +381,19 @@ struct TodayPage: View {
         .navigationDestination(item: $openedCourse) { course in
             CoursePage(course: course)
         }
+        .navigationDestination(isPresented: $showTimetable) {
+            ProgramPage(term: term)
+        }
         .toolbar {
-            ToolbarItem(placement: .topBarLeading) {
+            // Term menu, then the timetable. Leading order puts the calendar to the right of the cap.
+            ToolbarItemGroup(placement: .topBarLeading) {
                 termMenu
+                Button("Timetable", systemImage: "calendar.day.timeline.left") {
+                    showTimetable = true
+                }
+                .labelStyle(.iconOnly)
+                // Off while a recording is processed — keep focus on the run.
+                .disabled(PipelineActivity.shared.isBusy)
             }
             // Pending sits just left of Record. Record stays the outer trailing icon.
             ToolbarItemGroup(placement: .topBarTrailing) {

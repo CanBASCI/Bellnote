@@ -160,11 +160,9 @@ extension Lecture {
 }
 
 extension View {
-    /// Selected switch track. The thumb stays white, so the track is the label color in light and system gray in dark.
+    /// Selected switch track. System gray in light and dark so the white thumb stays visible.
     func switchTrackTint() -> some View {
-        tint(Color(uiColor: UIColor { traits in
-            traits.userInterfaceStyle == .dark ? .systemGray : .label
-        }))
+        tint(Color(uiColor: .systemGray))
     }
 
     /// The swipe from the right that only asks. `onDelete` takes the row out of the list the moment the
@@ -340,6 +338,7 @@ private struct AssignmentEditor: View {
             Form {
                 TextField("Task", text: $text, axis: .vertical)
                 Toggle("Due date", isOn: $hasDue)
+                    .switchTrackTint()
                 if hasDue {
                     DatePicker("Due date", selection: $due, displayedComponents: .date)
                 }

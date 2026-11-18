@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// The progress of a lecture that is being processed: a system ring with Liquid Glass, the step
-/// name in the middle, and what the app does under it.
+/// Progress ring with Liquid Glass: step name in the middle, explanation under it.
+/// Used while a lecture is processed and while the Quiz tab prepares questions.
 struct ProcessingCircle: View {
     var step: PipelineActivity.Step
     /// The student cancelled. The step that runs has to end before the work stops.
@@ -40,11 +40,20 @@ struct ProcessingCircle: View {
                         .tint(Color.accentColor)
                         .scaleEffect(3)
                         .frame(width: 180, height: 180)
-                    Text(isStopping ? String(localized: "Cancelling…") : step.title)
-                        .appFont(.subheadline, weight: .semibold)
-                        .multilineTextAlignment(.center)
-                        .minimumScaleFactor(0.8)
-                        .padding(.horizontal, 44)
+                    // Keep the label block in the clear middle of the ring — short lines, not edge-to-edge.
+                    VStack(spacing: 6) {
+                        Text(isStopping ? String(localized: "Cancelling…") : step.title)
+                            .appFont(.footnote, weight: .semibold)
+                            .multilineTextAlignment(.center)
+                            .lineSpacing(2)
+                        if !isStopping, !step.centerCaption.isEmpty {
+                            Text(verbatim: step.centerCaption)
+                                .appFont(.callout, weight: .semibold, digits: true)
+                                .multilineTextAlignment(.center)
+                        }
+                    }
+                    .frame(width: 112)
+                    .multilineTextAlignment(.center)
                 }
                 .frame(width: 220, height: 220)
                 .glassEffect(.regular, in: .circle)

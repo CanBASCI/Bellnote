@@ -20,6 +20,22 @@
         }
       }
     },
+    "%@ - %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ - %2$@"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ - %2$@"
+          }
+        }
+      }
+    },
     "%@ · %@" : {
       "localizations" : {
         "en" : {
@@ -68,6 +84,48 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ için kayıt yok."
+          }
+        }
+      }
+    },
+    "%@, %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@, %2$@"
+          }
+        }
+      }
+    },
+    "%@, correct answer" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@, correct answer"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@, doğru cevap"
+          }
+        }
+      }
+    },
+    "%@, your answer" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@, your answer"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@, senin cevabın"
           }
         }
       }
@@ -130,6 +188,38 @@
         }
       }
     },
+    "%1$lld / %2$lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld / %2$lld"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld / %2$lld"
+          }
+        }
+      }
+    },
+    "%1$lld min %2$lld sec" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld min %2$lld sec"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld dk %2$lld sn"
+          }
+        }
+      }
+    },
     "%1$lld of %2$lld recorded" : {
       "comment" : "VoiceOver for the attendance bar on a course card: recordings, then past meetings.",
       "extractionState" : "manual",
@@ -144,6 +234,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%1$lld / %2$lld kayıt"
+          }
+        }
+      }
+    },
+    "%1$lld wrong" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld wrong"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld yanlış"
           }
         }
       }
@@ -195,6 +301,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld gün sonra"
+          }
+        }
+      }
+    },
+    "%lld documents" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld documents"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld belge"
           }
         }
       }
@@ -325,6 +447,22 @@
         }
       }
     },
+    "%lld sec" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld sec"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld sn"
+          }
+        }
+      }
+    },
     "+ %@" : {
 
     },
@@ -373,6 +511,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ekle"
+          }
+        }
+      }
+    },
+    "Add a PDF or image in Files for this course to include it here." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add a PDF or image in Files for this course to include it here."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Buraya eklemek için bu dersin Dosyalar’ına bir PDF veya görüntü ekle."
           }
         }
       }
@@ -584,6 +738,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Bu dersin tüm kayıtları, notları, ödevleri, sınavları, dosyaları ve yapışkan notları silinecek. Bu geri alınamaz."
+          }
+        }
+      }
+    },
+    "Almost ready" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Almost ready"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Neredeyse hazır"
           }
         }
       }
@@ -845,6 +1015,38 @@
         }
       }
     },
+    "Average per question" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Average per question"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Soru başı ortalama"
+          }
+        }
+      }
+    },
+    "Back" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Back"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Geri"
+          }
+        }
+      }
+    },
     "Bellnote" : {
       "localizations" : {
         "en" : {
@@ -970,6 +1172,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Başlıklar"
+          }
+        }
+      }
+    },
+    "Checking the model" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Checking the model"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Model kontrol ediliyor"
+          }
+        }
+      }
+    },
+    "Choices" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choices"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Şıklar"
           }
         }
       }
@@ -1103,6 +1337,56 @@
         }
       }
     },
+    "Correct" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Correct"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Doğru"
+          }
+        }
+      }
+    },
+    "Correct %1$lld of %2$lld" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Correct %1$lld of %2$lld"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld / %2$lld doğru"
+          }
+        }
+      }
+    },
+    "Could not prepare" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not prepare"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hazırlanamadı"
+          }
+        }
+      }
+    },
     "Course" : {
       "localizations" : {
         "en" : {
@@ -1115,6 +1399,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ders"
+          }
+        }
+      }
+    },
+    "Course files" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Course files"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ders dosyaları"
           }
         }
       }
@@ -1504,6 +1804,22 @@
         }
       }
     },
+    "Difficulty" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Difficulty"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zorluk"
+          }
+        }
+      }
+    },
     "Done" : {
       "localizations" : {
         "en" : {
@@ -1515,7 +1831,7 @@
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Bitti"
+            "value" : "Tamam"
           }
         }
       }
@@ -1548,6 +1864,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Bir metin modeli indir"
+          }
+        }
+      }
+    },
+    "Download a text model in Settings." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Download a text model in Settings."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ayarlar’dan bir metin modeli indir."
           }
         }
       }
@@ -1778,6 +2110,22 @@
         }
       }
     },
+    "Duration" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Duration"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Süre"
+          }
+        }
+      }
+    },
     "Dusty rose" : {
       "localizations" : {
         "en" : {
@@ -1790,6 +2138,86 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Toz pembe"
+          }
+        }
+      }
+    },
+    "Each question is prepared only from the files you selected." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Each question is prepared only from the files you selected."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Her soru yalnızca seçtiğin dosyalardan hazırlanır."
+          }
+        }
+      }
+    },
+    "Each question is prepared only from the lecture notes you included." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Each question is prepared only from the lecture notes you included."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Her soru yalnızca dahil ettiğin ders notlarından hazırlanır."
+          }
+        }
+      }
+    },
+    "Each question is prepared only from the material you selected." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Each question is prepared only from the material you selected."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Her soru yalnızca seçtiğin malzemeden hazırlanır."
+          }
+        }
+      }
+    },
+    "Each question is prepared only from the notes and files you selected." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Each question is prepared only from the notes and files you selected."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Her soru yalnızca seçtiğin not ve dosyalardan hazırlanır."
+          }
+        }
+      }
+    },
+    "Easy" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Easy"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kolay"
           }
         }
       }
@@ -2236,6 +2664,23 @@
         }
       }
     },
+    "Finish" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Finish"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bitir"
+          }
+        }
+      }
+    },
     "Flag this second of the lecture" : {
 
     },
@@ -2286,6 +2731,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Yararlı olduysa ne güzel."
+          }
+        }
+      }
+    },
+    "Hard" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hard"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zor"
           }
         }
       }
@@ -2384,6 +2845,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Saatler"
+          }
+        }
+      }
+    },
+    "How this quiz went. Done returns to setup." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How this quiz went. Done returns to setup."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bu sınavın özeti. Bitti kurulum ekranına döner."
           }
         }
       }
@@ -2497,6 +2974,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Programı içe aktar"
+          }
+        }
+      }
+    },
+    "Include lecture notes" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Include lecture notes"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ders notlarını dahil et"
           }
         }
       }
@@ -2726,6 +3219,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Son notlar"
+          }
+        }
+      }
+    },
+    "Lecture notes" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lecture notes"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ders notları"
           }
         }
       }
@@ -3005,6 +3514,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Erkek %lld"
+          }
+        }
+      }
+    },
+    "Medium" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Medium"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Orta"
           }
         }
       }
@@ -3591,6 +4116,22 @@
         }
       }
     },
+    "No questions" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No questions"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Soru yok"
+          }
+        }
+      }
+    },
     "No recording yet" : {
       "localizations" : {
         "en" : {
@@ -3869,6 +4410,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Hardal"
+          }
+        }
+      }
+    },
+    "of %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "of %lld"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "/ %lld"
+          }
+        }
+      }
+    },
+    "Off by default. Turn on to also write questions from ready recordings of this course." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Off by default. Turn on to also write questions from ready recordings of this course."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Varsayılan kapalı. Açınca bu dersin hazır kayıtlarından da soru yazar."
           }
         }
       }
@@ -4165,6 +4738,55 @@
         }
       }
     },
+    "Pick a course" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pick a course"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ders seç"
+          }
+        }
+      }
+    },
+    "Pick one letter to continue." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pick one letter to continue."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Devam etmek için bir harf seç."
+          }
+        }
+      }
+    },
+    "Pick PDFs or images from this course’s Files. There is no upload here." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pick PDFs or images from this course’s Files. There is no upload here."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bu dersin Dosyalar’ındaki PDF veya görüntüleri seç. Burada yükleme yok."
+          }
+        }
+      }
+    },
     "Place" : {
       "localizations" : {
         "en" : {
@@ -4278,6 +4900,22 @@
         }
       }
     },
+    "Prepare" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Prepare"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hazırla"
+          }
+        }
+      }
+    },
     "Preparing audio analysis" : {
       "localizations" : {
         "en" : {
@@ -4290,6 +4928,56 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ses analizi hazırlanıyor"
+          }
+        }
+      }
+    },
+    "Preparing questions" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Preparing\nquestions"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sorular\nhazırlanıyor"
+          }
+        }
+      }
+    },
+    "Preparing questions %1$lld of %2$lld" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Preparing questions %1$lld of %2$lld"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sorular hazırlanıyor %1$lld / %2$lld"
+          }
+        }
+      }
+    },
+    "Preparing questions…" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Preparing questions…"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sorular hazırlanıyor…"
           }
         }
       }
@@ -4537,6 +5225,54 @@
         }
       }
     },
+    "Question %1$lld of %2$lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Question %1$lld of %2$lld"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Soru %1$lld / %2$lld"
+          }
+        }
+      }
+    },
+    "Questions" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Questions"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sorular"
+          }
+        }
+      }
+    },
+    "Quiz" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quiz"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sınav"
+          }
+        }
+      }
+    },
     "Raw" : {
       "localizations" : {
         "en" : {
@@ -4565,6 +5301,55 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Sesli okuma"
+          }
+        }
+      }
+    },
+    "Reading %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reading %@"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ okunuyor"
+          }
+        }
+      }
+    },
+    "Reading lecture notes" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reading lecture notes"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ders notları okunuyor"
+          }
+        }
+      }
+    },
+    "Reading stickies" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reading stickies"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yapışkanlar okunuyor"
           }
         }
       }
@@ -4613,6 +5398,56 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Hazır"
+          }
+        }
+      }
+    },
+    "Ready lecture notes are always included. Pick PDFs or images already in Files. There is no upload here." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ready lecture notes are always included. Pick PDFs or images already in Files. There is no upload here."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hazır ders notları her zaman dahil. Dosyalar’daki PDF veya görüntüleri seç. Burada yükleme yok."
+          }
+        }
+      }
+    },
+    "Ready lecture notes are always included. Pick PDFs or images from this course’s Files. There is no upload and no stickies here." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ready lecture notes are always included. Pick PDFs or images from this course’s Files. There is no upload and no stickies here."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hazır ders notları her zaman dahil. Bu dersin Dosyalar’ındaki PDF veya görüntüleri seç. Burada yükleme ve yapışkan yok."
+          }
+        }
+      }
+    },
+    "Ready notes from this course are gathered for the quiz." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ready notes from this course are gathered for the quiz."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bu dersin hazır notları sınav için toplanıyor."
           }
         }
       }
@@ -4826,6 +5661,22 @@
         }
       }
     },
+    "Results" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Results"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sonuçlar"
+          }
+        }
+      }
+    },
     "Resume" : {
       "localizations" : {
         "en" : {
@@ -4873,6 +5724,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Yeniden dene"
+          }
+        }
+      }
+    },
+    "Review" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Review"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gözden geçir"
+          }
+        }
+      }
+    },
+    "Review wrong answers" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Review wrong answers"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yanlışlara bak"
           }
         }
       }
@@ -5018,6 +5901,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Bölüm"
+          }
+        }
+      }
+    },
+    "See the keyed letter and open the source." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "See the keyed letter and open the source."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Doğru harfi gör ve kaynağı aç."
           }
         }
       }
@@ -5702,6 +6601,38 @@
         }
       }
     },
+    "Text is read on device from the selected PDF or image." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Text is read on device from the selected PDF or image."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Seçilen PDF veya görüntüden metin cihazda okunuyor."
+          }
+        }
+      }
+    },
+    "Text model needed" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Text model needed"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Metin modeli gerekli"
+          }
+        }
+      }
+    },
     "The 2B or 4B model writes the notes, the assignments and the answers. Download one and it is selected." : {
       "localizations" : {
         "en" : {
@@ -6070,6 +7001,22 @@
         }
       }
     },
+    "The model could not prepare questions. Try again." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The model could not prepare questions. Try again."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Model soruları hazırlayamadı. Yeniden dene."
+          }
+        }
+      }
+    },
     "The model marks definitions, lists, examples and assignments in the text." : {
       "localizations" : {
         "en" : {
@@ -6082,6 +7029,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Model metindeki tanımları, listeleri, örnekleri ve ödevleri işaretliyor."
+          }
+        }
+      }
+    },
+    "The model writes A–C items only from the gathered notes and files." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The model writes A–C items only from the gathered notes and files."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Model yalnızca toplanan not ve dosyalardan A–C soruları yazar."
           }
         }
       }
@@ -6130,6 +7094,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%1$@ telefonu %2$@."
+          }
+        }
+      }
+    },
+    "The quiz is opening on the first question." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The quiz is opening on the first question."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sınav ilk soruda açılıyor."
+          }
+        }
+      }
+    },
+    "The quiz uses the text model chosen in Settings." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The quiz uses the text model chosen in Settings."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sınav, Ayarlar’da seçili metin modelini kullanır."
           }
         }
       }
@@ -6358,6 +7354,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ için yapışkan not yok."
+          }
+        }
+      }
+    },
+    "There is not enough text for a quiz yet." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "There is not enough text for a quiz yet."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Henüz sınav için yeterli metin yok."
           }
         }
       }
@@ -6656,6 +7668,22 @@
         }
       }
     },
+    "Total time" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Total time"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Toplam süre"
+          }
+        }
+      }
+    },
     "Transcript" : {
       "localizations" : {
         "en" : {
@@ -6668,6 +7696,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Transkript"
+          }
+        }
+      }
+    },
+    "Try again" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Try again"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yeniden dene"
           }
         }
       }
@@ -7054,6 +8098,56 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Metin yazılıyor"
+          }
+        }
+      }
+    },
+    "Written sticky notes on this course can join the quiz pool." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Written sticky notes on this course can join the quiz pool."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bu dersteki yazılı yapışkanlar sınav havuzuna katılabilir."
+          }
+        }
+      }
+    },
+    "Wrong" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wrong"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yanlış"
+          }
+        }
+      }
+    },
+    "Wrong %1$lld of %2$lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wrong %1$lld of %2$lld"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yanlış %1$lld / %2$lld"
           }
         }
       }

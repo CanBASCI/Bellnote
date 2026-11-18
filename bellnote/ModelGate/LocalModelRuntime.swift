@@ -202,6 +202,62 @@ actor LocalModelRuntime {
         }
     }
 
+    /// One multiple-choice item for the Quiz tab. One call per question — a 2B model often
+    /// fails to parse a batch of items. Uses the Settings text model only.
+    func makeQuizItem(
+        materialId: String,
+        materialTitle: String,
+        materialText: String,
+        difficulty: String,
+        replyLanguage: Locale,
+        avoidStems: [String] = []
+    ) async throws -> QuizDraftItem {
+        beginCall()
+        defer { endCall() }
+        let role = try composeRole()
+        let languageName = Self.replyLanguageName(replyLanguage)
+        Self.log.info(
+            "Quiz item begin id=\(materialId, privacy: .public) difficulty=\(difficulty, privacy: .public) role=\(role.rawValue, privacy: .public) material=\(materialText.count)"
+        )
+        do {
+            try await ensure(role)
+            let session = try makeSession(role: role, instructions: quizInstructions(replyLanguage: languageName))
+            let avoidBlock: String
+            if avoidStems.isEmpty {
+                avoidBlock = ""
+            } else {
+                let lines = avoidStems.enumerated().map { "\($0.offset + 1). \($0.element)" }.joined(separator: "\n")
+                avoidBlock = "\nDo not repeat or rephrase these questions:\n\(lines)\n"
+            }
+            let prompt = """
+                Difficulty: \(difficulty).
+                Write exactly one NEW multiple-choice question from this material.
+                sourceId must be \(materialId).
+                question = one short complete stem ending with ?. Ceiling 140 — stop when done. Ask; do not paste material. No A) B) C) inside.
+                choiceA, choiceB, choiceC = three DIFFERENT short named concepts from THIS material (2–8 words, under 90 characters). Labels only — no full sentences, no commas that start a clause.
+                Prefer theory names, author names, and technical terms. No discourse words. No lone letter A/B/C. No bare number. No D.
+                correct = A or B or C.
+                \(avoidBlock)
+                Material:
+                [\(materialId)] \(materialTitle)
+                \(materialText)
+                """
+            // One attempt only. A parse/length fail retry on 2B usually wastes 15–20s on 1111… junk.
+            let response = try await guarded {
+                try await session.respond(
+                    to: prompt,
+                    generating: QuizDraftItem.self,
+                    options: GenerationOptions(temperature: 0.55, maximumResponseTokens: 260)
+                )
+            }
+            Self.log.info("Quiz item ok source=\(response.content.sourceId, privacy: .public)")
+            return response.content
+        } catch {
+            Self.log.error("Quiz item failed: \(error.localizedDescription, privacy: .public)")
+            throw error
+        }
+    }
+
     /// Rewrites dictated text with correct spelling, punctuation and word order.
     /// The model marks important parts with ** and lists homework as ASSIGNMENT lines.
     func correct(_ text: String, lectureName: String, localeIdentifier: String) async throws -> String {
@@ -662,6 +718,20 @@ actor LocalModelRuntime {
         """
         Write from the tagged notes only. Do not add facts that are not in the notes. \
         Do not use outside knowledge. Thinking is off.
+        """
+    }
+
+    private func quizInstructions(replyLanguage: String) -> String {
+        """
+        You write one multiple-choice study question from the given material only. \
+        Do not use outside knowledge. Do not invent a fact that is not in the material. \
+        Write in \(replyLanguage). \
+        Order: question, choiceA, choiceB, choiceC, correct, sourceId. \
+        question is one short complete stem ending with ? (ceiling 140 — stop when done, do not pad or paste). \
+        Exactly three choices A B C — short named concepts from the material (2–8 words), never full sentences, never discourse words, never the same twice, never a lone letter, no D. \
+        correct is A, B, or C. Prefer named terms over full sentences. \
+        Wrong choices must be plausible but false. Never repeat a prior question. \
+        Thinking is off.
         """
     }
 }

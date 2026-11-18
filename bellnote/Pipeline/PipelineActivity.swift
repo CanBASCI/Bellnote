@@ -19,6 +19,15 @@ final class PipelineActivity {
         var fraction: Double
         var title: String
         var info: String
+        /// Optional second line inside the ring (e.g. quiz “1 / 10”), centered under the title.
+        var centerCaption: String = ""
+
+        init(fraction: Double, title: String, info: String, centerCaption: String = "") {
+            self.fraction = fraction
+            self.title = title
+            self.info = info
+            self.centerCaption = centerCaption
+        }
     }
 
     private(set) var stages: [PersistentIdentifier: PipelineStage] = [:]
@@ -35,7 +44,7 @@ final class PipelineActivity {
         stages[lecture.persistentModelID] != nil
     }
 
-    /// True while any lecture is in the process pipeline. Assistant must stay off so the run keeps the memory.
+    /// True while any lecture is in the process pipeline. Assistant and Quiz stay off so the run keeps the memory.
     var isBusy: Bool { !stages.isEmpty }
 
     /// A finer step inside the stage, such as Whisper getting ready. Falls back to the stage.

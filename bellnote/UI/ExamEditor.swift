@@ -73,6 +73,7 @@ struct ExamEditor: View {
                 }
                 DatePicker("Date", selection: $date, displayedComponents: .date)
                 Toggle("Set a time", isOn: $hasTime)
+                    .switchTrackTint()
                 if hasTime {
                     if !courseSlots.isEmpty {
                         Picker("Time", selection: $timeChoice) {

@@ -721,7 +721,7 @@ struct LectureNote: View {
                             .appFont(.subheadline, weight: chosen ? .semibold : .regular)
                             .lineLimit(1)
                             // A black fill is the label color and reads as a solid black capsule.
-                            // The chosen capsule uses the same system gray as a selected switch track in dark,
+                            // The chosen capsule uses the same system gray as a selected switch track,
                             // with white letters, so the choice stays visible in both modes.
                             .foregroundStyle(chosen ? Color.white : Color.primary)
                             .padding(.horizontal, 12)
