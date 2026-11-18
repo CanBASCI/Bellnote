@@ -28,6 +28,13 @@ final class QuizSession {
     /// Soft ceiling — named labels, not paragraph distractors.
     private static let maxChoiceCharacters = 90
     private static let maxStemCharacters = 500
+    /// How many questions the text model may write per quiz. 0 builds every question in Swift, so no model runs
+    /// and nothing heats up. Above 0 the model writes that many first and Swift fills in the rest.
+    private static let modelQuestionBudget = 0
+    /// Longest sentence Swift turns into a fill-in-the-blank question.
+    private static let maxClozeSentenceCharacters = 220
+    /// A sentence turned into a fill-in-the-blank stem. Longer than a question, because it is a full sentence.
+    private static let maxClozeCharacters = 260
     private static let maxChoiceWords = 8
     /// The answer the model copies from the material. A name or a term, not a clause.
     private static let maxAnswerWords = 6
@@ -222,8 +229,10 @@ final class QuizSession {
             )
         } else {
             setStage(
-                String(localized: "Checking the model"),
-                String(localized: "The quiz uses the text model chosen in Settings."),
+                Self.modelQuestionBudget > 0 ? String(localized: "Checking the model") : String(localized: "Reading the material"),
+                Self.modelQuestionBudget > 0
+                    ? String(localized: "The quiz uses the text model chosen in Settings.")
+                    : String(localized: "The questions are built from the text you selected."),
                 fraction: 0.08
             )
         }
@@ -290,18 +299,21 @@ final class QuizSession {
         let prepareStarted = Date()
         do {
             Self.log.info("Quiz prepare begin target=\(self.questionCount.rawValue) difficulty=\(self.difficulty.rawValue, privacy: .public)")
-            setStage(
-                String(localized: "Checking the model"),
-                String(localized: "The quiz uses the text model chosen in Settings."),
-                fraction: 0.1
-            )
-            guard await LocalModelRuntime.shared.hasTextModel() else {
-                phase = .needsModel
-                statusLine = String(localized: "Download a text model in Settings.")
-                statusDetail = ""
-                statusCaption = ""
-                prepareFraction = 0
-                return
+            let usesModel = Self.modelQuestionBudget > 0
+            if usesModel {
+                setStage(
+                    String(localized: "Checking the model"),
+                    String(localized: "The quiz uses the text model chosen in Settings."),
+                    fraction: 0.1
+                )
+                guard await LocalModelRuntime.shared.hasTextModel() else {
+                    phase = .needsModel
+                    statusLine = String(localized: "Download a text model in Settings.")
+                    statusDetail = ""
+                    statusCaption = ""
+                    prepareFraction = 0
+                    return
+                }
             }
             let materials = try await buildMaterials(course: course)
             guard !materials.isEmpty else {
@@ -316,20 +328,23 @@ final class QuizSession {
                 "Quiz prepare materials=\(materials.count) ms=\(Int(Date().timeIntervalSince(prepareStarted) * 1000))"
             )
 
-            // Cold start can take many seconds — keep 1 / 10 off screen until weights are resident.
-            setStage(
-                String(localized: "Checking the model"),
-                String(localized: "The quiz uses the text model chosen in Settings."),
-                fraction: 0.4
-            )
-            try await LocalModelRuntime.shared.warmTextModel()
-            Self.log.info(
-                "Quiz prepare warm done ms=\(Int(Date().timeIntervalSince(prepareStarted) * 1000))"
-            )
+            if usesModel {
+                // Cold start can take many seconds — keep 1 / 10 off screen until weights are resident.
+                setStage(
+                    String(localized: "Checking the model"),
+                    String(localized: "The quiz uses the text model chosen in Settings."),
+                    fraction: 0.4
+                )
+                try await LocalModelRuntime.shared.warmTextModel()
+                Self.log.info(
+                    "Quiz prepare warm done ms=\(Int(Date().timeIntervalSince(prepareStarted) * 1000))"
+                )
+            }
 
             var drafts: [PendingItem] = []
             var seenStems: [String] = []
             let target = questionCount.rawValue
+            let modelTarget = usesModel ? min(target, Self.modelQuestionBudget) : 0
             var cursor = 0
             var misses = 0
             /// Windows that already produced an accepted question — never reused this prepare.
@@ -349,7 +364,7 @@ final class QuizSession {
                 return nil
             }
 
-            while drafts.count < target && misses < missLimit {
+            while drafts.count < modelTarget && misses < missLimit {
                 guard let material = nextMaterial() else {
                     Self.log.info(
                         "Quiz pool exhausted accepted=\(acceptedIds.count) drafts=\(drafts.count) target=\(target) ms=\(Int(Date().timeIntervalSince(prepareStarted) * 1000))"
@@ -421,8 +436,23 @@ final class QuizSession {
                 }
             }
 
+            // Swift fills in what the model did not write (all of it when the model budget is 0).
+            if drafts.count < target {
+                setStage(
+                    String(localized: "Preparing questions"),
+                    writingDetail(from: materials),
+                    fraction: 0.9
+                )
+                let clozeStarted = Date()
+                let filled = buildClozeItems(needed: target - drafts.count, materials: materials, existing: drafts)
+                drafts.append(contentsOf: filled)
+                Self.log.info(
+                    "Quiz cloze built count=\(filled.count) wanted=\(target - (drafts.count - filled.count)) ms=\(Int(Date().timeIntervalSince(clozeStarted) * 1000))"
+                )
+            }
+
             // The model gave only a question and an answer. Swift builds the wrong choices and the key letter.
-            let built = buildQuestions(from: drafts, materials: materials)
+            let built = buildQuestions(from: drafts, materials: materials).shuffled()
             guard !built.isEmpty else {
                 Self.log.error(
                     "Quiz prepare empty drafts=\(drafts.count) ms=\(Int(Date().timeIntervalSince(prepareStarted) * 1000))"
@@ -534,7 +564,7 @@ final class QuizSession {
     }
 
     /// Reads the thermal state before each model call.
-    /// Serious: a short pause between questions. Critical: writing stops, the ring says the phone is cooling,
+    /// Serious: a short pause between questions. Critical: writing stops, the ring says the device is cooling,
     /// and it resumes once the state drops below critical. If it stays critical too long, the quiz opens
     /// with the questions already accepted (or fails when there are none).
     private func paceForHeat(draftCount: Int, target: Int) async -> HeatVerdict {
@@ -549,12 +579,12 @@ final class QuizSession {
             }
             return .go
         }
-        let limit: TimeInterval = draftCount == 0 ? 180 : 60
+        let limit: TimeInterval = draftCount == 0 ? 180 : 150
         let started = Date()
         Self.log.warning("Quiz heat critical pause begin drafts=\(draftCount) limitSeconds=\(Int(limit))")
         setStage(
-            String(localized: "Phone is cooling down"),
-            String(localized: "Writing continues when the phone has cooled."),
+            String(localized: "Device is cooling down"),
+            String(localized: "Writing continues when the device has cooled."),
             fraction: 0.45 + (Double(draftCount) / Double(max(target, 1))) * 0.5,
             caption: String(
                 format: String(localized: "%1$lld / %2$lld"),
@@ -612,6 +642,23 @@ final class QuizSession {
         var prompt: String
         var answer: String
         var material: Material
+        /// The original sentence when Swift built the question. It is what the source view looks for.
+        var sourceSentence: String?
+        /// What kind of thing the answer is, when Swift chose it. Wrong choices come from the same kind.
+        var termClass: TermClass?
+    }
+
+    /// A year or a number, a name of a person or place, or a term. A wrong choice of another kind is easy to rule out.
+    private enum TermClass {
+        case number, name, concept
+    }
+
+    /// The kind of a phrase that was not chosen by Swift as an answer, from how it looks.
+    private func shapeClass(of text: String) -> TermClass {
+        if text.contains(where: \.isNumber) { return .number }
+        let words = text.split(whereSeparator: \.isWhitespace)
+        if !words.isEmpty, words.allSatisfy({ $0.first?.isUppercase ?? false }) { return .name }
+        return .concept
     }
 
     /// Checks a draft and its duplicates. Logs why a draft was dropped.
@@ -634,6 +681,11 @@ final class QuizSession {
             Self.log.warning(
                 "Quiz item rejected id=\(material.id, privacy: .public) reason=\(reason.rawValue, privacy: .public) ms=\(elapsedMs)"
             )
+            #if DEBUG
+            Self.log.info(
+                "Quiz draft detail id=\(material.id, privacy: .public) q=\(draft.question, privacy: .public) | a=\(draft.answer, privacy: .public)"
+            )
+            #endif
             return nil
         }
     }
@@ -649,14 +701,24 @@ final class QuizSession {
     /// The stem must be a complete question, the answer must be words that the material really holds,
     /// and the stem must not give the answer away. The model never picks the key.
     private func mapDraft(_ draft: QuizDraftItem, fallback: Material) -> Result<PendingItem, DraftRejectReason> {
-        guard let prompt = clippedStem(draft.question) else { return .failure(.badStem) }
-        guard !isCopiedStem(prompt, from: fallback.text) else { return .failure(.copiedStem) }
-        guard let answer = clippedAnswer(draft.answer) else { return .failure(.badAnswer) }
+        let answer = clippedAnswer(draft.answer)
+        var prompt = clippedStem(draft.question)
+        var isCloze = false
+        // The 2B model often writes a statement from the material where the question should be, with the
+        // key term inside it. That is a usable fill-in-the-blank: Swift blanks the term out.
+        if prompt == nil, let answer, let blanked = clozeStem(draft.question, answer: answer, material: fallback.text) {
+            prompt = blanked
+            isCloze = true
+            Self.log.info("Quiz item cloze id=\(fallback.id, privacy: .public)")
+        }
+        guard let prompt else { return .failure(.badStem) }
+        if !isCloze, isCopiedStem(prompt, from: fallback.text) { return .failure(.copiedStem) }
+        guard let answer else { return .failure(.badAnswer) }
         guard answerAppears(in: fallback.text, answer: answer) else {
             return .failure(.answerNotInMaterial)
         }
         // The full answer as a phrase in the stem gives the key away. A single shared topic word is allowed.
-        if answerPhraseAppears(in: prompt, answer: answer) { return .failure(.answerInStem) }
+        if !isCloze, answerPhraseAppears(in: prompt, answer: answer) { return .failure(.answerInStem) }
         return .success(PendingItem(prompt: prompt, answer: answer, material: fallback))
     }
 
@@ -705,14 +767,15 @@ final class QuizSession {
     /// The key letter is a Swift shuffle. A question that cannot get two wrong choices is dropped.
     private func buildQuestions(from drafts: [PendingItem], materials: [Material]) -> [QuizQuestion] {
         var out: [QuizQuestion] = []
+        /// How many times a phrase already served as a wrong choice, so the same few do not repeat everywhere.
+        var used: [String: Int] = [:]
         for item in drafts {
-            let others = drafts
-                .filter { $0.material.id != item.material.id }
-                .map(\.answer)
-            guard let wrong = pickWrongChoices(for: item, others: others, materials: materials) else {
+            let others = drafts.filter { $0.material.id != item.material.id }
+            guard let wrong = pickWrongChoices(for: item, others: others, materials: materials, used: used) else {
                 Self.log.warning("Quiz item dropped id=\(item.material.id, privacy: .public) reason=noWrongChoices")
                 continue
             }
+            for text in wrong { used[text.lowercased(), default: 0] += 1 }
             let shuffled = ([item.answer] + wrong).shuffled()
             guard let keyIndex = shuffled.firstIndex(of: item.answer), shuffled.count == 3 else { continue }
             let keys = QuizChoice.allCases
@@ -733,7 +796,7 @@ final class QuizSession {
                     fileID: material.fileID,
                     courseID: material.courseID,
                     stickyToken: material.stickyToken,
-                    sourceExcerpt: Self.excerptForFind(material.text),
+                    sourceExcerpt: item.sourceSentence.map { Self.excerptForFind($0) } ?? Self.excerptForFind(material.text),
                     sourcePageIndex: material.pageIndex
                 )
             )
@@ -744,7 +807,12 @@ final class QuizSession {
     /// Two wrong choices that look like the answer (a number next to a number, a name next to a name,
     /// a similar length) and are not in the question's own passage. With too few other answers,
     /// short phrases from other passages fill in.
-    private func pickWrongChoices(for item: PendingItem, others: [String], materials: [Material]) -> [String]? {
+    private func pickWrongChoices(
+        for item: PendingItem,
+        others: [PendingItem],
+        materials: [Material],
+        used: [String: Int]
+    ) -> [String]? {
         let ownText = " \(normalizedStem(item.material.text)) "
         var excluding: Set<String> = [item.answer.lowercased()]
 
@@ -756,16 +824,40 @@ final class QuizSession {
             return !ownText.contains(" \(norm) ")
         }
 
-        var candidates = others.filter(usable)
-        if candidates.count < 4 {
-            let rest = materials.filter { $0.id != item.material.id }.shuffled().prefix(4)
+        var candidates = others.map(\.answer).filter(usable)
+        let answerClass = item.termClass ?? shapeClass(of: item.answer)
+        // A year gets years near it as company, so it never stands next to a word. Real years from the other
+        // questions come first; these fill in. A year that is in this question's own passage is left out (`usable`).
+        if answerClass == .number, item.answer.count == 4, let year = Int(item.answer) {
+            for step in [-13, -9, -6, -3, 3, 5, 8, 12] where (1000...2100).contains(year + step) {
+                let invented = String(year + step)
+                if usable(invented) { candidates.append(invented) }
+            }
+        }
+        // Other answers are real terms, so they are reused before any loose phrase from a passage is tried.
+        if candidates.count < 2 {
+            let rest = materials.filter { $0.id != item.material.id }.shuffled().prefix(6)
             for other in rest {
                 candidates.append(contentsOf: distractorPool(from: other.text, excluding: excluding).filter(usable))
             }
         }
-        let ranked = candidates.shuffled().sorted {
-            shapeScore(of: $0, like: item.answer) > shapeScore(of: $1, like: item.answer)
+        let answerFolds = Set(others.map { $0.answer.lowercased() })
+        // Answers taken from the same file or recording as the question are likelier to be on the same topic.
+        var classByFold: [String: TermClass] = [:]
+        for other in others { classByFold[other.answer.lowercased()] = other.termClass ?? shapeClass(of: other.answer) }
+        let sameSourceFolds = Set(others.filter { $0.material.title == item.material.title }.map { $0.answer.lowercased() })
+        func score(_ candidate: String) -> Double {
+            let fold = candidate.lowercased()
+            var value = shapeScore(of: candidate, like: item.answer)
+            if sameSourceFolds.contains(fold) { value += 1.0 }
+            // The same kind of thing: a name beside a name, a term beside a term. Another kind is easy to rule out.
+            value += (classByFold[fold] ?? shapeClass(of: candidate)) == answerClass ? 3.0 : -3.0
+            // Another question's real answer is a better wrong choice than a loose phrase, until it has been used.
+            if answerFolds.contains(fold) { value += 1.5 }
+            value -= 2.0 * Double(used[fold, default: 0])
+            return value
         }
+        let ranked = candidates.shuffled().sorted { score($0) > score($1) }
         var picked: [String] = []
         for candidate in ranked {
             let fold = candidate.lowercased()
@@ -820,7 +912,11 @@ final class QuizSession {
             let fold = clipped.lowercased()
             let words = fold.split { $0.isWhitespace || $0.isNewline }.filter { !$0.isEmpty }
             // MCQ literature: distractors should be noun phrases, not single glue words.
-            guard words.count >= 2, words.count <= Self.maxChoiceWords else { continue }
+            guard words.count >= 2, words.count <= 5 else { continue }
+            // A cut sentence is not a term: no commas or dashes inside, no glue word at either edge.
+            if clipped.contains(where: { ",;:–—\"“”()".contains($0) }) { continue }
+            if let first = words.first, Self.weakChoiceFolds.contains(String(first)) { continue }
+            if let last = words.last, Self.weakChoiceFolds.contains(String(last)) { continue }
             if excluding.contains(where: { choicesNearlySame($0, fold) }) { continue }
             if seen.contains(fold) { continue }
             seen.insert(fold)
@@ -867,6 +963,405 @@ final class QuizSession {
         guard count >= 12 && count <= Self.maxStemCharacters else { return nil }
         guard !isDegenerateText(throughQ) else { return nil }
         return throughQ
+    }
+
+    /// A statement the model put in the question field becomes “Fill in the blank: … _____ …”.
+    /// The statement must hold the answer, must be mostly the material's own words, and must keep real
+    /// context around the blank. Nothing is invented: the words are the model's copy of the material.
+    private func clozeStem(_ raw: String, answer: String, material: String) -> String? {
+        let text = cleanedStem(raw).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.contains("?") else { return nil }
+        guard text.count >= 30, text.count <= Self.maxClozeCharacters else { return nil }
+        guard !isDegenerateText(text) else { return nil }
+        // Only the sentence that holds the answer. A second, half-written sentence is left out.
+        var sentences: [String] = []
+        text.enumerateSubstrings(in: text.startIndex..<text.endIndex, options: .bySentences) { piece, _, _, _ in
+            if let piece { sentences.append(piece.trimmingCharacters(in: .whitespacesAndNewlines)) }
+        }
+        guard let sentence = sentences.first(where: {
+            $0.range(of: answer, options: [.caseInsensitive, .diacriticInsensitive]) != nil
+        }) else { return nil }
+        guard let blanked = blankOut(sentence, answer: answer) else { return nil }
+        // Most of the sentence must really be in the window, so a made-up sentence cannot pass.
+        let materialWords = Set(normalizedStem(material).split(separator: " ").map(String.init))
+        let sentenceWords = normalizedStem(sentence).split(separator: " ").map(String.init).filter { $0.count >= 3 }
+        guard !sentenceWords.isEmpty else { return nil }
+        let known = sentenceWords.filter { materialWords.contains($0) }.count
+        guard Double(known) / Double(sentenceWords.count) >= 0.8 else { return nil }
+        return clozePrompt(blanked)
+    }
+
+    private func clozePrompt(_ blanked: String) -> String {
+        let trimmed = blanked.trimmingCharacters(in: CharacterSet(charactersIn: ".,;:!…").union(.whitespacesAndNewlines))
+        return String(localized: "Fill in the blank:") + " " + trimmed
+    }
+
+    /// Replaces every whole-word occurrence of the answer with a blank. The blank also takes the letters that
+    /// follow it (a Turkish case ending such as -na, or 'un after an apostrophe), so no stray suffix stays.
+    /// Nil when the answer is not in the sentence or too little context is left around the blank.
+    private func blankOut(_ sentence: String, answer: String) -> String? {
+        let pattern = #"(?<![\p{L}\p{N}])"# + NSRegularExpression.escapedPattern(for: answer) + #"['’]?\p{L}*"#
+        let blanked = sentence.replacingOccurrences(
+            of: pattern,
+            with: "_____",
+            options: [.regularExpression, .caseInsensitive]
+        )
+        guard blanked.contains("_____") else { return nil }
+        // Three or more blanks leave no question to read.
+        guard blanked.components(separatedBy: "_____").count - 1 <= 2 else { return nil }
+        let context = blanked
+            .replacingOccurrences(of: "_____", with: " ")
+            .split { $0.isWhitespace || $0.isNewline }
+        guard context.count >= 5 else { return nil }
+        return blanked
+    }
+
+    // MARK: Questions built in Swift
+
+    private struct ClozeCandidate {
+        var material: Material
+        var sentence: String
+        var answer: String
+        var score: Double
+        var termClass: TermClass
+    }
+
+    /// Fill-in-the-blank questions built from the selected text, no model. Each window offers its best
+    /// sentences. The first round takes one per window, the next round a second one, and so on, so the
+    /// questions spread over everything that was selected.
+    private func buildClozeItems(needed: Int, materials: [Material], existing: [PendingItem]) -> [PendingItem] {
+        guard needed > 0 else { return [] }
+        // Everything selected, once, so a term can be told from a phrase that only opens one sentence.
+        let corpus = CorpusIndex(materials.map(\.text).joined(separator: "\n"))
+        var out: [PendingItem] = []
+        var seenStems = existing.map { normalizedStem($0.prompt) }
+        var seenAnswers = existing.map { $0.answer.lowercased() }
+        // The first pass keeps only terms the text returns to. If that leaves too few, a second pass lets the
+        // rest in, so the count asked for is still met.
+        for strict in [true, false] {
+            guard out.count < needed else { break }
+            var perWindow: [[ClozeCandidate]] = []
+            for material in materials.shuffled() {
+                let found = clozeCandidates(in: material, corpus: corpus, strict: strict).sorted { $0.score > $1.score }
+                if !found.isEmpty { perWindow.append(found) }
+            }
+            let rounds = perWindow.map(\.count).max() ?? 0
+            var round = 0
+            while out.count < needed, round < rounds {
+                for list in perWindow where round < list.count {
+                    guard out.count < needed else { break }
+                    let candidate = list[round]
+                    guard let blanked = blankOut(candidate.sentence, answer: candidate.answer) else { continue }
+                    let prompt = clozePrompt(blanked)
+                    if isDuplicate(prompt, in: seenStems) { continue }
+                    let fold = candidate.answer.lowercased()
+                    if seenAnswers.contains(where: { choicesNearlySame($0, fold) }) { continue }
+                    seenStems.append(normalizedStem(prompt))
+                    seenAnswers.append(fold)
+                    out.append(
+                        PendingItem(
+                            prompt: prompt,
+                            answer: candidate.answer,
+                            material: candidate.material,
+                            sourceSentence: candidate.sentence,
+                            termClass: candidate.termClass
+                        )
+                    )
+                }
+                round += 1
+            }
+        }
+        return out
+    }
+
+    private func clozeCandidates(in material: Material, corpus: CorpusIndex, strict: Bool) -> [ClozeCandidate] {
+        var result: [ClozeCandidate] = []
+        for sentence in clozeSentences(from: material.text) {
+            guard let best = bestClozeTerm(in: sentence, corpus: corpus, strict: strict) else { continue }
+            result.append(
+                ClozeCandidate(
+                    material: material, sentence: sentence, answer: best.term, score: best.score, termClass: best.termClass
+                )
+            )
+        }
+        return result
+    }
+
+    /// Whole sentences of a window. Lines that stop mid-sentence are joined to the next line; a line that ends
+    /// with a full stop (or a colon) ends the paragraph. Slide fragments without a stop merge into one long run
+    /// that is then too long and is dropped.
+    private func clozeSentences(from text: String) -> [String] {
+        let cleaned = text
+            .replacingOccurrences(of: "\u{00AD}", with: "")
+            .replacingOccurrences(of: "\u{00A0}", with: " ")
+        var paragraphs: [String] = []
+        var current = ""
+        for raw in cleaned.split(whereSeparator: \.isNewline) {
+            let line = raw.trimmingCharacters(in: .whitespaces)
+            guard !line.isEmpty else { continue }
+            if current.isEmpty {
+                current = line
+            } else if let last = current.last, ".!?:;…".contains(last) {
+                paragraphs.append(current)
+                current = line
+            } else {
+                current += " " + line
+            }
+        }
+        if !current.isEmpty { paragraphs.append(current) }
+        var out: [String] = []
+        // A stop followed by a capital or a digit ends a sentence even where the system splitter keeps them together
+        // ("… galip geldi. 2005'de Armstrong …"). Common abbreviations are left whole.
+        let boundary = #"(?<=[.!?…])(?<!\b(?:Dr|Prof|Doç|Yrd|Mr|Mrs|Ms|vb|vs|bkz|örn)\.)\s+(?=[\p{Lu}\p{N}])"#
+        for paragraph in paragraphs {
+            paragraph.enumerateSubstrings(in: paragraph.startIndex..<paragraph.endIndex, options: .bySentences) { piece, _, _, _ in
+                guard let piece else { return }
+                let parts = piece
+                    .replacingOccurrences(of: boundary, with: "\u{1F}", options: .regularExpression)
+                    .components(separatedBy: "\u{1F}")
+                for part in parts {
+                    if let sentence = self.usableClozeSentence(part) { out.append(sentence) }
+                }
+            }
+        }
+        // The last sentence of a window that stops without a full stop was probably cut in the middle.
+        if let lastParagraph = paragraphs.last, let lastCharacter = lastParagraph.last,
+           !".!?…\"”»)".contains(lastCharacter),
+           let lastSentence = out.last, lastParagraph.hasSuffix(lastSentence) {
+            out.removeLast()
+        }
+        return out
+    }
+
+    /// A sentence worth a question: whole, readable, not a header, a table row, a link, or a question already.
+    private func usableClozeSentence(_ piece: String) -> String? {
+        var sentence = piece.trimmingCharacters(in: .whitespacesAndNewlines)
+        sentence = sentence.replacingOccurrences(of: #"^(?:[•▪●◦\-–—*]\s*)+"#, with: "", options: .regularExpression)
+        sentence = sentence.replacingOccurrences(of: #"^\d+(?:\.\d+)*[.)]?\s+"#, with: "", options: .regularExpression)
+        guard sentence.count >= 40, sentence.count <= Self.maxClozeSentenceCharacters else { return nil }
+        guard !sentence.contains("?"), !sentence.contains("_____") else { return nil }
+        guard !sentence.lowercased().contains("http"), !isDegenerateText(sentence) else { return nil }
+        // Starts with a capital. A lowercase start is the tail of a line that was cut in the middle of a word.
+        guard let first = sentence.first, first.isLetter, first.isUppercase else { return nil }
+        // A bullet inside means slide lines were run together, and a stray bracket means a citation was cut.
+        guard !sentence.contains(where: { "•▪●◦".contains($0) }) else { return nil }
+        guard sentence.filter({ $0 == "(" }).count == sentence.filter({ $0 == ")" }).count else { return nil }
+        let words = sentence.split(whereSeparator: \.isWhitespace)
+        guard words.count >= 6, words.count <= 36 else { return nil }
+        let letters = sentence.filter(\.isLetter).count
+        guard Double(letters) / Double(max(sentence.count, 1)) >= 0.7 else { return nil }
+        let capitals = words.filter { $0.first?.isUppercase ?? false }.count
+        guard Double(capitals) / Double(words.count) <= 0.5 else { return nil }
+        return sentence
+    }
+
+    /// The term to hide: a quoted term, the defined term at the start (“X, … is …”), a name, or a year.
+    /// Nil when nothing in the sentence looks like a term worth asking about.
+    /// `corpus` is all the selected text. A real term comes back in it; an opening phrase or a header word does not.
+    /// With `strict` off, a term the text does not return to is allowed too.
+    private func bestClozeTerm(in sentence: String, corpus: CorpusIndex, strict: Bool) -> (term: String, score: Double, termClass: TermClass)? {
+        var options: [(term: String, score: Double, kind: ClozeTermKind)] = []
+
+        let quoted = #"[“"‘]([^“”"‘’]{3,40})[”"’]"#
+        if let range = sentence.range(of: quoted, options: .regularExpression) {
+            let inner = String(sentence[range]).trimmingCharacters(in: CharacterSet(charactersIn: "“”\"‘’"))
+            let innerWords = inner.split(whereSeparator: \.isWhitespace).count
+            // One lowercase word in quotes ("nedeni") is an ordinary word, not a term.
+            if (1...4).contains(innerWords), innerWords >= 2 || (inner.first?.isUppercase ?? false) {
+                options.append((inner, 2.4, .quoted))
+            }
+        }
+
+        // “Deneysel psikoloji, insan ve hayvan …”: the words before the first comma are what the sentence defines.
+        if let comma = sentence.firstIndex(of: ",") {
+            let head = String(sentence[..<comma]).trimmingCharacters(in: .whitespaces)
+            let headWords = head.split(whereSeparator: \.isWhitespace)
+            if (1...4).contains(headWords.count), head.count >= 4, head.count <= 40,
+               head.first?.isUppercase ?? false, !head.contains(where: \.isNumber),
+               let firstWord = headWords.first,
+               !Self.weakChoiceFolds.contains(String(firstWord).lowercased())
+            {
+                options.append((head, 3.0, .head))
+            }
+        }
+
+        // Names: runs of capitalised words (a lone capital at the start of the sentence is only the first word).
+        let tokens = sentence.split(whereSeparator: \.isWhitespace).map(String.init)
+        let edge = CharacterSet(charactersIn: ".,;:!?()[]“”\"…")
+        var run: [String] = []
+        func closeRun(startIndex: Int) {
+            defer { run = [] }
+            guard !run.isEmpty, run.count <= 4 else { return }
+            if run.count == 1, startIndex == 0 { return }
+            // A word after "Mirası:" or "Ögesel:" is capital because a line starts there, not because it is a name.
+            if run.count == 1, startIndex > 0, tokens[startIndex - 1].hasSuffix(":") { return }
+            options.append((run.joined(separator: " "), run.count >= 2 ? 2.0 : 1.4, run.count >= 2 ? ClozeTermKind.name : ClozeTermKind.singleName))
+        }
+        var runStart = 0
+        for (index, token) in tokens.enumerated() {
+            let trimmed = token.trimmingCharacters(in: edge)
+            let core = trimmed.split(whereSeparator: { $0 == "'" || $0 == "’" }).first.map(String.init) ?? trimmed
+            let isName = core.count >= 2 && (core.first?.isUppercase ?? false)
+                && !(core == core.uppercased() && core.count > 5)
+            if isName {
+                if run.isEmpty { runStart = index }
+                run.append(core)
+                // A comma, a stop, or a suffix after an apostrophe ends the name.
+                if core != token { closeRun(startIndex: runStart) }
+            } else {
+                closeRun(startIndex: runStart)
+            }
+        }
+        closeRun(startIndex: runStart)
+
+        // A single year is a good fact to ask for; two or more in one sentence leave the question unclear.
+        let yearPattern = #"(?<![\d])(?:1[0-9]{3}|20[0-9]{2})(?![\d])"#
+        var years: [String] = []
+        var searchRange = sentence.startIndex..<sentence.endIndex
+        while let range = sentence.range(of: yearPattern, options: .regularExpression, range: searchRange) {
+            years.append(String(sentence[range]))
+            searchRange = range.upperBound..<sentence.endIndex
+        }
+        if years.count == 1, let year = years.first {
+            // A year that only closes a citation, "(Festinger, 1957)", cannot be reasoned out. It is the last pick.
+            let inCitation = sentence.range(of: #"\([^()]*"# + year + #"[^()]*\)"#, options: .regularExpression) != nil
+            options.append((year, inCitation ? 0.9 : 1.8, .year))
+        }
+
+        var best: (term: String, score: Double, termClass: TermClass)?
+        for option in options {
+            guard let term = clippedAnswer(option.term),
+                  sentence.range(of: term, options: .caseInsensitive) != nil,
+                  blankOut(sentence, answer: term) != nil,
+                  isCleanClozeTerm(term)
+            else { continue }
+            let total = corpus.frequency(of: term, caseSensitive: false)
+            let wordCount = term.split(whereSeparator: \.isWhitespace).count
+            switch option.kind {
+            case .head:
+                // The words before the first comma are a term only when the text keeps coming back to them.
+                // "Örnek olarak" or "Herhangi bir durumda" open one sentence and are gone.
+                guard !strict || total >= (wordCount == 1 ? 3 : 2) else { continue }
+            case .singleName:
+                // A lone capital word is a name only when it is capital every time. "Sosyal" in a slide header
+                // is an ordinary word that happens to start a line.
+                let capital = corpus.frequency(of: term, caseSensitive: true)
+                guard !strict || Double(capital) >= 0.8 * Double(total) else { continue }
+            case .quoted, .name, .year:
+                break
+            }
+            // A term the text returns to is a better thing to ask for.
+            let score = option.score + 0.25 * Double(min(total, 5))
+            let termClass: TermClass
+            switch option.kind {
+            case .name, .singleName: termClass = .name
+            case .year: termClass = .number
+            case .quoted, .head: termClass = .concept
+            }
+            if best == nil || score > (best?.score ?? 0) { best = (term, score, termClass) }
+        }
+        return best
+    }
+
+    private enum ClozeTermKind {
+        case quoted, head, name, singleName, year
+    }
+
+    /// Words that close an opening phrase ("… olarak", "… dışında"). A term never holds one.
+    private static let phraseCloserFolds: Set<String> = [
+        "olarak", "için", "göre", "kadar", "sonra", "önce", "ile", "gibi", "rağmen", "dolayı", "itibaren",
+        "karşın", "üzere", "boyunca", "yoluyla", "nedeniyle", "sayesinde", "yerine", "halde", "dışında",
+        "içinde", "başında", "sonunda", "arasında", "ayrıca", "bunun", "herhangi",
+    ]
+
+    /// A term has no slide marks, no open bracket, no glue word, and does not end in a place or source ending
+    /// (-da, -de, -dan, -den: "durumda", "basamağında"), which marks an opening phrase.
+    private func isCleanClozeTerm(_ term: String) -> Bool {
+        if term.contains(where: { "•▪●◦·|/\\_".contains($0) }) { return false }
+        if term.filter({ $0 == "(" }).count != term.filter({ $0 == ")" }).count { return false }
+        let words = term.lowercased()
+            .split(whereSeparator: \.isWhitespace)
+            .map { $0.trimmingCharacters(in: .punctuationCharacters) }
+        guard let first = words.first, let last = words.last else { return false }
+        // A word twice in a row is a slide that was read twice ("Yapısalcılık Yapısalcılık").
+        if Set(words).count != words.count { return false }
+        if words.contains(where: { Self.weakChoiceFolds.contains($0) || Self.phraseCloserFolds.contains($0) }) {
+            return false
+        }
+        if Self.weakChoiceFolds.contains(first) || Self.weakChoiceFolds.contains(last) { return false }
+        let lastCore = last.split(whereSeparator: { $0 == "'" || $0 == "’" }).first.map(String.init) ?? last
+        // "Karnınız toksa": a clause with a condition, not a term.
+        if lastCore.count >= 5, ["sa", "se", "ken"].contains(where: { lastCore.hasSuffix($0) }) { return false }
+        if lastCore.count >= 5, ["da", "de", "ta", "te"].contains(where: { lastCore.hasSuffix($0) }) { return false }
+        if lastCore.count >= 7, ["dan", "den", "tan", "ten"].contains(where: { lastCore.hasSuffix($0) }) { return false }
+        return true
+    }
+
+    /// Word counts of all the selected text, to tell a term the text keeps returning to from a phrase that opens one sentence.
+    private struct CorpusIndex {
+        private struct WordCounts {
+            private var words: [String] = []
+            private var cumulative: [Int] = [0]
+
+            init(_ counts: [String: Int]) {
+                let sorted = counts.sorted { $0.key < $1.key }
+                words = sorted.map(\.key)
+                var running = 0
+                for item in sorted {
+                    running += item.value
+                    cumulative.append(running)
+                }
+            }
+
+            /// How many words in the text start with `prefix`.
+            func count(prefix: String) -> Int {
+                guard !prefix.isEmpty else { return 0 }
+                var low = 0
+                var high = words.count
+                while low < high {
+                    let mid = (low + high) / 2
+                    if words[mid] < prefix { low = mid + 1 } else { high = mid }
+                }
+                var end = low
+                while end < words.count, words[end].hasPrefix(prefix) { end += 1 }
+                return cumulative[end] - cumulative[low]
+            }
+        }
+
+        private let folded: WordCounts
+        private let exact: WordCounts
+
+        init(_ text: String) {
+            var foldedCounts: [String: Int] = [:]
+            var exactCounts: [String: Int] = [:]
+            for word in Self.words(in: text) {
+                foldedCounts[word.lowercased(), default: 0] += 1
+                exactCounts[word, default: 0] += 1
+            }
+            folded = WordCounts(foldedCounts)
+            exact = WordCounts(exactCounts)
+        }
+
+        private static func words(in text: String) -> [String] {
+            text.components(separatedBy: CharacterSet.letters.union(.decimalDigits).inverted).filter { !$0.isEmpty }
+        }
+
+        /// How often the term is in the text, by its rarest word. A word loses its last two letters first, so a
+        /// Turkish ending does not hide it. With `caseSensitive` only the same capitals count.
+        func frequency(of term: String, caseSensitive: Bool) -> Int {
+            var parts = Self.words(in: term)
+            let long = parts.filter { $0.count >= 4 }
+            if !long.isEmpty { parts = long }
+            var lowest = Int.max
+            for word in parts {
+                let stem = word.count > 7 ? String(word.dropLast(2)) : word
+                let found = caseSensitive
+                    ? exact.count(prefix: stem)
+                    : folded.count(prefix: stem.lowercased())
+                lowest = min(lowest, found)
+            }
+            return lowest == Int.max ? 0 : lowest
+        }
     }
 
     /// Heuristic for a stem that forgot its `?` but is still a question, not a pasted sentence.

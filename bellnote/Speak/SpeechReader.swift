@@ -3,19 +3,19 @@ import Foundation
 import Observation
 import OSLog
 
+/// Reads text aloud with Supertonic. There is no other voice: when Supertonic is not installed, nothing is read,
+/// and the screen that asks for it says to download it in Settings.
 @MainActor
 @Observable
-final class SpeechReader: NSObject, AVSpeechSynthesizerDelegate {
+final class SpeechReader {
     private static let log = Logger(subsystem: "app.bellnote", category: "listen")
     private(set) var isSpeaking = false
     /// True only while a Supertonic buffer is on the speaker (not during clip generation).
     private(set) var isAudioPlaying = false
-    private let synthesizer = AVSpeechSynthesizer()
     private var paragraphs: [String] = []
     private var index = 0
     private var locale = Locale.current
     private var turn = 0
-    private var utteranceTurns: [ObjectIdentifier: Int] = [:]
 
     private var startedAt = Date.distantPast
     private let playback = AVAudioEngine()
@@ -24,67 +24,23 @@ final class SpeechReader: NSObject, AVSpeechSynthesizerDelegate {
     private var playbackReady = false
     private var sessionReady = false
     private var supertonicCancel = SupertonicCancel()
-    private var allowAppleFallback = true
 
-    override init() {
-        super.init()
-        synthesizer.delegate = self
-        synthesizer.usesApplicationAudioSession = false
-    }
-
+    /// A short sample of the chosen voice, for the voice picker.
     func preview(_ text: String, locale: Locale) {
-        allowAppleFallback = false
-        guard prefersSupertonic else { return }
+        guard SupertonicSpeech.isInstalled else { return }
         Self.log.info("Listen preview characters=\(text.count) locale=\(locale.identifier, privacy: .public)")
-        beginSupertonic(text, locale: locale)
-    }
-
-    /// Talk tab: always Supertonic when installed, ignoring the Settings read-aloud picker.
-    func readSupertonicOnly(_ text: String, locale: Locale) {
-        allowAppleFallback = false
-        guard SupertonicSpeech.isInstalled else {
-            Self.log.error("Listen supertonic-only skipped; not installed")
-            return
-        }
-        Self.log.info("Listen supertonic-only characters=\(text.count) locale=\(locale.identifier, privacy: .public)")
-        beginSupertonic(text, locale: locale)
+        begin(text, locale: locale)
     }
 
     func read(_ text: String, locale: Locale) {
-        allowAppleFallback = true
         Self.log.info(
-            "Listen read characters=\(text.count) locale=\(locale.identifier, privacy: .public) speaking=\(self.isSpeaking) synthesizer=\(self.synthesizer.isSpeaking) preview=\(String(text.prefix(80)), privacy: .public)"
+            "Listen read characters=\(text.count) locale=\(locale.identifier, privacy: .public) speaking=\(self.isSpeaking) preview=\(String(text.prefix(80)), privacy: .public)"
         )
-        if prefersSupertonic {
-            beginSupertonic(text, locale: locale)
+        guard SupertonicSpeech.isInstalled else {
+            Self.log.error("Listen skipped; Supertonic is not installed")
             return
         }
-        let start = {
-            self.turn += 1
-            self.locale = locale
-            self.paragraphs = text.split(separator: "\n").map(String.init).filter { !$0.isEmpty }
-            if self.paragraphs.isEmpty, !text.isEmpty { self.paragraphs = [text] }
-            self.index = 0
-            self.startedAt = Date()
-            self.isSpeaking = !self.paragraphs.isEmpty
-            Self.log.info("Listen start paragraphs=\(self.paragraphs.count) turn=\(self.turn)")
-            self.speakCurrent()
-        }
-        guard synthesizer.isSpeaking else {
-            start()
-            return
-        }
-        Self.log.info("Listen stopping current speech before restart")
-        synthesizer.stopSpeaking(at: .immediate)
-        Task { @MainActor in start() }
-    }
-
-    func pause() {
-        synthesizer.pauseSpeaking(at: .word)
-    }
-
-    func resume() {
-        synthesizer.continueSpeaking()
+        begin(text, locale: locale)
     }
 
     /// When false, playback uses the already-active session (Talk screen keeps `.playAndRecord` for barge-in).
@@ -103,25 +59,17 @@ final class SpeechReader: NSObject, AVSpeechSynthesizerDelegate {
         isAudioPlaying = false
         if ownsAudioSession { sessionReady = false }
         supertonicCancel.stopped = true
-        synthesizer.stopSpeaking(at: .immediate)
         playbackNode.stop()
         if playback.isRunning { playback.stop() }
         paragraphs = []
         index = 0
-        utteranceTurns = [:]
     }
 
-    private var prefersSupertonic: Bool {
-        let raw = UserDefaults.standard.string(forKey: AppPreferences.readAloudKey) ?? ""
-        return raw == ReadAloud.supertonic.rawValue && SupertonicSpeech.isInstalled
-    }
-
-    private func beginSupertonic(_ text: String, locale: Locale) {
+    private func begin(_ text: String, locale: Locale) {
         supertonicCancel.stopped = true
         if playbackReady { playbackNode.stop() }
         let cancel = SupertonicCancel()
         supertonicCancel = cancel
-        synthesizer.stopSpeaking(at: .immediate)
         turn += 1
         self.locale = locale
         paragraphs = text.split(separator: "\n").map(String.init).filter { !$0.isEmpty }
@@ -130,10 +78,10 @@ final class SpeechReader: NSObject, AVSpeechSynthesizerDelegate {
         startedAt = Date()
         isSpeaking = !paragraphs.isEmpty
         Self.log.info("Listen supertonic start paragraphs=\(self.paragraphs.count) turn=\(self.turn)")
-        Task { await playSupertonicParagraph(cancel: cancel) }
+        Task { await playParagraph(cancel: cancel) }
     }
 
-    private func playSupertonicParagraph(cancel: SupertonicCancel) async {
+    private func playParagraph(cancel: SupertonicCancel) async {
         guard paragraphs.indices.contains(index), isSpeaking else {
             isSpeaking = false
             isAudioPlaying = false
@@ -150,12 +98,8 @@ final class SpeechReader: NSObject, AVSpeechSynthesizerDelegate {
         } catch {
             Self.log.error("Listen supertonic failed \(error.localizedDescription, privacy: .public)")
             guard spokenTurn == turn, isSpeaking, !cancel.stopped else { return }
-            guard allowAppleFallback else {
-                isSpeaking = false
-                isAudioPlaying = false
-                return
-            }
-            speakCurrent()
+            isSpeaking = false
+            isAudioPlaying = false
             return
         }
         guard spokenTurn == turn, isSpeaking, !cancel.stopped else { return }
@@ -208,7 +152,7 @@ final class SpeechReader: NSObject, AVSpeechSynthesizerDelegate {
         }
         playbackNode.scheduleBuffer(buffer, completionCallbackType: .dataPlayedBack) { [weak self] _ in
             Task { @MainActor in
-                self?.supertonicParagraphFinished(turn: spokenTurn)
+                self?.paragraphFinished(turn: spokenTurn)
             }
         }
         do {
@@ -242,48 +186,15 @@ final class SpeechReader: NSObject, AVSpeechSynthesizerDelegate {
         return ready
     }
 
-    private func supertonicParagraphFinished(turn spokenTurn: Int) {
+    private func paragraphFinished(turn spokenTurn: Int) {
         isAudioPlaying = false
         guard spokenTurn == turn, isSpeaking else { return }
         index += 1
-        Task { await playSupertonicParagraph(cancel: supertonicCancel) }
+        Task { await playParagraph(cancel: supertonicCancel) }
     }
 
     private func supertonicLanguage(_ locale: Locale) -> String {
         let code = locale.language.languageCode?.identifier ?? locale.identifier
         return code.hasPrefix("tr") ? "tr" : "en"
-    }
-
-    private func speakCurrent() {
-        guard paragraphs.indices.contains(index) else {
-            Self.log.info("Listen no paragraph left index=\(self.index)")
-            isSpeaking = false
-            return
-        }
-        let utterance = AVSpeechUtterance(string: paragraphs[index])
-        let voice = AVSpeechSynthesisVoice(language: locale.identifier)
-        utterance.voice = voice
-        utteranceTurns[ObjectIdentifier(utterance)] = turn
-        Self.log.info(
-            "Listen speak index=\(self.index) characters=\(self.paragraphs[self.index].count) voice=\(voice?.language ?? "missing", privacy: .public) name=\(voice?.name ?? "none", privacy: .public)"
-        )
-        synthesizer.speak(utterance)
-    }
-
-    nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
-        let identity = ObjectIdentifier(utterance)
-        Task { @MainActor in
-            let spokenTurn = utteranceTurns.removeValue(forKey: identity)
-            Self.log.info("Listen finished turn=\(spokenTurn ?? -1) current=\(self.turn) speaking=\(self.isSpeaking)")
-            guard spokenTurn == turn, isSpeaking else { return }
-            index += 1
-            speakCurrent()
-        }
-    }
-
-    nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) {
-        Task { @MainActor in
-            Self.log.info("Listen cancelled")
-        }
     }
 }

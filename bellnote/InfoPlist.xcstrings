@@ -37,7 +37,7 @@
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Bu aygıtta bir tahta fotoğrafı çeker veya seçtiğiniz programı okur."
+            "value" : "Bu cihazda bir tahta fotoğrafı çeker veya seçtiğin programı okur."
           }
         }
       }
@@ -54,7 +54,7 @@
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Bu aygıtta duran notların kilidini açar."
+            "value" : "Bu cihazda duran notların kilidini açar."
           }
         }
       }
@@ -71,7 +71,7 @@
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Kaydetmenize izin verilen bir dersi, kişisel notlar için, bu aygıtta kaydeder."
+            "value" : "Kaydetme iznin olan bir dersi, kişisel notlar için, bu cihazda kaydeder."
           }
         }
       }
@@ -88,7 +88,7 @@
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ders sesini bu aygıtta notlara çevirir."
+            "value" : "Ders sesini bu cihazda notlara çevirir."
           }
         }
       }

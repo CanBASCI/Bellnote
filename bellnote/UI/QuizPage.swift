@@ -9,7 +9,6 @@ struct QuizPage: View {
     @Bindable var term: Term
     @Environment(AppSession.self) private var session
     @Environment(\.locale) private var locale
-    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.scenePhase) private var scenePhase
 
     @State private var quiz = QuizSession()
@@ -179,7 +178,7 @@ struct QuizPage: View {
         return String(format: String(localized: "%@ - %@"), String(localized: "Quiz"), name)
     }
 
-    /// Same grid as Files, but each tile is a Liquid Glass exam card — not a folder.
+    /// Same grid and tile size as Files, but each tile is a quiz sheet icon — not a folder.
     private var courseList: some View {
         Group {
             if courses.isEmpty {
@@ -204,43 +203,27 @@ struct QuizPage: View {
         }
     }
 
-    /// One course as a glass quiz card tinted with that course’s color. The name sits under it.
-    /// The count is how many PDFs, images, and slides sit in that course’s Files cabinet.
+    /// One course as a quiz icon in that course’s color, drawn like the folders in Files: no glass, same size.
+    /// The name sits under it. The VoiceOver label still says how many PDFs, images, and slides the course holds.
     private func examTile(_ course: Course) -> some View {
-        let tintOpacity = colorScheme == .dark ? 0.5 : 0.28
         let documentCount = quizDocumentCount(course)
-        return VStack(spacing: 8) {
-            ZStack(alignment: .bottomTrailing) {
-                Image(systemName: "list.clipboard.fill")
-                    .font(.system(size: 40, weight: .semibold))
-                    .foregroundStyle(course.color)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .accessibilityHidden(true)
-                Text(verbatim: "\(documentCount)")
-                    .appFont(.caption, weight: .semibold, digits: true)
-                    .foregroundStyle(.secondary)
-                    .padding(.trailing, 10)
-                    .padding(.bottom, 8)
-                    .accessibilityHidden(true)
-            }
-            .frame(width: 96, height: 96)
-            .background {
-                RoundedRectangle(cornerRadius: 22, style: .continuous)
-                    .fill(.clear)
-                    .glassEffect(
-                        .regular.tint(course.color.opacity(tintOpacity)),
-                        in: .rect(cornerRadius: 22)
-                    )
-            }
+        return VStack(spacing: 6) {
+            // An answer sheet with a pencil, in the course color. The fill variant is used when the symbol has one.
+            Image(systemName: "pencil.and.list.clipboard")
+                .symbolVariant(.fill)
+                .font(.system(size: 68))
+                .symbolRenderingMode(.hierarchical)
+                .foregroundStyle(course.color)
+                .accessibilityHidden(true)
             Text(course.name)
-                .appFont(.footnote, weight: .semibold)
+                .appFont(.footnote)
                 .foregroundStyle(.primary)
                 .multilineTextAlignment(.center)
                 .lineLimit(2)
                 .frame(width: 96)
         }
         .frame(maxWidth: .infinity)
-        .contentShape(.rect(cornerRadius: 22))
+        .contentShape(.rect)
         .accessibilityLabel(
             Text(
                 "\(course.name), \(String(format: String(localized: "%lld documents"), documentCount))"

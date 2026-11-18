@@ -40,17 +40,30 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
+            "value" : "%1$@ · %2$@"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
             "value" : "%1$@ · %2$@"
           }
         }
       }
     },
     "%@ %@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
+            "value" : "%1$@ %2$@"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
             "value" : "%1$@ %2$@"
           }
         }
@@ -88,11 +101,97 @@
         }
       }
     },
+    "%@ in %lld days · %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ in %lld days · %@"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ %lld gün sonra · %@"
+          }
+        }
+      }
+    },
+    "%@ in an hour · %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ in an hour · %@"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ bir saat sonra · %@"
+          }
+        }
+      }
+    },
+    "%@ today" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ today"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ bugün"
+          }
+        }
+      }
+    },
+    "%@ tomorrow" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ tomorrow"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ yarın"
+          }
+        }
+      }
+    },
+    "%@ tomorrow · %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ tomorrow · %@"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ yarın · %@"
+          }
+        }
+      }
+    },
     "%@, %@" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
+            "value" : "%1$@, %2$@"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
             "value" : "%1$@, %2$@"
           }
         }
@@ -134,7 +233,13 @@
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
+            "value" : "%1$@%2$@"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
             "value" : "%1$@%2$@"
           }
         }
@@ -408,6 +513,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld dk kaldı"
+          }
+        }
+      }
+    },
+    "%lld minutes before" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld minutes before"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld dakika önce"
           }
         }
       }
@@ -709,6 +830,22 @@
         }
       }
     },
+    "All off until you turn them on. A notification shows only the course name and the time, never your notes. You get a few a day at most." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All off until you turn them on. A notification shows only the course name and the time, never your notes. You get a few a day at most."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hepsi sen açana kadar kapalı. Bildirimde yalnızca ders adı ve saat görünür, notların asla. Günde en fazla birkaç bildirim gelir."
+          }
+        }
+      }
+    },
     "All recordings, notes, assignments and exams of this course will be deleted. This cannot be undone." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -738,6 +875,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Bu dersin tüm kayıtları, notları, ödevleri, sınavları, dosyaları ve yapışkan notları silinecek. Bu geri alınamaz."
+          }
+        }
+      }
+    },
+    "Allow notifications for Bellnote in Settings to get class reminders." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Allow notifications for Bellnote in Settings to get class reminders."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ders hatırlatmaları için Ayarlar’dan Bellnote bildirimlerine izin ver."
           }
         }
       }
@@ -824,6 +977,7 @@
       }
     },
     "Apple Dictation" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -835,38 +989,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Apple dikte"
-          }
-        }
-      }
-    },
-    "Apple Dictation reads the notes." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Apple Dictation reads the notes."
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Notları Apple dikte okur."
-          }
-        }
-      }
-    },
-    "Apple Dictation writes the words." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Apple Dictation writes the words."
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Kelimeleri Apple dikte yazar."
           }
         }
       }
@@ -1208,38 +1330,6 @@
         }
       }
     },
-    "Choose Supertonic under Read aloud, then pick a voice." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Choose Supertonic under Read aloud, then pick a voice."
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sesli okuma’da Supertonic’i seç, sonra bir ses seç."
-          }
-        }
-      }
-    },
-    "Choose Whisper under Transcript." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Choose Whisper under Transcript."
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Transkript’te Whisper’ı seç."
-          }
-        }
-      }
-    },
     "Chosen sentences leave this speaker and are added to the one you pick." : {
       "localizations" : {
         "en" : {
@@ -1252,6 +1342,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Seçilen cümleler bu konuşmacıdan çıkar ve seçtiğin konuşmacıya eklenir."
+          }
+        }
+      }
+    },
+    "Class reminders" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Class reminders"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ders hatırlatıcıları"
           }
         }
       }
@@ -1804,6 +1910,22 @@
         }
       }
     },
+    "Device is cooling down" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Device is cooling down"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cihaz soğuyor"
+          }
+        }
+      }
+    },
     "Difficulty" : {
       "localizations" : {
         "en" : {
@@ -1965,6 +2087,22 @@
         }
       }
     },
+    "Download Supertonic in Settings to listen." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Download Supertonic in Settings to listen."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dinlemek için Ayarlar’dan Supertonic indir."
+          }
+        }
+      }
+    },
     "Download Supertonic in Settings to talk." : {
       "localizations" : {
         "en" : {
@@ -1981,18 +2119,18 @@
         }
       }
     },
-    "Download Supertonic, choose it under Read aloud, then pick a voice." : {
+    "Download Supertonic. It reads the notes aloud." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Download Supertonic, choose it under Read aloud, then pick a voice."
+            "value" : "Download Supertonic. It reads the notes aloud."
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Supertonic’i indir, Sesli okuma’da onu seç, sonra bir ses seç."
+            "value" : "Supertonic’i indir. Notları sesli okur."
           }
         }
       }
@@ -2013,18 +2151,18 @@
         }
       }
     },
-    "Download Whisper, then choose it under Transcript." : {
+    "Download Whisper. It writes the transcript." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Download Whisper, then choose it under Transcript."
+            "value" : "Download Whisper. It writes the transcript."
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Whisper’ı indir, sonra Transkript’te onu seç."
+            "value" : "Whisper’ı indir. Transkripti yazar."
           }
         }
       }
@@ -2401,10 +2539,36 @@
       }
     },
     "End" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "End"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bitiş"
+          }
+        }
+      }
     },
     "End the lecture recording" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "End the lecture recording"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ders kaydını bitir"
+          }
+        }
+      }
     },
     "End this lecture?" : {
       "localizations" : {
@@ -2503,6 +2667,22 @@
         }
       }
     },
+    "Exam reminders" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exam reminders"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sınav hatırlatıcıları"
+          }
+        }
+      }
+    },
     "Exams" : {
       "localizations" : {
         "en" : {
@@ -2547,6 +2727,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Soyadı"
+          }
+        }
+      }
+    },
+    "Faster, lighter on memory, less thorough." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Faster, lighter on memory, less thorough."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Daha hızlı, belleği az kullanır, daha az ayrıntılı."
           }
         }
       }
@@ -2616,6 +2812,22 @@
         }
       }
     },
+    "Fill in the blank:" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fill in the blank:"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Boşluğu doldur:"
+          }
+        }
+      }
+    },
     "Final" : {
       "localizations" : {
         "en" : {
@@ -2666,7 +2878,20 @@
       }
     },
     "Flag this second of the lecture" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flag this second of the lecture"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dersin bu saniyesini işaretle"
+          }
+        }
+      }
     },
     "FluidAudio" : {
 
@@ -4265,8 +4490,21 @@
         }
       }
     },
-    "Note ready %@" : {
-
+    "Note ready" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Note ready"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not hazır"
+          }
+        }
+      }
     },
     "Notes" : {
       "extractionState" : "stale",
@@ -4312,7 +4550,7 @@
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Notlar bu aygıtta kalır."
+            "value" : "Notlar bu cihazda kalır."
           }
         }
       }
@@ -4362,6 +4600,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Bildirim"
+          }
+        }
+      }
+    },
+    "Notifications" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notifications"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bildirimler"
+          }
+        }
+      }
+    },
+    "Notifications for Bellnote are off in iOS Settings. Allow them there, then turn a switch on here." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notifications for Bellnote are off in iOS Settings. Allow them there, then turn a switch on here."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bellnote bildirimleri iOS Ayarları'nda kapalı. Orada izin ver, sonra buradan bir anahtarı aç."
           }
         }
       }
@@ -4510,6 +4780,22 @@
         }
       }
     },
+    "Open iOS Settings" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open iOS Settings"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iOS Ayarlarını aç"
+          }
+        }
+      }
+    },
     "Optional" : {
       "localizations" : {
         "en" : {
@@ -4624,7 +4910,20 @@
       }
     },
     "Pause the lecture recording" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pause the lecture recording"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ders kaydını duraklat"
+          }
+        }
+      }
     },
     "Paused" : {
       "localizations" : {
@@ -4702,22 +5001,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Telefon"
-          }
-        }
-      }
-    },
-    "Phone is cooling down" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Phone is cooling down"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Telefon soğuyor"
           }
         }
       }
@@ -5289,22 +5572,6 @@
         }
       }
     },
-    "Read aloud" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Read aloud"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sesli okuma"
-          }
-        }
-      }
-    },
     "Reading %@" : {
       "localizations" : {
         "en" : {
@@ -5350,6 +5617,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Yapışkanlar okunuyor"
+          }
+        }
+      }
+    },
+    "Reading the material" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reading the material"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Materyal okunuyor"
           }
         }
       }
@@ -5580,6 +5863,22 @@
         }
       }
     },
+    "Remind me" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remind me"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hatırlat"
+          }
+        }
+      }
+    },
     "Reminder" : {
       "localizations" : {
         "en" : {
@@ -5710,7 +6009,20 @@
       }
     },
     "Resume the lecture recording" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Resume the lecture recording"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ders kaydını sürdür"
+          }
+        }
+      }
     },
     "Retry" : {
       "localizations" : {
@@ -6050,6 +6362,22 @@
         }
       }
     },
+    "Slower, uses more memory, more accurate." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Slower, uses more memory, more accurate."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Daha yavaş, belleği çok kullanır, daha doğru."
+          }
+        }
+      }
+    },
     "So far" : {
       "localizations" : {
         "en" : {
@@ -6307,6 +6635,22 @@
         }
       }
     },
+    "Starting now · %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Starting now · %@"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Şimdi başlıyor · %@"
+          }
+        }
+      }
+    },
     "Starts" : {
       "localizations" : {
         "en" : {
@@ -6323,8 +6667,21 @@
         }
       }
     },
-    "Starts %@." : {
-
+    "Starts in %lld minutes · %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Starts in %lld minutes · %@"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld dakika sonra başlıyor · %@"
+          }
+        }
+      }
     },
     "Stay paused" : {
       "localizations" : {
@@ -6456,18 +6813,18 @@
         }
       }
     },
-    "Supertonic reads the notes." : {
+    "Supertonic reads the notes aloud." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Supertonic reads the notes."
+            "value" : "Supertonic reads the notes aloud."
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Notları Supertonic okur."
+            "value" : "Supertonic notları sesli okur."
           }
         }
       }
@@ -6504,19 +6861,19 @@
         }
       }
     },
-    "Tags, AI correction, Ask, Assistant and Quiz use this model." : {
+    "Tags, AI correction, Ask and Assistant use this model." : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tags, AI correction, Ask, Assistant and Quiz use this model."
+            "value" : "Tags, AI correction, Ask and Assistant use this model."
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Etiketleme, yapay zekâ düzeltme, Ask, Asistan ve Sınav bu modeli kullanır."
+            "value" : "Etiketleme, yapay zekâ düzeltme, Ask ve Asistan bu modeli kullanır."
           }
         }
       }
@@ -7098,6 +7455,22 @@
         }
       }
     },
+    "The questions are built from the text you selected." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The questions are built from the text you selected."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sorular seçtiğin metinlerden hazırlanır."
+          }
+        }
+      }
+    },
     "The quiz is opening on the first question." : {
       "localizations" : {
         "en" : {
@@ -7439,7 +7812,20 @@
       }
     },
     "This exam will be deleted. This cannot be undone." : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This exam will be deleted. This cannot be undone."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bu sınav silinecek. Bu geri alınamaz."
+          }
+        }
+      }
     },
     "This is your confirmation, not proof that the lecturer consented." : {
       "localizations" : {
@@ -7469,7 +7855,7 @@
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Bu model bu aygıtta çalışmıyor."
+            "value" : "Bu model bu cihazda çalışmıyor."
           }
         }
       }
@@ -7486,7 +7872,7 @@
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Bu model bu aygıtta kilitli."
+            "value" : "Bu model bu cihazda kilitli."
           }
         }
       }
@@ -7680,22 +8066,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Toplam süre"
-          }
-        }
-      }
-    },
-    "Transcript" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Transcript"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Transkript"
           }
         }
       }
@@ -7942,6 +8312,7 @@
       }
     },
     "Whisper" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -8022,18 +8393,18 @@
         }
       }
     },
-    "Whisper writes the words." : {
+    "Whisper writes the transcript." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Whisper writes the words."
+            "value" : "Whisper writes the transcript."
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Sözleri Whisper yazar."
+            "value" : "Whisper transkripti yazar."
           }
         }
       }
@@ -8070,18 +8441,18 @@
         }
       }
     },
-    "Writing continues when the phone has cooled." : {
+    "Writing continues when the device has cooled." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Writing continues when the phone has cooled."
+            "value" : "Writing continues when the device has cooled."
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Telefon soğuyunca yazmaya devam edilir."
+            "value" : "Cihaz soğuyunca yazmaya devam edilir."
           }
         }
       }
@@ -8372,6 +8743,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Derslerin toplamı %lld saat %lld dakika."
+          }
+        }
+      }
+    },
+    "Your note is ready · %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your note is ready · %@"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notun hazır · %@"
           }
         }
       }

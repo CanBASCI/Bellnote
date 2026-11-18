@@ -33,54 +33,65 @@ struct TermHomeView: View {
     var body: some View {
         Group {
             if let term {
+                // The Tab form, so `.disabled` greys the item in the bar itself. On a plain view inside `.tabItem`
+                // it only switched off the page, and the item stayed tappable.
                 TabView(selection: $tab) {
-                    NavigationStack {
-                        TodayPage(
-                            term: term,
-                            terms: terms,
-                            showSlot: $showSlot,
-                            showTerm: $showTerm,
-                            showPending: $showPending
-                        )
+                    Tab("Home", systemImage: "text.rectangle.page", value: HomeTab.home) {
+                        NavigationStack {
+                            TodayPage(
+                                term: term,
+                                terms: terms,
+                                showSlot: $showSlot,
+                                showTerm: $showTerm,
+                                showPending: $showPending
+                            )
+                        }
                     }
-                    .tabItem { Label("Home", systemImage: "text.rectangle.page") }
-                    .tag(HomeTab.home)
+                    // Off until every model is downloaded. Only Settings is open, on the Models page.
+                    .disabled(session.setupIncomplete)
 
-                    NavigationStack {
-                        FilesPage(term: term)
+                    Tab("Files", systemImage: "folder", value: HomeTab.files) {
+                        NavigationStack {
+                            FilesPage(term: term)
+                        }
                     }
-                    .tabItem { Label("Files", systemImage: "folder") }
-                    .tag(HomeTab.files)
                     // Off until the term has a course. A file belongs to a course.
-                    .disabled(term.courses.isEmpty)
+                    .disabled(term.courses.isEmpty || session.setupIncomplete)
 
-                    NavigationStack {
-                        QuizPage(term: term)
+                    Tab("Quiz", systemImage: "checkmark.seal", value: HomeTab.quiz) {
+                        NavigationStack {
+                            QuizPage(term: term)
+                        }
                     }
-                    .tabItem { Label("Quiz", systemImage: "checkmark.seal") }
-                    .tag(HomeTab.quiz)
                     // Off until the term has a course, and while a recording is processed — Quiz shares the text model.
-                    .disabled(term.courses.isEmpty || PipelineActivity.shared.isBusy)
+                    .disabled(term.courses.isEmpty || PipelineActivity.shared.isBusy || session.setupIncomplete)
 
-                    NavigationStack {
-                        AssistantPage()
+                    Tab("Assistant", systemImage: "waveform.and.mic", value: HomeTab.assistant) {
+                        NavigationStack {
+                            AssistantPage()
+                        }
                     }
-                    .tabItem { Label("Assistant", systemImage: "waveform.and.mic") }
-                    .tag(HomeTab.assistant)
                     // Off while a recording is processed — Talk and the pipeline share the text model and memory.
-                    .disabled(PipelineActivity.shared.isBusy)
+                    .disabled(PipelineActivity.shared.isBusy || session.setupIncomplete)
 
-                    NavigationStack {
-                        SettingsPage(openModels: $openModels)
+                    Tab("Settings", systemImage: "gearshape", value: HomeTab.settings) {
+                        NavigationStack {
+                            SettingsPage(openModels: $openModels)
+                        }
                     }
-                    .tabItem { Label("Settings", systemImage: "gearshape") }
-                    .tag(HomeTab.settings)
                     // Off while a recording is processed — model changes must not race the pipeline.
                     .disabled(PipelineActivity.shared.isBusy)
                 }
                 .tabBarMinimizeBehavior(.onScrollDown)
                 .onChange(of: term.courses.isEmpty) { _, empty in
                     if empty, tab == .files || tab == .quiz { tab = .home }
+                }
+                .onChange(of: session.setupIncomplete) { _, incomplete in
+                    if incomplete { tab = .settings }
+                }
+                .onChange(of: tab) { _, picked in
+                    // A way in that the bar did not block still ends on Settings while a model is missing.
+                    if session.setupIncomplete, picked != .settings { tab = .settings }
                 }
                 .onChange(of: PipelineActivity.shared.isBusy) { _, busy in
                     // Quiz shares the text model with the pipeline; leave the tab when a run starts.
@@ -90,6 +101,11 @@ struct TermHomeView: View {
                     if let player = session.player {
                         PlayerAccessory(audio: player)
                     }
+                }
+            } else if session.setupIncomplete {
+                // No term yet and models still missing: the first screen is the Models page, not an empty home.
+                NavigationStack {
+                    SettingsPage(openModels: $openModels)
                 }
             } else {
                 NavigationStack {
@@ -107,6 +123,7 @@ struct TermHomeView: View {
             Logger(subsystem: "app.bellnote", category: "home").info("Home appeared, \(terms.count, privacy: .public) terms")
             // A lecture still saved as "processing" while nothing runs it goes back to paused.
             LecturePipeline.recoverInterrupted(context: modelContext)
+            ReminderScheduler.resync(context: modelContext)
             openCurrentTermOnLaunch()
             // Courses from before the color was stored get one, so no two courses of a term share a color.
             for item in terms { item.fillMissingCourseColors() }
@@ -114,6 +131,9 @@ struct TermHomeView: View {
         }
         .onChange(of: term?.persistentModelID) { _, _ in
             Task { await offerModelsIfNeeded() }
+        }
+        .onChange(of: NotificationRouter.shared.pendingCourse, initial: true) { _, token in
+            prepareForNotificationTap(course: token)
         }
         .onChange(of: scenePhase) { _, phase in
             // Leaving the app clears the one-look flag, so the next open checks the models again.
@@ -128,6 +148,23 @@ struct TermHomeView: View {
             if let term { SlotEditor(term: term, weekday: Calendar.current.component(.weekday, from: .now)) }
         }
         .sheet(isPresented: $showPending) { PendingSheet(lectures: pending) }
+    }
+
+    /// A tapped notification names a course. Its term opens and the Home tab is shown; the Home page then opens the course.
+    /// A course that no longer exists drops the request, so it does not wait for ever.
+    private func prepareForNotificationTap(course token: UUID?) {
+        guard let token else { return }
+        guard let target = terms.first(where: { item in item.courses.contains { $0.token == token } }) else {
+            NotificationRouter.shared.pendingCourse = nil
+            return
+        }
+        // The tap picks the term, so the pick by date at launch must not undo it.
+        openedByDate = true
+        if !target.isOpen {
+            for item in terms { item.isOpen = item.persistentModelID == target.persistentModelID }
+        }
+        // While a model is missing only Settings is open; the course opens once the models are in.
+        tab = session.setupIncomplete ? .settings : .home
     }
 
     /// When the app starts, the term whose dates include today opens. Later picks in the menu stay until the next start.
@@ -149,13 +186,20 @@ struct TermHomeView: View {
         for item in terms { item.isOpen = item.persistentModelID == current.persistentModelID }
     }
 
-    /// Opens Models when a text model, Whisper, or the voice models are still unset. Download stays a tap on that page.
+    /// Reads what is installed. While a model is missing, the tabs other than Settings are off and Settings is shown.
+    private func refreshSetup() async -> ModelSetup {
+        let guide = await ModelSetup.current(session: session)
+        session.modelSetup = guide
+        if guide.shouldGuide { tab = .settings }
+        return guide
+    }
+
+    /// Opens Models when a text model, Whisper, or a voice model is still missing. Download stays a tap on that page.
     private func offerModelsIfNeeded() async {
-        guard term != nil else { return }
+        let guide = await refreshSetup()
         guard !offeredModels else { return }
         guard !PipelineActivity.shared.isBusy else { return }
         offeredModels = true
-        let guide = await ModelSetup.current(session: session)
         guard guide.shouldGuide else { return }
         // The Models page is inside the Settings tab. Select that tab first, or the push is dropped.
         // The push waits until that move has finished, and it does not animate, so two moves do not run on the same layer.
@@ -381,6 +425,13 @@ struct TodayPage: View {
         .navigationDestination(item: $openedCourse) { course in
             CoursePage(course: course)
         }
+        // A tapped notification opens its course. The home view has already opened the right term.
+        .onChange(of: NotificationRouter.shared.pendingCourse, initial: true) { _, _ in
+            openPendingCourse()
+        }
+        .onChange(of: term.persistentModelID) { _, _ in
+            openPendingCourse()
+        }
         .navigationDestination(isPresented: $showTimetable) {
             ProgramPage(term: term)
         }
@@ -563,6 +614,14 @@ struct TodayPage: View {
                 for item in terms { item.isOpen = item.persistentModelID == id }
             }
         )
+    }
+
+    /// Opens the course a tapped notification named, once the open term holds it.
+    private func openPendingCourse() {
+        guard let token = NotificationRouter.shared.pendingCourse,
+              let course = term.courses.first(where: { $0.token == token }) else { return }
+        NotificationRouter.shared.pendingCourse = nil
+        openedCourse = course
     }
 
     private var orderedCourses: [Course] {
@@ -1443,6 +1502,7 @@ struct TodayPage: View {
             let next = terms
                 .filter { $0.persistentModelID != term.persistentModelID }
                 .max { ($0.yearOfStudy, $0.termNumber) < ($1.yearOfStudy, $1.termNumber) }
+            for slot in term.slots { ReminderScheduler.removeSlot(slot) }
             modelContext.delete(term)
             next?.isOpen = true
         } catch {
@@ -1456,6 +1516,9 @@ struct TodayPage: View {
     private func deleteCourse(_ course: Course) {
         do {
             try Vault.removeCourseDirectory(id: course.token)
+            for slot in course.term?.slots ?? [] where slot.course?.token == course.token {
+                ReminderScheduler.removeSlot(slot)
+            }
             modelContext.delete(course)
             if session.focusCourseToken == course.token { session.focusCourseToken = nil }
         } catch {

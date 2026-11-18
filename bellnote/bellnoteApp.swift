@@ -4,6 +4,7 @@ import SwiftUI
 
 @main
 struct bellnoteApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var session = AppSession()
     private let container: ModelContainer?
 

@@ -126,7 +126,7 @@ enum LecturePipeline {
                 lecture.stage = PipelineStage.ready.rawValue
                 lecture.state = LectureState.ready.rawValue
                 try context.save()
-                await ReminderScheduler.notifyReady(course: course.name, startedAt: lecture.startedAt)
+                await ReminderScheduler.notifyReady(courseName: course.name, courseToken: course.token, startedAt: lecture.startedAt)
                 log.info("Process ready \(MemoryProbe.summary())")
                 await LocalModelRuntime.shared.unloadAll()
             }
@@ -262,8 +262,8 @@ enum LecturePipeline {
     private static func finishTranscript(_ lecture: Lecture, course: Course) async throws {
         let activity = PipelineActivity.shared
         guard let path = lecture.audioRelativePath else { throw TranscriptError.unreadable }
-        let engine = SpeechEngine(rawValue: UserDefaults.standard.string(forKey: AppPreferences.speechEngineKey) ?? "") ?? .apple
-        log.info("Transcript engine=\(engine.rawValue, privacy: .public)")
+        // Whisper is the only transcript engine. Without it the run stops here, before the speaker pass spends time.
+        guard WhisperASR.isInstalled() else { throw TranscriptError.whisperMissing }
         let url = try Vault.documents().appendingPathComponent(path)
         let locale = Locale(identifier: course.localeIdentifier)
         // Telling the speakers apart comes first, so the bar must not say the text is being written.
@@ -285,23 +285,18 @@ enum LecturePipeline {
         }
         SpeakerPass.release()
         let lines: [TranscriptLine]
-        if engine == .whisper {
-            guard WhisperASR.isInstalled() else { throw TranscriptError.whisperMissing }
-            log.info("Whisper ASR writing")
-            do {
-                lines = try await WhisperASR.transcribe(url: url, locale: locale, runs: runs) { step in
-                    activity.setDetail(whisperStep(step), for: lecture)
-                }
-            } catch let error as TranscriptError {
-                throw error
-            } catch is CancellationError {
-                throw CancellationError()
-            } catch {
-                log.error("Whisper ASR failed message=\(error.localizedDescription, privacy: .public)")
-                throw TranscriptError.whisperNotWriting
+        log.info("Whisper ASR writing")
+        do {
+            lines = try await WhisperASR.transcribe(url: url, locale: locale, runs: runs) { step in
+                activity.setDetail(whisperStep(step), for: lecture)
             }
-        } else {
-            lines = try await LectureTranscriber.transcribe(url: url, locale: locale, runs: runs)
+        } catch let error as TranscriptError {
+            throw error
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch {
+            log.error("Whisper ASR failed message=\(error.localizedDescription, privacy: .public)")
+            throw TranscriptError.whisperNotWriting
         }
         lecture.blocks.removeAll()
         for line in lines {

@@ -181,6 +181,11 @@ struct ExamEditor: View {
         } else {
             let allowed = await ReminderScheduler.askPermission()
             sitting.reminderKind = allowed ? reminder.rawValue : ReminderKind.none.rawValue
+            // Setting an exam reminder here also turns "Exam reminders" on in Settings.
+            if allowed, !NotificationKind.exam.isOn {
+                NotificationKind.exam.setOn(true)
+                ReminderScheduler.resync(context: modelContext)
+            }
         }
         ReminderScheduler.replaceExam(sitting, courseName: course.name)
         do {

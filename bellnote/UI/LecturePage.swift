@@ -116,6 +116,8 @@ struct LectureNote: View {
     @State private var askRewriteCorrection = false
     @State private var askRewriteAssignments = false
     @State private var askNoModel = false
+    /// Listen needs Supertonic. Without it a tap says where to download it.
+    @State private var askVoice = false
     @State private var showCancel = false
     @State private var tab: LectureTab
     /// Speakers chosen in the Raw tab. Empty means everyone.
@@ -345,6 +347,11 @@ struct LectureNote: View {
             fluidGate.request { await process() }
         }
         .confirmAssignmentDelete($pendingAssignment)
+        .alert("Listen", isPresented: $askVoice) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("Download Supertonic in Settings to listen.")
+        }
         .alert("Process again?", isPresented: $askReprocess) {
             Button("Delete and process again", role: .destructive) {
                 start()
@@ -756,6 +763,10 @@ struct LectureNote: View {
     }
 
     private func listen(_ course: Course) {
+        guard SupertonicSpeech.isInstalled else {
+            askVoice = true
+            return
+        }
         let text = lecture.summary.isEmpty
             ? chapters.map(\.text).joined(separator: "\n")
             : CorrectionText.plain(lecture.summary)

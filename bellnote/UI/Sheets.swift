@@ -1,6 +1,7 @@
 import OSLog
 import SwiftData
 import SwiftUI
+import UIKit
 
 struct TermEditor: View {
     var terms: [Term]
@@ -241,18 +242,15 @@ struct PendingSheet: View {
 struct ModelSetup: Equatable {
     var needsText: Bool
     var needsWhisperDownload: Bool
-    var needsWhisperChoice: Bool
     var needsFluid: Bool
     var needsSupertonic: Bool
-    var needsReadAloud: Bool
 
-    /// A missing text model, Whisper neither installed nor chosen, or FluidAudio or Supertonic missing. One of the two voice models is enough.
+    /// A missing text model, Whisper, FluidAudio or Supertonic. While true, only Settings is open.
     var shouldGuide: Bool {
         needsText
-            || (needsWhisperDownload && needsWhisperChoice)
+            || needsWhisperDownload
             || needsFluid
             || needsSupertonic
-            || needsReadAloud
     }
 
     @MainActor
@@ -262,10 +260,8 @@ struct ModelSetup: Equatable {
         return ModelSetup(
             needsText: await runtime.hasTextModel() == false,
             needsWhisperDownload: !whisper,
-            needsWhisperChoice: session.speechEngine != .whisper,
             needsFluid: !SpeakerPass.modelsAreInstalled(),
-            needsSupertonic: !SupertonicSpeech.isInstalled,
-            needsReadAloud: session.readAloud != .supertonic
+            needsSupertonic: !SupertonicSpeech.isInstalled
         )
     }
 }
@@ -273,6 +269,15 @@ struct ModelSetup: Equatable {
 struct SettingsPage: View {
     @Binding var openModels: Bool
     @Environment(AppSession.self) private var session
+    @Environment(\.modelContext) private var modelContext
+    @Environment(\.openURL) private var openURL
+    // Each kind is off until the student turns it on. A switch in a course or exam sheet changes these too.
+    @AppStorage(NotificationKind.classStart.key) private var classRemindersOn = false
+    @AppStorage(NotificationKind.exam.key) private var examRemindersOn = false
+    @AppStorage(NotificationKind.noteReady.key) private var noteReadyOn = false
+    @State private var notificationsDenied = false
+    /// Changes when a switch is refused, so the switch is drawn off again even when `notificationsDenied` was already set.
+    @State private var refusedCount = 0
     @State private var choice: AppLanguage = {
         let stored = UserDefaults.standard.string(forKey: AppPreferences.languageKey) ?? AppLanguage.system.rawValue
         return AppLanguage(rawValue: stored) ?? .system
@@ -345,6 +350,25 @@ struct SettingsPage: View {
             }
 
             Section {
+                notificationToggle("Class reminders", systemImage: "bell", kind: .classStart, isOn: classRemindersOn)
+                notificationToggle("Exam reminders", systemImage: "list.clipboard", kind: .exam, isOn: examRemindersOn)
+                notificationToggle("Note ready", systemImage: "doc.text", kind: .noteReady, isOn: noteReadyOn)
+                if notificationsDenied {
+                    Button("Open iOS Settings") {
+                        if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) }
+                    }
+                }
+            } header: {
+                Text("Notifications")
+            } footer: {
+                if notificationsDenied {
+                    Text("Notifications for Bellnote are off in iOS Settings. Allow them there, then turn a switch on here.")
+                } else {
+                    Text("All off until you turn them on. A notification shows only the course name and the time, never your notes. You get a few a day at most.")
+                }
+            }
+
+            Section {
                 NavigationLink {
                     ModelsPage()
                 } label: {
@@ -368,6 +392,41 @@ struct SettingsPage: View {
         .navigationTitle("Settings")
         .navigationDestination(isPresented: $openModels) {
             ModelsPage()
+        }
+    }
+
+    private func notificationToggle(
+        _ title: LocalizedStringKey,
+        systemImage: String,
+        kind: NotificationKind,
+        isOn: Bool
+    ) -> some View {
+        Toggle(isOn: Binding(
+            get: { isOn },
+            set: { setNotification(kind, on: $0) }
+        )) {
+            Label(title, systemImage: systemImage)
+        }
+        .switchTrackTint()
+        .id("\(kind.rawValue).\(refusedCount)")
+    }
+
+    /// On asks for permission, the first time it is needed. Off clears what was waiting to fire.
+    private func setNotification(_ kind: NotificationKind, on: Bool) {
+        guard on else {
+            kind.setOn(false)
+            Task { await ReminderScheduler.removeAll(kind) }
+            return
+        }
+        Task {
+            if await ReminderScheduler.askPermission() {
+                notificationsDenied = false
+                kind.setOn(true)
+                ReminderScheduler.resync(context: modelContext)
+            } else {
+                notificationsDenied = true
+                refusedCount += 1
+            }
         }
     }
 }
@@ -399,6 +458,8 @@ struct ModelsPage: View {
     @State private var voicePreview = SpeechReader()
     /// False until the first look at disk, so the guide does not flash every row as missing.
     @State private var checkedModels = false
+    /// The row to bring into view next. Set when a download finishes, so the next one still missing is shown.
+    @State private var scrollRequest: ModelSpot?
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -418,7 +479,7 @@ struct ModelsPage: View {
                         }
                     }
                     .pickerStyle(.menu)
-                    Text("Tags, AI correction, Ask, Assistant and Quiz use this model.")
+                    Text("Tags, AI correction, Ask and Assistant use this model.")
                         .appFont(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -426,18 +487,7 @@ struct ModelsPage: View {
             Section("Speech to text") {
                 modelRow(.whisper, title: Self.modelTitle(.whisper), bytes: ModelCatalog.whisperBytes, locked: ModelLock.whisperLocked(budget))
                     .id(ModelSpot.whisper)
-                Picker("Transcript", selection: Binding(
-                    get: { session.speechEngine },
-                    set: { session.setSpeechEngine($0) }
-                )) {
-                    Text("Apple Dictation").tag(SpeechEngine.apple)
-                    if installed[.whisper] == true {
-                        Text("Whisper").tag(SpeechEngine.whisper)
-                    }
-                }
-                .pickerStyle(.menu)
-                .id(ModelSpot.transcript)
-                Text(transcriptHint)
+                Text("Whisper writes the transcript.")
                     .appFont(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -446,23 +496,10 @@ struct ModelsPage: View {
                     .id(ModelSpot.fluid)
                 supertonicRow()
                     .id(ModelSpot.supertonic)
-                Picker("Read aloud", selection: Binding(
-                    get: { session.readAloud },
-                    set: { session.setReadAloud($0) }
-                )) {
-                    Text("Apple Dictation").tag(ReadAloud.apple)
-                    if supertonicInstalled {
-                        Text("Supertonic").tag(ReadAloud.supertonic)
-                    }
-                }
-                .pickerStyle(.menu)
-                .id(ModelSpot.readAloud)
-                Text(session.readAloud == .supertonic
-                    ? "Supertonic reads the notes."
-                    : "Apple Dictation reads the notes.")
+                Text("Supertonic reads the notes aloud.")
                     .appFont(.caption)
                     .foregroundStyle(.secondary)
-                if session.readAloud == .supertonic, supertonicInstalled {
+                if supertonicInstalled {
                     Picker("Voice", selection: Binding(
                         get: { session.supertonicVoice },
                         set: { voice in
@@ -485,12 +522,14 @@ struct ModelsPage: View {
                 }
             }
         }
+        .onChange(of: scrollRequest) { _, spot in
+            guard let spot else { return }
+            withAnimation { proxy.scrollTo(spot, anchor: .center) }
+            scrollRequest = nil
+        }
         }
         .navigationTitle("Models")
         .onDisappear { voicePreview.stop() }
-        .onChange(of: session.readAloud) { _, engine in
-            if engine != .supertonic { voicePreview.stop() }
-        }
         .task {
             refreshBudget()
             await refreshInstalled()
@@ -580,12 +619,14 @@ struct ModelsPage: View {
                         downloadProgress = 0
                         fluidStatus = nil
                         Task {
+                            var finished = false
                             do {
                                 try await SpeakerPass.downloadModels { fraction in
                                     Task { @MainActor in
                                         downloadProgress = max(downloadProgress, min(max(fraction, 0), 1))
                                     }
                                 }
+                                finished = true
                                 fluidStatus = String(localized: "Download finished.")
                                 Self.log.info("UI download ok fluidAudio")
                             } catch {
@@ -596,6 +637,7 @@ struct ModelsPage: View {
                             downloadingFluid = false
                             downloadProgress = 0
                             await refreshInstalled()
+                            if finished { showNextGap(after: .fluid) }
                         }
                     }
                     .buttonStyle(.borderless)
@@ -677,9 +719,8 @@ struct ModelsPage: View {
                             downloadingSupertonic = false
                             downloadProgress = 0
                             await refreshInstalled()
-                            // The file is on disk before the picker changes. Apple Dictation stays only if the download did not finish.
-                            if finished, SupertonicSpeech.isInstalled {
-                                session.setReadAloud(.supertonic)
+                                                        if finished, SupertonicSpeech.isInstalled {
+                                showNextGap(after: .supertonic)
                             }
                         }
                     }
@@ -699,9 +740,6 @@ struct ModelsPage: View {
         do {
             try SupertonicSpeech.delete()
             supertonicStatus = nil
-            if session.readAloud == .supertonic {
-                session.setReadAloud(.apple)
-            }
             Self.log.info("UI delete ok supertonic")
         } catch {
             let nsError = error as NSError
@@ -729,6 +767,11 @@ struct ModelsPage: View {
                     Text(bytes.formatted(.byteCount(style: .file)))
                         .appFont(.caption)
                         .foregroundStyle(.secondary)
+                    if let trait = Self.speedTrait(role) {
+                        Text(trait)
+                            .appFont(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                     if leftover[role] == true, !ready {
                         Text("Incompletely installed")
                             .appFont(.caption)
@@ -773,6 +816,7 @@ struct ModelsPage: View {
                         downloadProgress = 0
                         status[role] = nil
                         Task {
+                            var finished = false
                             do {
                                 try await LocalModelRuntime.shared.download(role, onProgress: { fraction in
                                     Task { @MainActor in
@@ -781,6 +825,7 @@ struct ModelsPage: View {
                                 }, onPreparing: {
                                     Task { @MainActor in preparing = role }
                                 })
+                                finished = true
                                 status[role] = String(localized: "Download finished.")
                                 Self.log.info("UI download ok role=\(role.rawValue, privacy: .public)")
                             } catch {
@@ -792,6 +837,7 @@ struct ModelsPage: View {
                             preparing = nil
                             downloadProgress = 0
                             await refreshInstalled()
+                            if finished { showNextGap(after: role == .whisper ? .whisper : .text) }
                         }
                     }
                     .buttonStyle(.borderless)
@@ -823,22 +869,38 @@ struct ModelsPage: View {
     private enum ModelSpot: Hashable {
         case text
         case whisper
-        case transcript
         case fluid
         case supertonic
-        case readAloud
+    }
+
+    /// What is still missing, from what this page has read from disk.
+    private var currentGuide: ModelSetup {
+        ModelSetup(
+            needsText: installed[.tagger] != true && installed[.page] != true,
+            needsWhisperDownload: installed[.whisper] != true,
+            needsFluid: !fluidInstalled,
+            needsSupertonic: !supertonicInstalled
+        )
+    }
+
+    /// After a download finishes, brings the next thing still missing into view: the next one down the page,
+    /// or the first one above it when nothing is left below. Nothing moves when nothing is missing.
+    private func showNextGap(after done: ModelSpot) {
+        let guide = currentGuide
+        var gaps: [ModelSpot] = []
+        if guide.needsText { gaps.append(.text) }
+        if guide.needsWhisperDownload { gaps.append(.whisper) }
+        if guide.needsFluid { gaps.append(.fluid) }
+        if guide.needsSupertonic { gaps.append(.supertonic) }
+        let order: [ModelSpot] = [.text, .whisper, .fluid, .supertonic]
+        let doneIndex = order.firstIndex(of: done) ?? 0
+        let next = gaps.first { (order.firstIndex(of: $0) ?? 0) > doneIndex } ?? gaps.first
+        if let next { scrollRequest = next }
     }
 
     @ViewBuilder
     private func setupGuide(using proxy: ScrollViewProxy) -> some View {
-        let guide = ModelSetup(
-            needsText: installed[.tagger] != true && installed[.page] != true,
-            needsWhisperDownload: installed[.whisper] != true,
-            needsWhisperChoice: session.speechEngine != .whisper,
-            needsFluid: !fluidInstalled,
-            needsSupertonic: !supertonicInstalled,
-            needsReadAloud: session.readAloud != .supertonic
-        )
+        let guide = currentGuide
         if checkedModels, guide.shouldGuide {
             Section {
                 if guide.needsText {
@@ -853,11 +915,7 @@ struct ModelsPage: View {
                 }
                 if guide.needsWhisperDownload {
                     guideLink(proxy, spot: .whisper) {
-                        Text("Download Whisper, then choose it under Transcript.")
-                    }
-                } else if guide.needsWhisperChoice {
-                    guideLink(proxy, spot: .transcript) {
-                        Text("Choose Whisper under Transcript.")
+                        Text("Download Whisper. It writes the transcript.")
                     }
                 }
                 if guide.needsFluid {
@@ -867,11 +925,7 @@ struct ModelsPage: View {
                 }
                 if guide.needsSupertonic {
                     guideLink(proxy, spot: .supertonic) {
-                        Text("Download Supertonic, choose it under Read aloud, then pick a voice.")
-                    }
-                } else if guide.needsReadAloud {
-                    guideLink(proxy, spot: .readAloud) {
-                        Text("Choose Supertonic under Read aloud, then pick a voice.")
+                        Text("Download Supertonic. It reads the notes aloud.")
                     }
                 }
             } header: {
@@ -925,21 +979,10 @@ struct ModelsPage: View {
         supertonicInstalled = SupertonicSpeech.isInstalled
         supertonicPartial = SupertonicSpeech.hasPartial
         checkedModels = true
-        if session.readAloud == .supertonic, !supertonicInstalled {
-            session.setReadAloud(.apple)
-        }
-        if session.speechEngine == .whisper, !whisper.isReady {
-            session.setSpeechEngine(.apple)
-        }
+        // The tabs follow what this page just read, so the last download opens them without a relaunch.
+        session.modelSetup = currentGuide
         if installed[session.pageModel] != true, let first = installedTextModels.first {
             session.setPageModel(first)
-        }
-    }
-
-    private var transcriptHint: LocalizedStringKey {
-        switch session.speechEngine {
-        case .apple: "Apple Dictation writes the words."
-        case .whisper: "Whisper writes the words."
         }
     }
 
@@ -970,6 +1013,15 @@ struct ModelsPage: View {
         case .tagger: "Qwen 3.5 2B"
         case .page: "Qwen 3.5 4B"
         case .whisper: "Whisper"
+        }
+    }
+
+    /// What the student gets from this text model, in a few words. Whisper has no such trade-off to show.
+    private static func speedTrait(_ role: ModelRole) -> String? {
+        switch role {
+        case .tagger: String(localized: "Faster, lighter on memory, less thorough.")
+        case .page: String(localized: "Slower, uses more memory, more accurate.")
+        case .whisper: nil
         }
     }
 
@@ -1472,7 +1524,10 @@ struct ProgramPage: View {
             )
         ) {
             Button("Delete", role: .destructive) {
-                if let slot = pendingSlot { modelContext.delete(slot) }
+                if let slot = pendingSlot {
+                    ReminderScheduler.removeSlot(slot)
+                    modelContext.delete(slot)
+                }
                 pendingSlot = nil
             }
             Button("Cancel", role: .cancel) { pendingSlot = nil }
@@ -1696,6 +1751,12 @@ struct SlotEditor: View {
     @State private var language = AppLanguage.deviceCourseDefault
     @State private var placePreset: PlacePreset = .other
     @State private var placeCustom = ""
+    /// The reminder before this class time. On means a notification with sound at the chosen lead.
+    @State private var remind: Bool
+    @State private var leadMinutes: Int
+    /// Set when the student switched the reminder on but the system did not allow notifications.
+    @State private var notificationsDenied = false
+    private static let leadChoices = [5, 10, 15, 30, 60]
     /// Set when the sheet changes a time that is already in the timetable. Then the course cannot change.
     private let editing: WeeklySlot?
     /// Set when the sheet adds one more time to a given course. Then the course is fixed and not asked.
@@ -1710,6 +1771,10 @@ struct SlotEditor: View {
         self.editing = editing
         self.lockedCourse = editing?.course ?? course
         _day = State(initialValue: editing?.weekday ?? weekday)
+        _remind = State(
+            initialValue: (ReminderKind(rawValue: editing?.reminderKind ?? "") ?? .none) != .none
+        )
+        _leadMinutes = State(initialValue: editing?.leadMinutes ?? 5)
         if let locked = editing?.course ?? course {
             _choice = State(initialValue: .existing(locked.token))
         } else if term.courses.count == 1, let token = term.courses.first?.token {
@@ -1777,6 +1842,21 @@ struct SlotEditor: View {
                         end = newStart
                     }
                 DatePicker("End", selection: $end, displayedComponents: .hourAndMinute)
+                Toggle("Reminder", isOn: $remind)
+                    .switchTrackTint()
+                if notificationsDenied {
+                    Text("Allow notifications for Bellnote in Settings to get class reminders.")
+                        .appFont(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+                if remind {
+                    Picker("Remind me", selection: $leadMinutes) {
+                        ForEach(leadChoices, id: \.self) { value in
+                            Text(String(format: String(localized: "%lld minutes before"), value)).tag(value)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                }
                 Picker("Place", selection: $placePreset) {
                     ForEach(PlacePreset.allCases) { preset in
                         Text(LocalizedStringKey(preset.menuTitle)).tag(preset)
@@ -1785,6 +1865,26 @@ struct SlotEditor: View {
                 .pickerStyle(.menu)
                 if placePreset == .other {
                     TextField("Place name", text: $placeCustom)
+                }
+            }
+            .onChange(of: remind) { _, on in
+                guard on else {
+                    notificationsDenied = false
+                    return
+                }
+                // Permission is asked the first time the student switches a reminder on.
+                Task {
+                    if await ReminderScheduler.askPermission() {
+                        notificationsDenied = false
+                        // Switching a class reminder on here also turns "Class reminders" on in Settings.
+                        if !NotificationKind.classStart.isOn {
+                            NotificationKind.classStart.setOn(true)
+                            ReminderScheduler.resync(context: modelContext)
+                        }
+                    } else {
+                        remind = false
+                        notificationsDenied = true
+                    }
                 }
             }
             .navigationTitle(title)
@@ -1798,6 +1898,16 @@ struct SlotEditor: View {
             }
         }
         .presentationDetents([.medium, .large])
+    }
+
+    /// The usual leads, plus the one already saved when it is not among them.
+    private var leadChoices: [Int] {
+        Array(Set(Self.leadChoices + [leadMinutes])).sorted()
+    }
+
+    private func applyReminder(to slot: WeeklySlot) {
+        slot.reminderKind = (remind ? ReminderKind.alert : ReminderKind.none).rawValue
+        slot.leadMinutes = leadMinutes
     }
 
     private var canSave: Bool {
@@ -1820,7 +1930,8 @@ struct SlotEditor: View {
             editing.startMinutes = minutes(start)
             editing.endMinutes = minutes(end)
             editing.placeName = placePreset.storedName(custom: placeCustom)
-            // The reminder of this time follows the new day and hour.
+            // The reminder of this time follows the new day, hour, and lead.
+            applyReminder(to: editing)
             ReminderScheduler.replaceSlot(editing, courseName: editing.course?.name ?? "")
             commit()
             return
@@ -1836,6 +1947,8 @@ struct SlotEditor: View {
         )
         modelContext.insert(slot)
         term.slots.append(slot)
+        applyReminder(to: slot)
+        ReminderScheduler.replaceSlot(slot, courseName: course?.name ?? "")
         commit()
     }
 

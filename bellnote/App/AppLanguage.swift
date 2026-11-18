@@ -128,8 +128,6 @@ enum AppPreferences {
     static let lecturerAskedKey = "lecturerAsked."
     static let pagePrefersTaggerKey = "pagePrefersTagger"
     static let pageModelKey = "pageModel"
-    static let speechEngineKey = "speechEngine"
-    static let readAloudKey = "readAloud"
     static let supertonicVoiceKey = "supertonicVoice"
     static let measuredPageSecondsKey = "measuredPageSeconds"
 

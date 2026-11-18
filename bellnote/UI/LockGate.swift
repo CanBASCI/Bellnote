@@ -22,7 +22,10 @@ struct LockGate: View {
                 Self.log.info("Unlock button tapped")
                 Task { await unlock() }
             }
-            .buttonStyle(.borderedProminent)
+            // Glass, like the other buttons of the app. A prominent button takes the app tint, which is the primary
+            // color: white in dark mode, so its white label could not be read.
+            .buttonStyle(.glass)
+            .controlSize(.large)
         }
         .padding()
         .task {

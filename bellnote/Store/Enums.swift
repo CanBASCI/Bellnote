@@ -248,13 +248,3 @@ enum ModelRole: String, Codable, Sendable, CaseIterable {
     /// Models that write text through `LanguageModelSession`. Whisper only hears audio.
     var isTextModel: Bool { self != .whisper }
 }
-
-enum SpeechEngine: String, Codable, Sendable {
-    case apple
-    case whisper
-}
-
-enum ReadAloud: String, Codable, Sendable {
-    case apple
-    case supertonic
-}

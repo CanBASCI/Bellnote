@@ -14,13 +14,15 @@ final class AppSession {
     var focusCourseToken: UUID?
     var focusLectureID: PersistentIdentifier?
     var showModelDownload = false
+    /// What the Models page and the launch check last read from disk. `nil` until the first check.
+    /// While it says a model is missing, every tab but Settings is off.
+    var modelSetup: ModelSetup?
+    var setupIncomplete: Bool { modelSetup?.shouldGuide == true }
     var focusedModel: ModelRole?
     /// The recording that is open now. The tab bar's bottom accessory shows its player.
     var player: LectureAudio?
     var resumeAfterInterruption = false
     var pageModel: ModelRole
-    var speechEngine: SpeechEngine
-    var readAloud: ReadAloud
     var supertonicVoice: Int
 
     init() {
@@ -38,8 +40,6 @@ final class AppSession {
         let storedTypeface = defaults.string(forKey: AppPreferences.typefaceKey) ?? AppTypeface.sfPro.rawValue
         typeface = AppTypeface(rawValue: storedTypeface) ?? .sfPro
         pageModel = AppPreferences.pageModel(defaults)
-        speechEngine = SpeechEngine(rawValue: defaults.string(forKey: AppPreferences.speechEngineKey) ?? "") ?? .apple
-        readAloud = ReadAloud(rawValue: defaults.string(forKey: AppPreferences.readAloudKey) ?? "") ?? .apple
         supertonicVoice = SupertonicVoice.clamped(defaults.integer(forKey: AppPreferences.supertonicVoiceKey))
     }
 
@@ -71,16 +71,6 @@ final class AppSession {
         guard role.isTextModel else { return }
         UserDefaults.standard.set(role.rawValue, forKey: AppPreferences.pageModelKey)
         pageModel = role
-    }
-
-    func setSpeechEngine(_ engine: SpeechEngine) {
-        UserDefaults.standard.set(engine.rawValue, forKey: AppPreferences.speechEngineKey)
-        speechEngine = engine
-    }
-
-    func setReadAloud(_ voice: ReadAloud) {
-        UserDefaults.standard.set(voice.rawValue, forKey: AppPreferences.readAloudKey)
-        readAloud = voice
     }
 
     func setSupertonicVoice(_ voice: Int) {

@@ -124,6 +124,7 @@ struct CourseEditor: View {
             ) {
                 Button("Delete", role: .destructive) {
                     if let slot = pendingDelete {
+                        ReminderScheduler.removeSlot(slot)
                         modelContext.delete(slot)
                         commit()
                     }

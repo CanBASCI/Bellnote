@@ -236,6 +236,7 @@ actor LocalModelRuntime {
                 question = one short complete question ending with ?. At most 140 characters. Never put the answer in it. No A) B) C).
                 answer = the exact words copied from the material that answer the question: a name, term, number, or short phrase of 1 to 6 words. Not a sentence.
                 Ask about a named concept, person, term, date, or definition that the material states.
+                The question must ask about the answer. Never paste a sentence of the material into question.
                 \(avoidBlock)
                 Material:
                 [\(materialId)] \(materialTitle)
