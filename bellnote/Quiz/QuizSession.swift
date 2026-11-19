@@ -998,7 +998,12 @@ final class QuizSession {
             .replacingOccurrences(of: "_____", with: " ")
             .split { $0.isWhitespace || $0.isNewline }
         guard context.count >= 5 else { return nil }
-        return blanked
+        // A thin space keeps a comma or other mark from running into the underscores ("_____," read as one mark).
+        return blanked.replacingOccurrences(
+            of: #"_____(?=[,;:.!?)\]”»…])"#,
+            with: "_____\u{2009}",
+            options: .regularExpression
+        )
     }
 
     // MARK: Questions built in Swift

@@ -125,6 +125,7 @@ enum AppPreferences {
     static let appearanceKey = "appAppearance"
     static let typefaceKey = "appTypeface"
     static let lockEnabledKey = "lockEnabled"
+    static let welcomeSeenKey = "welcomeSeen"
     static let lecturerAskedKey = "lecturerAsked."
     static let pagePrefersTaggerKey = "pagePrefersTagger"
     static let pageModelKey = "pageModel"

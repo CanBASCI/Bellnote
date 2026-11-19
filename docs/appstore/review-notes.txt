@@ -1,0 +1,34 @@
+BELLNOTE - NOTES FOR APP REVIEW
+
+WHAT IT IS
+Bellnote is a study app. A student records a class they are allowed to record, and the app turns it into a transcript, a summary, notes and homework, each linked to the minute it was said. Everything runs ON THE DEVICE. No account, no sign-in, no server, no analytics.
+
+PLEASE READ BEFORE TESTING
+1. Test on a real iPhone on iOS 27 with 8 GB of memory or more, about 10 GB of free storage, and Wi-Fi. Please do not test on the Simulator or on a phone with less than 8 GB: the on-device AI needs the device GPU and Neural Engine, and the larger model is switched off below 8 GB, so the result would not show the app.
+2. The AI models are not inside the app, so the install stays small. On first launch only Settings > Models is open. Home, Files, Quiz and Assistant stay disabled until four models are installed. Nothing downloads by itself: tap Download on each row.
+   - Text model: Qwen 3.5 2B, 1.6 GB (or 4B, 3.1 GB)
+   - Speech to text: Whisper large-v3 turbo, 0.65 GB
+   - Speaker model: FluidAudio, 0.16 GB
+   - Voice: Supertonic, 0.15 GB
+   About 2.6 GB in total with the 2B model. Allow 5 to 10 minutes on Wi-Fi.
+3. After the Whisper download the row says Preparing. The first time this can take up to about 4 minutes (Core ML builds the model for the chip). It happens once. Please keep the app open.
+4. After the downloads everything works in airplane mode.
+
+TEST PATH (about 5 minutes once the models are in)
+1. Create a term and a course (any name).
+2. Open the course and tap record. Tick both attestation boxes, allow the microphone, speak for 30 to 60 seconds (or tap Load recording and pick an audio file), then Stop.
+3. Open the lecture and tap Process. Keep the app open. You get Summary, Notes and Raw tabs. Tap a timestamp to hear that minute.
+4. Files tab: add a PDF to the course. Quiz tab: pick the course, Prepare, answer, then Review wrong answers and tap Source.
+5. Assistant tab: ask a question about the course.
+
+PERMISSIONS (each asked at the moment of use; a denial disables only that feature)
+Microphone (recording), Camera (board photo, schedule photo), Face ID (optional app lock), Speech Recognition (on-device dictation), Notifications (optional reminders).
+Background audio: a recording continues when the screen locks. A Live Activity shows that recording is on. Recording never starts without the student's tap and the attestation.
+Increased Memory Limit entitlement: needed to load the language model on the device.
+
+NETWORK AND PRIVACY
+The only network use is the model download from public Hugging Face repositories, started by the student's tap. The files are model weights (data), not code. No user data is sent anywhere. No advertising or analytics SDK. App Privacy: Data Not Collected.
+Details and links: https://canbasci.github.io/Bellnote/review
+Privacy policy: https://canbasci.github.io/Bellnote/privacy
+
+Languages: English and Turkish.

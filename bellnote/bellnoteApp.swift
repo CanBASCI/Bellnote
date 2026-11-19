@@ -11,7 +11,10 @@ struct bellnoteApp: App {
     init() {
         ProcessDiagnostics.start()
         do {
-            container = try AppSchema.container()
+            let opened = try AppSchema.container()
+            // Before any screen reads the store, so a slot left behind by a deleted course cannot stop the app.
+            StoreRepair.removeSlotsOfDeletedCourses(in: opened.mainContext)
+            container = opened
         } catch {
             Logger(subsystem: "app.bellnote", category: "store").error("Store could not open: \(error.localizedDescription, privacy: .public)")
             container = nil
@@ -53,7 +56,9 @@ struct RootView: View {
     @Environment(AppSession.self) private var session
 
     var body: some View {
-        if session.unlocked {
+        if !session.welcomeSeen {
+            WelcomeView(onFinish: { session.finishWelcome() })
+        } else if session.unlocked {
             TermHomeView()
         } else {
             LockGate()

@@ -8,6 +8,8 @@ final class AppSession {
     var unlocked: Bool
     /// Face ID / passcode gate before notes. On by default; the student can turn it off in Settings.
     var lockEnabled: Bool
+    /// The walkthrough ends once, after the first install. Deleting the app clears it.
+    var welcomeSeen: Bool
     var languageCode: String
     var appearance: AppAppearance
     var typeface: AppTypeface
@@ -33,6 +35,7 @@ final class AppSession {
         let lock = defaults.bool(forKey: AppPreferences.lockEnabledKey)
         lockEnabled = lock
         unlocked = !lock
+        welcomeSeen = defaults.bool(forKey: AppPreferences.welcomeSeenKey)
         let stored = defaults.string(forKey: AppPreferences.languageKey) ?? AppLanguage.system.rawValue
         languageCode = AppLanguage.resolved(preference: stored, system: Locale.current.identifier)
         let storedAppearance = defaults.string(forKey: AppPreferences.appearanceKey) ?? AppAppearance.system.rawValue
@@ -41,6 +44,11 @@ final class AppSession {
         typeface = AppTypeface(rawValue: storedTypeface) ?? .sfPro
         pageModel = AppPreferences.pageModel(defaults)
         supertonicVoice = SupertonicVoice.clamped(defaults.integer(forKey: AppPreferences.supertonicVoiceKey))
+    }
+
+    func finishWelcome() {
+        UserDefaults.standard.set(true, forKey: AppPreferences.welcomeSeenKey)
+        welcomeSeen = true
     }
 
     func setAppearance(_ appearance: AppAppearance) {

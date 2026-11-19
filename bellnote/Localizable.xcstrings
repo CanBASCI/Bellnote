@@ -393,6 +393,38 @@
         }
       }
     },
+    "%lld h" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld h"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld sa"
+          }
+        }
+      }
+    },
+    "%lld h %lld min" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld h %lld min"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld sa %lld dk"
+          }
+        }
+      }
+    },
     "%lld min" : {
       "localizations" : {
         "en" : {
@@ -603,6 +635,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Saat ekle"
+          }
+        }
+      }
+    },
+    "Add your weekly slots, exam dates and scores, and get a reminder before class." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add your weekly slots, exam dates and scores, and get a reminder before class."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Haftalık derslerini, sınav tarihlerini ve notlarını ekle; ders öncesi hatırlatma al."
           }
         }
       }
@@ -865,6 +913,38 @@
         }
       }
     },
+    "Ask about a course by voice or text, or have a lecture read back to you." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ask about a course by voice or text, or have a lecture read back to you."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bir ders hakkında sesle ya da yazıyla sor, ya da dersi sana okutsun."
+          }
+        }
+      }
+    },
+    "Ask and listen" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ask and listen"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sor ve dinle"
+          }
+        }
+      }
+    },
     "Assignments" : {
       "localizations" : {
         "en" : {
@@ -1005,6 +1085,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Bellnote"
+          }
+        }
+      }
+    },
+    "Bellnote needs a few AI models. You download each one yourself, only when you tap Download. They take a few gigabytes, so use Wi-Fi." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bellnote needs a few AI models. You download each one yourself, only when you tap Download. They take a few gigabytes, so use Wi-Fi."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bellnote'un birkaç yapay zekâ modeline ihtiyacı var. Her birini sen indirirsin, yalnızca İndir'e dokununca. Birkaç gigabayt tutarlar, o yüzden Wi-Fi kullan."
           }
         }
       }
@@ -2100,6 +2196,22 @@
         }
       }
     },
+    "Each recording becomes a transcript, a summary, notes and homework, and every point opens its minute." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Each recording becomes a transcript, a summary, notes and homework, and every point opens its minute."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Her kayıt bir transkripte, özete, nota ve ödeve dönüşür; her madde geldiği dakikayı açar."
+          }
+        }
+      }
+    },
     "Easy" : {
       "localizations" : {
         "en" : {
@@ -2551,6 +2663,22 @@
         }
       }
     },
+    "Files and quizzes" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Files and quizzes"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dosyalar ve sınav"
+          }
+        }
+      }
+    },
     "Files on %@ are %@." : {
       "localizations" : {
         "en" : {
@@ -2663,6 +2791,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Yazı Tipi"
+          }
+        }
+      }
+    },
+    "Get started" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Get started"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Başla"
           }
         }
       }
@@ -3000,6 +3144,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Listeden kaldırılır. Kayıt silinmez. Kaydı yeniden işlersen ödev tekrar eklenebilir."
+          }
+        }
+      }
+    },
+    "Keep slides and PDFs with each course, then study with questions made from them." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keep slides and PDFs with each course, then study with questions made from them."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Slaytları ve PDF'leri her dersin içinde tut, sonra onlardan çıkan sorularla çalış."
           }
         }
       }
@@ -3460,6 +3620,22 @@
         }
       }
     },
+    "Models download once" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Models download once"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modeller bir kez iner"
+          }
+        }
+      }
+    },
     "Move to another speaker" : {
       "localizations" : {
         "en" : {
@@ -3616,6 +3792,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Hayır"
+          }
+        }
+      }
+    },
+    "No account and no upload. Audio, notes and the AI stay on this device, behind Face ID if you like." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No account and no upload. Audio, notes and the AI stay on this device, behind Face ID if you like."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hesap yok, yükleme yok. Ses, notlar ve yapay zekâ bu cihazda kalır; istersen Face ID arkasında."
           }
         }
       }
@@ -4102,6 +4294,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Notlar bu cihazda kalır."
+          }
+        }
+      }
+    },
+    "Notes you can trace" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notes you can trace"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kaynağı belli notlar"
           }
         }
       }
@@ -4763,6 +4971,22 @@
         }
       }
     },
+    "Private on your device" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Private on your device"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cihazında özel"
+          }
+        }
+      }
+    },
     "Process" : {
       "localizations" : {
         "en" : {
@@ -5133,6 +5357,22 @@
         }
       }
     },
+    "Record a class" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Record a class"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dersi kaydet"
+          }
+        }
+      }
+    },
     "Record this class for %@?" : {
       "localizations" : {
         "en" : {
@@ -5145,6 +5385,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ dersini kaydet?"
+          }
+        }
+      }
+    },
+    "Record with permission. Pause, resume and stop, even from the Lock Screen." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Record with permission. Pause, resume and stop, even from the Lock Screen."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "İzinle kaydet. Duraklat, sürdür ve bitir; kilit ekranından bile yapabilirsin."
           }
         }
       }
@@ -5642,6 +5898,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Paylaş"
+          }
+        }
+      }
+    },
+    "Skip" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Skip"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Atla"
           }
         }
       }
@@ -7304,6 +7576,22 @@
         }
       }
     },
+    "Timetable and exams" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Timetable and exams"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ders programı ve sınavlar"
+          }
+        }
+      }
+    },
     "Title" : {
       "localizations" : {
         "en" : {
@@ -7557,6 +7845,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Gün"
+          }
+        }
+      }
+    },
+    "Welcome to Bellnote" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Welcome to Bellnote"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bellnote'a hoş geldin"
           }
         }
       }
@@ -8055,6 +8359,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Derslerin toplamı %lld saat %lld dakika."
+          }
+        }
+      }
+    },
+    "Your classes, turned into notes on your own device." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your classes, turned into notes on your own device."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Derslerin, kendi cihazında nota dönüşür."
           }
         }
       }

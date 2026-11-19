@@ -921,16 +921,25 @@ struct TodayPage: View {
         .appFont(.body)
     }
 
+    /// Minutes up to an hour, then hours and minutes ("13 h 39 min"), so a class tomorrow morning is not "819 min".
+    private func heroDuration(minutes: Int) -> String {
+        let hours = minutes / 60
+        let rest = minutes % 60
+        if hours == 0 { return String(format: String(localized: "%lld min"), rest) }
+        if rest == 0 { return String(format: String(localized: "%lld h"), hours) }
+        return String(format: String(localized: "%lld h %lld min"), hours, rest)
+    }
+
     /// The large time on the hero. While the class is on, the minutes left. Before it starts today, the minutes
     /// until it starts. On another day, today, tomorrow, or the day count.
     private func heroMoment(_ slot: WeeklySlot, collapse: CGFloat) -> some View {
         let amount: String
         let word: LocalizedStringKey?
         if let left = minutesLeft(for: slot) {
-            amount = String(format: String(localized: "%lld min"), left)
+            amount = heroDuration(minutes: left)
             word = "left"
         } else if let until = minutesUntilStart(for: slot) {
-            amount = String(format: String(localized: "%lld min"), until)
+            amount = heroDuration(minutes: until)
             word = "later"
         } else {
             let days = daysUntil(slot)
@@ -1516,10 +1525,14 @@ struct TodayPage: View {
     private func deleteCourse(_ course: Course) {
         do {
             try Vault.removeCourseDirectory(id: course.token)
+            // A slot has no inverse on the course, so it is not removed with it. Left behind, it would point at a row
+            // that is gone, and reading that course's name would stop the app.
             for slot in course.term?.slots ?? [] where slot.course?.token == course.token {
                 ReminderScheduler.removeSlot(slot)
+                modelContext.delete(slot)
             }
             modelContext.delete(course)
+            try modelContext.save()
             if session.focusCourseToken == course.token { session.focusCourseToken = nil }
         } catch {
             Logger(subsystem: "app.bellnote", category: "delete").error(

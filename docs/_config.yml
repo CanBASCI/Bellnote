@@ -1,0 +1,7 @@
+title: Bellnote
+description: Class notes that stay on your iPhone.
+theme: jekyll-theme-minimal
+# The engineering spec and the App Store paste files are not part of the public site.
+exclude:
+  - SPEC.md
+  - appstore

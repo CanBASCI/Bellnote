@@ -483,7 +483,7 @@ struct QuizPage: View {
                         }
 
                         Text(verbatim: question.prompt)
-                            .appFont(.title3, weight: .semibold)
+                            .appFont(.title3)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .fixedSize(horizontal: false, vertical: true)
 
