@@ -4,7 +4,7 @@ WHAT IT IS
 Bellnote is a study app. A student records a class they are allowed to record, and the app turns it into a transcript, a summary, notes and homework, each linked to the minute it was said. Everything runs ON THE DEVICE. No account, no sign-in, no server, no analytics.
 
 PLEASE READ BEFORE TESTING
-1. Test on a real iPhone on iOS 27 with 8 GB of memory or more, about 10 GB of free storage, and Wi-Fi. Please do not test on the Simulator or on a phone with less than 8 GB: the on-device AI needs the device GPU and Neural Engine, and the larger model is switched off below 8 GB, so the result would not show the app.
+1. Test on a real iPhone on iOS 27 with 8 GB of memory or more, about 10 GB of free storage, and Wi-Fi. Bellnote is iPhone only (portrait). Please do not test on an iPad: the app is not designed for iPad, and the layout looks wrong in compatibility mode. Please do not test on the Simulator or on a phone with less than 8 GB: the on-device AI needs the device GPU and Neural Engine, and the larger model is switched off below 8 GB, so the result would not show the app.
 2. The AI models are not inside the app, so the install stays small. On first launch only Settings > Models is open. Home, Files, Quiz and Assistant stay disabled until four models are installed. Nothing downloads by itself: tap Download on each row.
    - Text model: Qwen 3.5 2B, 1.6 GB (or 4B, 3.1 GB)
    - Speech to text: Whisper large-v3 turbo, 0.65 GB
