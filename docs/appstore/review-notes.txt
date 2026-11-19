@@ -28,7 +28,7 @@ Increased Memory Limit entitlement: needed to load the language model on the dev
 
 NETWORK AND PRIVACY
 The only network use is the model download from public Hugging Face repositories, started by the student's tap. The files are model weights (data), not code. No user data is sent anywhere. No advertising or analytics SDK. App Privacy: Data Not Collected.
-Details and links: https://canbasci.github.io/Bellnote/review
-Privacy policy: https://canbasci.github.io/Bellnote/privacy
+Details and links: https://canbasci.github.io/Bellnote_Privacy/review
+Privacy policy: https://canbasci.github.io/Bellnote_Privacy/privacy
 
 Languages: English and Turkish.
