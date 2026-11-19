@@ -16,5 +16,10 @@ struct RecordingAttributes: ActivityAttributes {
         var timingAnchor: Date
         /// How many “I didn't get this” flags so far (visible confirmation on the Live Activity).
         var flagCount: Int
+        /// "Recording" or "Paused", already in the Settings language. The extension has no catalog and no access
+        /// to the language the student chose, so the app writes the words.
+        var statusText: String
+        /// "3 flags" in the Settings language, or empty when there are none.
+        var flagText: String
     }
 }

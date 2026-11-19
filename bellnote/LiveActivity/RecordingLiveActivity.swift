@@ -62,7 +62,9 @@ enum RecordingLiveActivity {
             isPaused: isPaused,
             elapsedSeconds: seconds,
             timingAnchor: Date().addingTimeInterval(-TimeInterval(seconds)),
-            flagCount: max(0, flagCount)
+            flagCount: max(0, flagCount),
+            statusText: isPaused ? L10n.text("Paused") : L10n.text("Recording"),
+            flagText: flagCount > 0 ? L10n.text("\(flagCount) flags") : ""
         )
     }
 }

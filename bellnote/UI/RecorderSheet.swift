@@ -212,7 +212,7 @@ struct RecorderSheet: View {
         let permitted = await AVAudioApplication.requestRecordPermission()
         guard permitted else {
             Self.log.error("Recorder: microphone permission is off")
-            failed = String(localized: "The microphone is off for Bellnote.")
+            failed = L10n.text("The microphone is off for Bellnote.")
             lecture.state = LectureState.failed.rawValue
             lecture.failureMessageKey = failed
             return
@@ -243,10 +243,10 @@ struct RecorderSheet: View {
                     lecture.recordedSeconds = elapsed
                 }
             }
-            await RecordingLiveActivity.start(courseName: lecture.course?.name ?? String(localized: "Course"))
+            await RecordingLiveActivity.start(courseName: lecture.course?.name ?? L10n.text("Course"))
         } catch {
             Self.log.error("Recorder: start failed: \(error.localizedDescription, privacy: .public)")
-            failed = String(localized: "Recording did not start.")
+            failed = L10n.text("Recording did not start.")
             lecture.state = LectureState.failed.rawValue
             lecture.failureMessageKey = failed
             await RecordingLiveActivity.end()
@@ -280,7 +280,7 @@ struct RecorderSheet: View {
             )
         } catch {
             Self.log.error("Recorder: resume failed: \(error.localizedDescription, privacy: .public)")
-            failed = String(localized: "Recording did not resume.")
+            failed = L10n.text("Recording did not resume.")
         }
     }
 
@@ -315,7 +315,7 @@ struct RecorderSheet: View {
             dismiss()
         } catch {
             Self.log.error("Recorder: close failed: \(error.localizedDescription, privacy: .public)")
-            failed = String(localized: "The recording could not be closed.")
+            failed = L10n.text("The recording could not be closed.")
             lecture.state = LectureState.failed.rawValue
             lecture.failureMessageKey = failed
         }

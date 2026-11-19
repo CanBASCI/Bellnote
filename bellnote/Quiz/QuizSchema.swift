@@ -27,9 +27,9 @@ enum QuizDifficulty: String, CaseIterable, Identifiable, Sendable {
 
     var title: String {
         switch self {
-        case .easy: String(localized: "Easy")
-        case .medium: String(localized: "Medium")
-        case .hard: String(localized: "Hard")
+        case .easy: L10n.text("Easy")
+        case .medium: L10n.text("Medium")
+        case .hard: L10n.text("Hard")
         }
     }
 

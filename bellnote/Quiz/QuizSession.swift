@@ -79,7 +79,7 @@ final class QuizSession {
     var preparingStep: PipelineActivity.Step {
         PipelineActivity.Step(
             fraction: prepareFraction,
-            title: statusLine.isEmpty ? String(localized: "Checking the model") : statusLine,
+            title: statusLine.isEmpty ? L10n.text("Checking the model") : statusLine,
             info: statusDetail,
             centerCaption: statusCaption
         )
@@ -223,16 +223,16 @@ final class QuizSession {
         phase = .preparing
         if includeLectureNotes {
             setStage(
-                String(localized: "Reading lecture notes"),
-                String(localized: "Ready notes from this course are gathered for the quiz."),
+                L10n.text("Reading lecture notes"),
+                L10n.text("Ready notes from this course are gathered for the quiz."),
                 fraction: 0.2
             )
         } else {
             setStage(
-                Self.modelQuestionBudget > 0 ? String(localized: "Checking the model") : String(localized: "Reading the material"),
+                Self.modelQuestionBudget > 0 ? L10n.text("Checking the model") : L10n.text("Reading the material"),
                 Self.modelQuestionBudget > 0
-                    ? String(localized: "The quiz uses the text model chosen in Settings.")
-                    : String(localized: "The questions are built from the text you selected."),
+                    ? L10n.text("The quiz uses the text model chosen in Settings.")
+                    : L10n.text("The questions are built from the text you selected."),
                 fraction: 0.08
             )
         }
@@ -302,13 +302,13 @@ final class QuizSession {
             let usesModel = Self.modelQuestionBudget > 0
             if usesModel {
                 setStage(
-                    String(localized: "Checking the model"),
-                    String(localized: "The quiz uses the text model chosen in Settings."),
+                    L10n.text("Checking the model"),
+                    L10n.text("The quiz uses the text model chosen in Settings."),
                     fraction: 0.1
                 )
                 guard await LocalModelRuntime.shared.hasTextModel() else {
                     phase = .needsModel
-                    statusLine = String(localized: "Download a text model in Settings.")
+                    statusLine = L10n.text("Download a text model in Settings.")
                     statusDetail = ""
                     statusCaption = ""
                     prepareFraction = 0
@@ -317,7 +317,7 @@ final class QuizSession {
             }
             let materials = try await buildMaterials(course: course)
             guard !materials.isEmpty else {
-                phase = .failed(String(localized: "There is not enough text for a quiz yet."))
+                phase = .failed(L10n.text("There is not enough text for a quiz yet."))
                 statusDetail = ""
                 statusCaption = ""
                 prepareFraction = 0
@@ -331,8 +331,8 @@ final class QuizSession {
             if usesModel {
                 // Cold start can take many seconds, keep 1 / 10 off screen until weights are resident.
                 setStage(
-                    String(localized: "Checking the model"),
-                    String(localized: "The quiz uses the text model chosen in Settings."),
+                    L10n.text("Checking the model"),
+                    L10n.text("The quiz uses the text model chosen in Settings."),
                     fraction: 0.4
                 )
                 try await LocalModelRuntime.shared.warmTextModel()
@@ -381,11 +381,11 @@ final class QuizSession {
                 }
                 let writeFraction = 0.45 + (Double(drafts.count) / Double(max(target, 1))) * 0.5
                 setStage(
-                    String(localized: "Preparing questions"),
+                    L10n.text("Preparing questions"),
                     writingDetail(from: materials),
                     fraction: writeFraction,
                     caption: String(
-                        format: String(localized: "%1$lld / %2$lld"),
+                        format: L10n.text("%1$lld / %2$lld"),
                         drafts.count + 1,
                         target
                     )
@@ -439,7 +439,7 @@ final class QuizSession {
             // Swift fills in what the model did not write (all of it when the model budget is 0).
             if drafts.count < target {
                 setStage(
-                    String(localized: "Preparing questions"),
+                    L10n.text("Preparing questions"),
                     writingDetail(from: materials),
                     fraction: 0.9
                 )
@@ -457,15 +457,15 @@ final class QuizSession {
                 Self.log.error(
                     "Quiz prepare empty drafts=\(drafts.count) ms=\(Int(Date().timeIntervalSince(prepareStarted) * 1000))"
                 )
-                phase = .failed(String(localized: "The model could not prepare questions. Try again."))
+                phase = .failed(L10n.text("The model could not prepare questions. Try again."))
                 statusDetail = ""
                 statusCaption = ""
                 prepareFraction = 0
                 return
             }
             setStage(
-                String(localized: "Almost ready"),
-                String(localized: "The quiz is opening on the first question."),
+                L10n.text("Almost ready"),
+                L10n.text("The quiz is opening on the first question."),
                 fraction: 0.98
             )
             questions = built
@@ -483,7 +483,7 @@ final class QuizSession {
             // )
         } catch LocalModelError.notInstalled {
             phase = .needsModel
-            statusLine = String(localized: "Download a text model in Settings.")
+            statusLine = L10n.text("Download a text model in Settings.")
             statusDetail = ""
             statusCaption = ""
             prepareFraction = 0
@@ -491,57 +491,12 @@ final class QuizSession {
             Self.log.error(
                 "Quiz prepare failed ms=\(Int(Date().timeIntervalSince(prepareStarted) * 1000)) \(error.localizedDescription, privacy: .public)"
             )
-            phase = .failed(String(localized: "The model could not prepare questions. Try again."))
+            phase = .failed(L10n.text("The model could not prepare questions. Try again."))
             statusDetail = ""
             statusCaption = ""
             prepareFraction = 0
         }
     }
-
-    #if DEBUG
-    /// Debug builds only: fills the session with made-up answers and opens the results page for layout work.
-    func loadDummyResults() {
-        let samples: [(prompt: String, key: QuizChoice, choices: [QuizChoice: String], picked: QuizChoice, seconds: TimeInterval)] = [
-            ("Which organelle produces most of the cell's ATP?", .a, [.a: "Mitochondria", .b: "Ribosome", .c: "Golgi apparatus"], .a, 6.4),
-            ("What is the capital of Australia?", .b, [.a: "Sydney", .b: "Canberra", .c: "Melbourne"], .a, 11.2),
-            ("Who wrote the novel Saatleri Ayarlama Enstitüsü?", .c, [.a: "Orhan Pamuk", .b: "Yaşar Kemal", .c: "Ahmet Hamdi Tanpınar"], .c, 8.9),
-            ("What does the acronym CPU stand for?", .a, [.a: "Central processing unit", .b: "Computer personal unit", .c: "Control program utility"], .b, 14.7),
-            ("Which year did the Republic of Türkiye begin?", .b, [.a: "1920", .b: "1923", .c: "1938"], .b, 5.1),
-            ("Which gas do plants take in for photosynthesis?", .c, [.a: "Oxygen", .b: "Nitrogen", .c: "Carbon dioxide"], .c, 4.8),
-            ("What is the derivative of sin(x)?", .a, [.a: "cos(x)", .b: "-sin(x)", .c: "tan(x)"], .c, 19.3),
-            ("Which layer of the OSI model handles routing?", .b, [.a: "Data link", .b: "Network", .c: "Transport"], .b, 9.6),
-            ("What is the unit of electrical resistance?", .c, [.a: "Volt", .b: "Watt", .c: "Ohm"], .c, 3.7),
-            ("Which sorting algorithm has O(n log n) worst case?", .a, [.a: "Merge sort", .b: "Bubble sort", .c: "Insertion sort"], .b, 16.0),
-        ]
-        let built = samples.map { sample in
-            QuizQuestion(
-                id: UUID(),
-                prompt: sample.prompt,
-                choices: sample.choices,
-                correct: sample.key,
-                sourceKind: .block,
-                sourceTitle: "Dummy source",
-                blockToken: nil,
-                second: nil,
-                lectureID: nil,
-                fileID: nil,
-                courseID: nil,
-                stickyToken: nil,
-                sourceExcerpt: "",
-                sourcePageIndex: nil
-            )
-        }
-        questions = built
-        answers = zip(built, samples).map { question, sample in
-            QuizAnswerRecord(id: UUID(), question: question, picked: sample.picked, seconds: sample.seconds)
-        }
-        index = built.count - 1
-        reviewIndex = 0
-        picked = nil
-        questionStartedAt = nil
-        phase = .results
-    }
-    #endif
 
     private enum HeatVerdict {
         case go
@@ -568,11 +523,11 @@ final class QuizSession {
         let started = Date()
         // Self.log.warning("Quiz heat critical pause begin drafts=\(draftCount) limitSeconds=\(Int(limit))")
         setStage(
-            String(localized: "Device is cooling down"),
-            String(localized: "Writing continues when the device has cooled."),
+            L10n.text("Device is cooling down"),
+            L10n.text("Writing continues when the device has cooled."),
             fraction: 0.45 + (Double(draftCount) / Double(max(target, 1))) * 0.5,
             caption: String(
-                format: String(localized: "%1$lld / %2$lld"),
+                format: L10n.text("%1$lld / %2$lld"),
                 draftCount + 1,
                 target
             )
@@ -613,12 +568,12 @@ final class QuizSession {
         let hasFiles = materials.contains { $0.kind == .file }
         switch (hasNotes, hasFiles) {
         case (true, true):
-            return String(localized: "Each question is prepared only from the recordings and files you selected.")
+            return L10n.text("Each question is prepared only from the recordings and files you selected.")
         case (true, false):
-            return String(localized: "Each question is prepared only from the recordings you selected.")
+            return L10n.text("Each question is prepared only from the recordings you selected.")
         case (false, _):
             // Prepare stays off with nothing selected, and an empty pool fails before this line is shown.
-            return String(localized: "Each question is prepared only from the files you selected.")
+            return L10n.text("Each question is prepared only from the files you selected.")
         }
     }
 
@@ -978,7 +933,7 @@ final class QuizSession {
 
     private func clozePrompt(_ blanked: String) -> String {
         let trimmed = blanked.trimmingCharacters(in: CharacterSet(charactersIn: ".,;:!…").union(.whitespacesAndNewlines))
-        return String(localized: "Fill in the blank:") + " " + trimmed
+        return L10n.text("Fill in the blank:") + " " + trimmed
     }
 
     /// Replaces every whole-word occurrence of the answer with a blank. The blank also takes the letters that
@@ -1497,8 +1452,8 @@ final class QuizSession {
 
         if includeLectureNotes {
             setStage(
-                String(localized: "Reading lecture notes"),
-                String(localized: "Ready notes from this course are gathered for the quiz."),
+                L10n.text("Reading lecture notes"),
+                L10n.text("Ready notes from this course are gathered for the quiz."),
                 fraction: 0.22
             )
             let ready = course.lectures
@@ -1518,7 +1473,7 @@ final class QuizSession {
                     let text = block.text.trimmingCharacters(in: .whitespacesAndNewlines)
                     guard !text.isEmpty else { continue }
                     let title = lecture.title.isEmpty
-                        ? lecture.startedAt.formatted(date: .abbreviated, time: .omitted)
+                        ? L10n.dateString(lecture.startedAt, date: .abbreviated)
                         : lecture.title
                     for chunk in chunked(text, size: Self.chunkSize) {
                         noteWindows.append((chunk, title, block, lecture))
@@ -1563,8 +1518,8 @@ final class QuizSession {
             guard room > 0 else { break }
             let fileFraction = 0.28 + (Double(place) / Double(fileTotal)) * 0.15
             setStage(
-                String(format: String(localized: "Reading %@"), file.displayName),
-                String(localized: "Text is read on device from the selected PDF or image."),
+                String(format: L10n.text("Reading %@"), file.displayName),
+                L10n.text("Text is read on device from the selected PDF or image."),
                 fraction: fileFraction
             )
             let url: URL

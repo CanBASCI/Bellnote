@@ -38,6 +38,14 @@ final class AppSession {
         welcomeSeen = defaults.bool(forKey: AppPreferences.welcomeSeenKey)
         let stored = defaults.string(forKey: AppPreferences.languageKey) ?? AppLanguage.system.rawValue
         languageCode = AppLanguage.resolved(preference: stored, system: Locale.current.identifier)
+        switch AppLanguage(rawValue: stored) ?? .system {
+        case .english:
+            defaults.set(["en"], forKey: "AppleLanguages")
+        case .turkish:
+            defaults.set(["tr"], forKey: "AppleLanguages")
+        case .system:
+            defaults.removeObject(forKey: "AppleLanguages")
+        }
         let storedAppearance = defaults.string(forKey: AppPreferences.appearanceKey) ?? AppAppearance.system.rawValue
         appearance = AppAppearance(rawValue: storedAppearance) ?? .system
         let storedTypeface = defaults.string(forKey: AppPreferences.typefaceKey) ?? AppTypeface.sfPro.rawValue
@@ -64,6 +72,15 @@ final class AppSession {
     func setLanguage(_ language: AppLanguage) {
         UserDefaults.standard.set(language.rawValue, forKey: AppPreferences.languageKey)
         languageCode = AppLanguage.resolved(preference: language.rawValue, system: Locale.current.identifier)
+        // Keep Bundle lookups aligned with Settings when English or Turkish is forced.
+        switch language {
+        case .english:
+            UserDefaults.standard.set(["en"], forKey: "AppleLanguages")
+        case .turkish:
+            UserDefaults.standard.set(["tr"], forKey: "AppleLanguages")
+        case .system:
+            UserDefaults.standard.removeObject(forKey: "AppleLanguages")
+        }
     }
 
     /// Turns the app lock on or off. Turning it off unlocks at once. Turning it on keeps this session open.

@@ -176,7 +176,7 @@ struct AssistantPage: View {
                 Self.log.error(
                     "Talk preview save failed \(error.localizedDescription, privacy: .public)"
                 )
-                fileNotice = String(localized: "The change could not be saved.")
+                fileNotice = L10n.text("The change could not be saved.")
             } onEdited: {
                 markOpenedFileEdited(courseID: preview.courseID, fileID: preview.fileID)
             } onDismiss: {
@@ -306,10 +306,10 @@ struct AssistantPage: View {
     /// Orb caption always follows phase so Thinking never shows Listening (or the reverse).
     private var orbStatusLine: String {
         switch talk.phase {
-        case .preparing: return String(localized: "Preparing…")
-        case .listening: return String(localized: "Listening…")
-        case .thinking: return String(localized: "Thinking…")
-        case .speaking: return String(localized: "Speaking…")
+        case .preparing: return L10n.text("Preparing…")
+        case .listening: return L10n.text("Listening…")
+        case .thinking: return L10n.text("Thinking…")
+        case .speaking: return L10n.text("Speaking…")
         default: return talk.statusLine
         }
     }
@@ -353,7 +353,7 @@ struct AssistantPage: View {
            latest.role == .assistant
         {
             return (
-                String(localized: "Bellnote"),
+                L10n.text("Bellnote"),
                 latest.text,
                 latest.bodyParts,
                 !latest.sources.isEmpty,
@@ -363,10 +363,10 @@ struct AssistantPage: View {
         let live = talk.partialTranscript.trimmingCharacters(in: .whitespacesAndNewlines)
         if !live.isEmpty {
             // Live speech follows the newest line. The question stays on this card until the reply replaces it.
-            return (String(localized: "You"), live, nil, false, true)
+            return (L10n.text("You"), live, nil, false, true)
         }
         guard let latest = talk.turns.last else { return nil }
-        let title = latest.role == .user ? String(localized: "You") : String(localized: "Bellnote")
+        let title = latest.role == .user ? L10n.text("You") : L10n.text("Bellnote")
         let showSource = latest.role == .assistant && !latest.sources.isEmpty
         return (title, latest.text, latest.bodyParts, showSource, false)
     }
@@ -483,7 +483,7 @@ struct AssistantPage: View {
         case .file(let courseID, let fileID):
             guard let file = storedFile(courseID: courseID, fileID: fileID) else {
                 Self.log.error("Talk source file missing")
-                fileNotice = String(localized: "The file could not be opened.")
+                fileNotice = L10n.text("The file could not be opened.")
                 return
             }
             let url: URL
@@ -491,12 +491,12 @@ struct AssistantPage: View {
                 url = try Vault.documents().appendingPathComponent(file.relativePath)
             } catch {
                 Self.log.error("Talk source file path failed \(error.localizedDescription, privacy: .public)")
-                fileNotice = String(localized: "The file could not be opened.")
+                fileNotice = L10n.text("The file could not be opened.")
                 return
             }
             guard FileManager.default.fileExists(atPath: url.path) else {
                 Self.log.error("Talk source file missing on disk")
-                fileNotice = String(localized: "The file could not be opened.")
+                fileNotice = L10n.text("The file could not be opened.")
                 return
             }
             // Self.log.info("Talk source open file title=\(file.displayName, privacy: .public)")
@@ -584,7 +584,7 @@ struct AssistantPage: View {
             try modelContext.save()
         } catch {
             Self.log.error("Talk file save failed \(error.localizedDescription, privacy: .public)")
-            fileNotice = String(localized: "The change could not be saved.")
+            fileNotice = L10n.text("The change could not be saved.")
         }
     }
 

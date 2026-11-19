@@ -187,7 +187,7 @@ final class TalkSession {
         guard permitted else {
             Self.log.error("Talk mic permission denied")
             phase = .needsMicrophone
-            statusLine = String(localized: "The microphone is off for Bellnote.")
+            statusLine = L10n.text("The microphone is off for Bellnote.")
             running = false
             return
         }
@@ -195,14 +195,14 @@ final class TalkSession {
         guard hasModel else {
             Self.log.error("Talk no text model installed")
             phase = .needsModel
-            statusLine = String(localized: "A model is not available.")
+            statusLine = L10n.text("A model is not available.")
             running = false
             return
         }
         guard SupertonicSpeech.isInstalled else {
             Self.log.error("Talk Supertonic missing")
             phase = .needsVoice
-            statusLine = String(localized: "Download Supertonic in Settings to talk.")
+            statusLine = L10n.text("Download Supertonic in Settings to talk.")
             running = false
             return
         }
@@ -211,7 +211,7 @@ final class TalkSession {
         let alreadyReady = await LocalModelRuntime.shared.isComposeModelReady()
         if !alreadyReady {
             phase = .preparing
-            statusLine = String(localized: "Preparing…")
+            statusLine = L10n.text("Preparing…")
             // Self.log.info("Talk phase=preparing")
             // let warmStarted = Date()
             do {
@@ -225,7 +225,7 @@ final class TalkSession {
             } catch {
                 Self.log.error("Talk warm failed \(error.localizedDescription, privacy: .public)")
                 phase = .needsModel
-                statusLine = String(localized: "A model is not available.")
+                statusLine = L10n.text("A model is not available.")
                 running = false
                 return
             }
@@ -240,7 +240,7 @@ final class TalkSession {
         while running, !Task.isCancelled {
             do {
                 phase = .listening
-                statusLine = String(localized: "Listening…")
+                statusLine = L10n.text("Listening…")
                 partialTranscript = ""
                 // Self.log.info("Talk phase=listening")
                 // let listenStarted = Date()
@@ -275,7 +275,7 @@ final class TalkSession {
                     }
                     trimHistory()
                     phase = .thinking
-                    statusLine = String(localized: "Thinking…")
+                    statusLine = L10n.text("Thinking…")
                     partialTranscript = ""
                     // Self.log.info("Talk phase=thinking question=\(activeQuestion, privacy: .public)")
                     // let thinkStarted = Date()
@@ -297,7 +297,7 @@ final class TalkSession {
                         trimHistory()
 
                         phase = .speaking
-                        statusLine = String(localized: "Speaking…")
+                        statusLine = L10n.text("Speaking…")
                         // Self.log.info("Talk phase=speaking")
                         // let speakStarted = Date()
                         switch await speak(reply.text) {
@@ -332,13 +332,13 @@ final class TalkSession {
             } catch TalkListenError.speechUnsupported {
                 Self.log.error("Talk speech locale unsupported")
                 phase = .failed("speechUnsupported")
-                statusLine = String(localized: "Speech is not available for this language.")
+                statusLine = L10n.text("Speech is not available for this language.")
                 running = false
                 break
             } catch {
                 Self.log.error("Talk loop failed \(error.localizedDescription, privacy: .public)")
                 phase = .failed(error.localizedDescription)
-                statusLine = String(localized: "Something went wrong. Try again.")
+                statusLine = L10n.text("Something went wrong. Try again.")
                 try? await Task.sleep(for: .seconds(1.5))
                 if running { continue } else { break }
             }
@@ -381,7 +381,7 @@ final class TalkSession {
             }
             self.finishThinkRace(generation: generation)
             return outcome
-                ?? .answered(TalkReply(text: String(localized: "Something went wrong. Try again.")))
+                ?? .answered(TalkReply(text: L10n.text("Something went wrong. Try again.")))
         }
     }
 
@@ -519,7 +519,7 @@ final class TalkSession {
         if !catalogAsk, !topicKeys.isEmpty,
            pick.blocks.allSatisfy({ Self.topicScore(of: $0, keys: topicKeys) == 0 }) {
             // Self.log.info("Talk answer skipped no topic hit question=\(question, privacy: .public)")
-            return TalkReply(text: String(localized: "The lectures do not contain that."))
+            return TalkReply(text: L10n.text("The lectures do not contain that."))
         }
         // if let source = pick.source {
             // Self.log.info(
@@ -550,7 +550,7 @@ final class TalkSession {
         )
         guard !tags.isEmpty else {
             // Self.log.info("Talk answer empty tags ms=\(Int(Date().timeIntervalSince(answerStarted) * 1000))")
-            return TalkReply(text: String(localized: "The lectures do not contain that."))
+            return TalkReply(text: L10n.text("The lectures do not contain that."))
         }
 
         // Earlier turns were making the model repeat the last course or the last canned sentence.
@@ -590,7 +590,7 @@ final class TalkSession {
                 // "Talk answer done modelMs=\(modelMs) totalMs=\(totalMs) retrieveMs=\(retrieveMs) notInNotes=\(missing) echo=\(echoed) characters=\(reply.count) text=\(reply, privacy: .public)"
             // )
             if missing || echoed {
-                return TalkReply(text: String(localized: "The lectures do not contain that."))
+                return TalkReply(text: L10n.text("The lectures do not contain that."))
             }
             let sources = sourcesForAnswer(question: question, reply: reply, pick: pick)
             // let sourceKind =
@@ -615,7 +615,7 @@ final class TalkSession {
             Self.log.error(
                 "Talk answer failed ms=\(Int(Date().timeIntervalSince(answerStarted) * 1000)) \(error.localizedDescription, privacy: .public)"
             )
-            return TalkReply(text: String(localized: "A model is not available."))
+            return TalkReply(text: L10n.text("A model is not available."))
         }
     }
 
@@ -778,18 +778,18 @@ final class TalkSession {
             }
             let hours = minutes / 60
             let mins = minutes % 60
-            let text = String(localized: "Your classes add up to \(hours) hours and \(mins) minutes.")
+            let text = L10n.text("Your classes add up to \(hours) hours and \(mins) minutes.")
             return TalkReply(text: text, sources: sources)
         }
         let calendar = Calendar.current
-        let symbols = calendar.standaloneWeekdaySymbols
+        let symbols = L10n.calendar.standaloneWeekdaySymbols
         let weekday = slots.first?.slot.weekday ?? askedWeekday(in: question) ?? calendar.component(.weekday, from: .now)
         let day = symbols.indices.contains(weekday - 1) ? symbols[weekday - 1] : ""
         if slots.isEmpty {
-            return TalkReply(text: String(localized: "You have no class on \(day)."), sources: [])
+            return TalkReply(text: L10n.text("You have no class on \(day)."), sources: [])
         }
         let list = sources.map(\.title).joined(separator: ", ")
-        return TalkReply(text: String(localized: "On \(day) you have \(list)."), sources: sources)
+        return TalkReply(text: L10n.text("On \(day) you have \(list)."), sources: sources)
     }
 
     private struct SlotFact {
@@ -821,7 +821,7 @@ final class TalkSession {
         let lectures = unprocessedLectures(in: question, slice: slice)
         let sources = lectures.map { lecture in
             let course = lecture.course?.name ?? ""
-            let day = lecture.startedAt.formatted(date: .abbreviated, time: .omitted)
+            let day = L10n.dateString(lecture.startedAt, date: .abbreviated)
             let status = lecture.statusTitle
             let title = course.isEmpty ? "\(day) · \(status)" : "\(course) · \(day) · \(status)"
             return TalkSourceItem(
@@ -832,11 +832,11 @@ final class TalkSession {
         if lectures.isEmpty {
             let empty: String
             if slice == .ready {
-                empty = String(localized: "You have no processed recordings.")
+                empty = L10n.text("You have no processed recordings.")
             } else if recordingDay(in: question) == nil && slice != .any {
-                empty = String(localized: "You have no unprocessed recordings.")
+                empty = L10n.text("You have no unprocessed recordings.")
             } else {
-                empty = String(localized: "You have no recordings then.")
+                empty = L10n.text("You have no recordings then.")
             }
             return TalkReply(text: empty, sources: [])
         }
@@ -844,11 +844,11 @@ final class TalkSession {
         let text: String
         switch slice {
         case .any:
-            text = String(localized: "Recordings: \(summary).")
+            text = L10n.text("Recordings: \(summary).")
         case .ready:
-            text = String(localized: "Processed recordings: \(summary).")
+            text = L10n.text("Processed recordings: \(summary).")
         case .unprocessed, .recordedOnly, .pausedOnly:
-            text = String(localized: "Unprocessed recordings: \(summary).")
+            text = L10n.text("Unprocessed recordings: \(summary).")
         }
         return TalkReply(text: text, sources: sources)
     }
@@ -1022,26 +1022,26 @@ final class TalkSession {
         if field == .all {
             let filled = lecturerDetailLines(on: course)
             if filled.isEmpty {
-                return String(format: String(localized: "No lecturer details are stored for %@."), course.name)
+                return String(format: L10n.text("No lecturer details are stored for %@."), course.name)
             }
-            return String(format: String(localized: "Lecturer details for %@ are %@."), course.name, filled)
+            return String(format: L10n.text("Lecturer details for %@ are %@."), course.name, filled)
         }
         let stored = lecturerValue(field, on: course)
         if stored.isEmpty {
-            return String(format: String(localized: lecturerMissingKey(field)), course.name)
+            return String(format: L10n.text(lecturerMissingKey(field)), course.name)
         }
-        return String(format: String(localized: lecturerAnswerKey(field)), course.name, stored)
+        return String(format: L10n.text(lecturerAnswerKey(field)), course.name, stored)
     }
 
     /// Sheet order: title, given name, family name, phone, email, other contact. Empty rows are left out.
     private func lecturerDetailLines(on course: Course) -> String {
         let rows: [(label: String, field: LecturerField)] = [
-            (String(localized: "Title"), .title),
-            (String(localized: "Given name"), .givenName),
-            (String(localized: "Family name"), .familyName),
-            (String(localized: "Phone"), .phone),
-            (String(localized: "Email"), .email),
-            (String(localized: "Other contact"), .extra),
+            (L10n.text("Title"), .title),
+            (L10n.text("Given name"), .givenName),
+            (L10n.text("Family name"), .familyName),
+            (L10n.text("Phone"), .phone),
+            (L10n.text("Email"), .email),
+            (L10n.text("Other contact"), .extra),
         ]
         return rows.compactMap { row in
             let value = lecturerValue(row.field, on: course)
@@ -1322,7 +1322,7 @@ final class TalkSession {
             let key: String.LocalizationValue = span == nil
                 ? "%@ has no recordings."
                 : "%@ has no recording from then."
-            return TalkReply(text: String(format: String(localized: key), name))
+            return TalkReply(text: String(format: L10n.text(key), name))
         }
         let stamp = Date.FormatStyle(date: .abbreviated, time: .omitted).locale(locale)
         let body = lectures.map { lecture in
@@ -1335,7 +1335,7 @@ final class TalkSession {
             )
         }
         let text = String(
-            format: String(localized: "%1$@ is in %2$lld recordings: %3$@."),
+            format: L10n.text("%1$@ is in %2$lld recordings: %3$@."),
             name,
             lectures.count,
             body
@@ -1352,7 +1352,7 @@ final class TalkSession {
             let key: String.LocalizationValue = span == nil
                 ? "%@ has no recordings."
                 : "%@ has no recording from then."
-            return TalkReply(text: String(format: String(localized: key), name))
+            return TalkReply(text: String(format: L10n.text(key), name))
         }
         let stamp = Date.FormatStyle(date: .abbreviated, time: .omitted).locale(locale)
         var pieces: [String] = []
@@ -1387,7 +1387,7 @@ final class TalkSession {
         let key: String.LocalizationValue = clipped.trimmed
             ? "%1$@ said: %2$@ The rest is in the recording."
             : "%1$@ said: %2$@"
-        let spokenText = String(format: String(localized: key), name, clipped.text)
+        let spokenText = String(format: L10n.text(key), name, clipped.text)
         if clipped.trimmed {
             parts = Self.clippedSpeakerParts(name: name, clipped: clipped.text, parts: parts)
             if let rest = Self.saidRestTail(name: name) {
@@ -1400,9 +1400,9 @@ final class TalkSession {
     /// The localized “Name said: ” lead, without the spoken body.
     private static func saidLead(name: String) -> String {
         let mark = "\u{FFFC}"
-        let stamped = String(format: String(localized: "%1$@ said: %2$@"), name, mark)
+        let stamped = String(format: L10n.text("%1$@ said: %2$@"), name, mark)
         guard let range = stamped.range(of: mark) else {
-            return String(format: String(localized: "%1$@ said: %2$@"), name, "")
+            return String(format: L10n.text("%1$@ said: %2$@"), name, "")
         }
         return String(stamped[..<range.lowerBound])
     }
@@ -1411,7 +1411,7 @@ final class TalkSession {
     private static func saidRestTail(name: String) -> String? {
         let mark = "\u{FFFC}"
         let stamped = String(
-            format: String(localized: "%1$@ said: %2$@ The rest is in the recording."),
+            format: L10n.text("%1$@ said: %2$@ The rest is in the recording."),
             name,
             mark
         )
@@ -1499,7 +1499,7 @@ final class TalkSession {
             .filter { span.contains($0.startedAt) }
             .sorted { $0.startedAt < $1.startedAt }
         guard !lectures.isEmpty else {
-            return TalkReply(text: String(localized: "You have no lecture from then."))
+            return TalkReply(text: L10n.text("You have no lecture from then."))
         }
         let stamp = Date.FormatStyle(date: .abbreviated, time: .omitted).locale(locale)
         let body = lectures.map { lecture in
@@ -1517,7 +1517,7 @@ final class TalkSession {
             )
         }
         return TalkReply(
-            text: String(format: String(localized: "Lectures from then: %@."), body),
+            text: String(format: L10n.text("Lectures from then: %@."), body),
             sources: sources
         )
     }
@@ -1578,7 +1578,7 @@ final class TalkSession {
     }
 
     private func timetableSources(for question: String) -> [TalkSourceItem] {
-        let symbols = Calendar.current.standaloneWeekdaySymbols
+        let symbols = L10n.calendar.standaloneWeekdaySymbols
         return matchingSlots(in: question).map { fact in
             let day = symbols.indices.contains(fact.slot.weekday - 1) ? symbols[fact.slot.weekday - 1] : "?"
             let clock = ReminderScheduler.clock(fact.slot.startMinutes)
@@ -1617,18 +1617,18 @@ final class TalkSession {
             if hits.isEmpty {
                 if namedCourse || courses.count == 1 {
                     if course.files.isEmpty {
-                        lines.append(String(format: String(localized: "There are no files on %@."), course.name))
+                        lines.append(String(format: L10n.text("There are no files on %@."), course.name))
                     } else {
-                        lines.append(String(format: String(localized: "No file on %@ matches that name."), course.name))
+                        lines.append(String(format: L10n.text("No file on %@ matches that name."), course.name))
                     }
                 }
                 continue
             }
             let names = hits.map { Self.shownFileName($0) }.joined(separator: ", ")
             if hits.count == 1 {
-                lines.append(String(format: String(localized: "The file on %@ is %@."), course.name, names))
+                lines.append(String(format: L10n.text("The file on %@ is %@."), course.name, names))
             } else {
-                lines.append(String(format: String(localized: "Files on %@ are %@."), course.name, names))
+                lines.append(String(format: L10n.text("Files on %@ are %@."), course.name, names))
             }
             for file in hits {
                 sources.append(
@@ -1643,7 +1643,7 @@ final class TalkSession {
         if lines.isEmpty {
             let label = courses.map(\.name).joined(separator: ", ")
             guard !label.isEmpty else { return nil }
-            lines.append(String(format: String(localized: "There are no files on %@."), label))
+            lines.append(String(format: L10n.text("There are no files on %@."), label))
         }
         return TalkReply(text: lines.joined(separator: " "), sources: sources)
     }
@@ -1827,23 +1827,23 @@ final class TalkSession {
             }
             if chosen.isEmpty, !(asked && !drawings.isEmpty) {
                 if asked, notes.isEmpty, namedCourse || courses.count == 1 {
-                    lines.append(String(format: String(localized: "There are no stickies on %@."), course.name))
+                    lines.append(String(format: L10n.text("There are no stickies on %@."), course.name))
                 }
                 continue
             }
             if !chosen.isEmpty {
                 let body = chosen.map { Self.stickyText($0) }.joined(separator: "; ")
                 if chosen.count == 1 {
-                    lines.append(String(format: String(localized: "Your sticky on %@ says %@."), course.name, body))
+                    lines.append(String(format: L10n.text("Your sticky on %@ says %@."), course.name, body))
                 } else {
-                    lines.append(String(format: String(localized: "Your stickies on %@ say %@."), course.name, body))
+                    lines.append(String(format: L10n.text("Your stickies on %@ say %@."), course.name, body))
                 }
                 for note in chosen {
                     sources.append(stickySource(note, course: course))
                 }
             }
             if asked, !drawings.isEmpty {
-                lines.append(String(format: String(localized: "You drew a sticky on %@. It is not described."), course.name))
+                lines.append(String(format: L10n.text("You drew a sticky on %@. It is not described."), course.name))
                 for note in drawings {
                     sources.append(stickySource(note, course: course))
                 }
@@ -1853,7 +1853,7 @@ final class TalkSession {
         if lines.isEmpty {
             let label = courses.map(\.name).joined(separator: ", ")
             guard !label.isEmpty else { return nil }
-            lines.append(String(format: String(localized: "There are no stickies on %@."), label))
+            lines.append(String(format: L10n.text("There are no stickies on %@."), label))
         }
         return TalkReply(text: lines.joined(separator: " "), sources: sources)
     }
@@ -1862,7 +1862,7 @@ final class TalkSession {
         let text = Self.stickyText(note).replacingOccurrences(of: "\n", with: " ")
         let head: String
         if text.isEmpty {
-            head = String(localized: "A drawing")
+            head = L10n.text("A drawing")
         } else if text.count > 42 {
             head = String(text.prefix(42))
         } else {
@@ -2499,7 +2499,7 @@ final class TalkSession {
 
         // Keep the barge mic/ASR alive so the interrupting question is not discarded mid-sentence.
         phase = .listening
-        statusLine = String(localized: "Listening…")
+        statusLine = L10n.text("Listening…")
         partialTranscript = carried
         try? await Task.sleep(for: .milliseconds(150))
         guard running, !Task.isCancelled, generation == audioGeneration else {
@@ -2592,25 +2592,25 @@ final class TalkSession {
         let reply: String
         switch kind {
         case .greeting:
-            reply = String(localized: "Hi. Ask about your lectures or what's stored in the app.")
+            reply = L10n.text("Hi. Ask about your lectures or what's stored in the app.")
         case .howAreYou:
-            reply = String(localized: "I'm well. Ask about your lectures when you want.")
+            reply = L10n.text("I'm well. Ask about your lectures when you want.")
         case .thanks:
-            reply = String(localized: "You're welcome.")
+            reply = L10n.text("You're welcome.")
         case .farewell:
-            reply = String(localized: "Take care.")
+            reply = L10n.text("Take care.")
         case .help:
-            reply = String(localized: "I answer from your lectures, timetable, and what's stored in the app. Ask a question.")
+            reply = L10n.text("I answer from your lectures, timetable, and what's stored in the app. Ask a question.")
         case .repeatAsk:
-            reply = String(localized: "Say that again, or ask another question.")
+            reply = L10n.text("Say that again, or ask another question.")
         case .cancel:
-            reply = String(localized: "Okay.")
+            reply = L10n.text("Okay.")
         case .apology:
-            reply = String(localized: "No problem.")
+            reply = L10n.text("No problem.")
         case .praise:
-            reply = String(localized: "Glad it helped.")
+            reply = L10n.text("Glad it helped.")
         case .hearCheck:
-            reply = String(localized: "Yes, I'm listening.")
+            reply = L10n.text("Yes, I'm listening.")
         }
         return TalkReply(text: reply)
     }
@@ -2943,11 +2943,11 @@ final class TalkSession {
         guard !tokens.isEmpty else { return nil }
         if Self.matchesSwearing(tokens) {
             // Self.log.info("Talk unethical short-circuit kind=swearing")
-            return TalkReply(text: String(localized: "I can't swear."))
+            return TalkReply(text: L10n.text("I can't swear."))
         }
         guard Self.isUnethicalTurn(tokens) else { return nil }
         // Self.log.info("Talk unethical short-circuit kind=refused")
-        return TalkReply(text: String(localized: "I don't answer that."))
+        return TalkReply(text: L10n.text("I don't answer that."))
     }
 
     private static func foldedTokens(_ text: String) -> [String] {

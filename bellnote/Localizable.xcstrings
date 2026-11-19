@@ -409,6 +409,23 @@
         }
       }
     },
+    "%lld flags" : {
+      "comment" : "Shown on the recording Live Activity: how many times the student marked a moment they did not get.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld flags"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld işaret"
+          }
+        }
+      }
+    },
     "%lld h %lld min" : {
       "localizations" : {
         "en" : {

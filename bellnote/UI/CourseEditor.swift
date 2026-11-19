@@ -139,7 +139,7 @@ struct CourseEditor: View {
     }
 
     private func slotRow(_ slot: WeeklySlot) -> some View {
-        let symbols = Calendar.current.weekdaySymbols
+        let symbols = L10n.calendar.weekdaySymbols
         let day = symbols.indices.contains(slot.weekday - 1) ? symbols[slot.weekday - 1] : ""
         let span = "\(ReminderScheduler.clock(slot.startMinutes))–\(ReminderScheduler.clock(slot.endMinutes))"
         let place = PlacePreset.displayName(for: slot.placeName)
@@ -167,7 +167,8 @@ struct CourseEditor: View {
     }
 
     private func examRow(_ sitting: ExamSitting) -> some View {
-        let day = sitting.date?.formatted(date: .abbreviated, time: .omitted) ?? String(localized: "Date not set")
+        let day = sitting.date?.formatted(.dateTime.day().month(.abbreviated).locale(L10n.locale))
+            ?? L10n.text("Date not set")
         return HStack {
             VStack(alignment: .leading, spacing: 2) {
                 Text(verbatim: examKindName(sitting))
@@ -190,10 +191,10 @@ struct CourseEditor: View {
         let title = sitting.title.trimmingCharacters(in: .whitespacesAndNewlines)
         if ExamKind(rawValue: sitting.kind) == .other, !title.isEmpty { return title }
         switch ExamKind(rawValue: sitting.kind) {
-        case .midterm: return String(localized: "Midterm")
-        case .final: return String(localized: "Final")
-        case .other: return String(localized: "Other")
-        case nil: return String(localized: "Exam")
+        case .midterm: return L10n.text("Midterm")
+        case .final: return L10n.text("Final")
+        case .other: return L10n.text("Other")
+        case nil: return L10n.text("Exam")
         }
     }
 

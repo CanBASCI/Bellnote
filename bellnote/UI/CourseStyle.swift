@@ -144,7 +144,7 @@ extension Lecture {
     }
 
     var statusTitle: String {
-        if isRecordedOnly { return String(localized: "Recorded") }
+        if isRecordedOnly { return L10n.text("Recorded") }
         return LectureState(rawValue: state)?.title ?? state
     }
 
@@ -461,7 +461,7 @@ struct AssignmentRow: View {
             // recording row: `subheadline` at the medium Dynamic Type size.
             Group {
             if assignment.cancelled {
-                StatusChip(title: String(localized: "Cancelled"), tint: .orange, size: lectureReading ? lectureMetaSize : nil)
+                StatusChip(title: L10n.text("Cancelled"), tint: .orange, size: lectureReading ? lectureMetaSize : nil)
             } else if let due = assignment.due {
                 StatusChip(title: AssignmentRow.dueTitle(due), tint: .accentColor, size: lectureReading ? lectureMetaSize : nil)
             } else {
@@ -471,7 +471,7 @@ struct AssignmentRow: View {
                     .foregroundStyle(.secondary)
             }
             if let lecture = assignment.sourceLecture {
-                let source = "\(lecture.startedAt.formatted(date: .abbreviated, time: .shortened)) · \(MediaClock.short(assignment.sourceSecond))"
+                let source = "\(L10n.dateString(lecture.startedAt, date: .abbreviated, time: .shortened)) · \(MediaClock.short(assignment.sourceSecond))"
                 // A Label puts a wide space of its own between the icon and the text. The dot is the same
                 // one that stands between the date and the time in the text.
                 HStack(spacing: 0) {
@@ -492,6 +492,6 @@ struct AssignmentRow: View {
     /// The time shows only when it is known, as for "next week" at the slot hour.
     static func dueTitle(_ due: Date) -> String {
         let atMidnight = Calendar.current.startOfDay(for: due) == due
-        return due.formatted(date: .abbreviated, time: atMidnight ? .omitted : .shortened)
+        return L10n.dateString(due, date: .abbreviated, time: atMidnight ? .omitted : .shortened)
     }
 }

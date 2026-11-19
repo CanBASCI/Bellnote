@@ -76,8 +76,8 @@ enum ReminderScheduler {
         let lead = slot.startMinutes - fire
         let start = Self.clock(slot.startMinutes)
         content.body = lead >= 2
-            ? String(localized: "Starts in \(lead) minutes · \(start)")
-            : String(localized: "Starting now · \(start)")
+            ? L10n.text("Starts in \(lead) minutes · \(start)")
+            : L10n.text("Starting now · \(start)")
         content.userInfo = routing(slot.course)
         if kind == .alert {
             content.sound = .default
@@ -137,20 +137,20 @@ enum ReminderScheduler {
         switch ExamKind(rawValue: sitting.kind) {
         case .midterm: name = ExamKind.midterm.title
         case .final: name = ExamKind.final.title
-        case .other: name = title.isEmpty ? String(localized: "Exam") : title
-        case nil: name = String(localized: "Exam")
+        case .other: name = title.isEmpty ? L10n.text("Exam") : title
+        case nil: name = L10n.text("Exam")
         }
         let start = sitting.startMinutes.map { Self.clock($0) }
         switch sitting.leadDays {
         case ...0:
-            if let start { return String(localized: "\(name) in an hour · \(start)") }
-            return String(localized: "\(name) today")
+            if let start { return L10n.text("\(name) in an hour · \(start)") }
+            return L10n.text("\(name) today")
         case 1:
-            if let start { return String(localized: "\(name) tomorrow · \(start)") }
-            return String(localized: "\(name) tomorrow")
+            if let start { return L10n.text("\(name) tomorrow · \(start)") }
+            return L10n.text("\(name) tomorrow")
         default:
-            let day = date.formatted(.dateTime.day().month(.abbreviated))
-            return String(localized: "\(name) in \(sitting.leadDays) days · \(day)")
+            let day = date.formatted(.dateTime.day().month(.abbreviated).locale(L10n.locale))
+            return L10n.text("\(name) in \(sitting.leadDays) days · \(day)")
         }
     }
 
@@ -166,8 +166,8 @@ enum ReminderScheduler {
         // Only the course name and when the lecture was. Never a line of the note.
         let content = UNMutableNotificationContent()
         content.title = courseName
-        let when = startedAt.formatted(.dateTime.day().month(.abbreviated).hour().minute())
-        content.body = String(localized: "Your note is ready · \(when)")
+        let when = startedAt.formatted(.dateTime.day().month(.abbreviated).hour().minute().locale(L10n.locale))
+        content.body = L10n.text("Your note is ready · \(when)")
         content.userInfo = routing(token: courseToken)
         content.interruptionLevel = .passive
         let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 1, repeats: false)
@@ -188,6 +188,6 @@ enum ReminderScheduler {
         parts.hour = minutes / 60
         parts.minute = minutes % 60
         let date = Calendar.current.date(from: parts) ?? .now
-        return date.formatted(date: .omitted, time: .shortened)
+        return L10n.dateString(date, time: .shortened)
     }
 }

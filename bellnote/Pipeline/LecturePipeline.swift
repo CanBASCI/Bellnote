@@ -321,17 +321,17 @@ enum LecturePipeline {
             // Core ML gives no progress while it compiles. The bar follows the time the last
             // compile took and never reaches the end before the work is done.
             let guess = min(0.95, Double(elapsed) / Double(max(expected, 1)))
-            let note = String(localized: "Whisper is being set up for this phone. The first time takes a few minutes, later runs are quick. The ring is a guide from the last time, not a measurement.")
+            let note = L10n.text("Whisper is being set up for this phone. The first time takes a few minutes, later runs are quick. The ring is a guide from the last time, not a measurement.")
             return .init(
                 fraction: base + span * (0.1 + 0.55 * guess),
-                title: String(localized: "Preparing audio analysis"),
+                title: L10n.text("Preparing audio analysis"),
                 info: "\(note) \(MediaClock.short(elapsed))"
             )
         case .loading:
             return .init(
                 fraction: base + span * 0.75,
-                title: String(localized: "Loading Whisper"),
-                info: String(localized: "Whisper is being loaded into memory.")
+                title: L10n.text("Loading Whisper"),
+                info: L10n.text("Whisper is being loaded into memory.")
             )
         case .writing(let done):
             let clamped = min(max(done, 0), 1)
@@ -419,8 +419,8 @@ enum LecturePipeline {
         guard !activity.isRunning(lecture), let course = lecture.course else { return }
         activity.set(.page, for: lecture)
         let info = writingPage
-            ? String(localized: "The AI correction is written again from the raw text.")
-            : String(localized: "Assignments are taken again from the raw text.")
+            ? L10n.text("The AI correction is written again from the raw text.")
+            : L10n.text("Assignments are taken again from the raw text.")
         activity.setDetail(
             PipelineActivity.Step(fraction: PipelineStage.page.fraction, title: PipelineStage.page.title, info: info),
             for: lecture

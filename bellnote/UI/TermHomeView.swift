@@ -46,6 +46,8 @@ struct TermHomeView: View {
                                 showPending: $showPending
                             )
                         }
+                        // Each page builds its words once, so a language change starts the stack again. The tab stays.
+                        .id(session.languageCode)
                     }
                     // Off until every model is downloaded. Only Settings is open, on the Models page.
                     .disabled(session.setupIncomplete)
@@ -54,6 +56,7 @@ struct TermHomeView: View {
                         NavigationStack {
                             FilesPage(term: term)
                         }
+                        .id(session.languageCode)
                     }
                     // Off until the term has a course. A file belongs to a course.
                     .disabled(term.courses.isEmpty || session.setupIncomplete)
@@ -62,6 +65,7 @@ struct TermHomeView: View {
                         NavigationStack {
                             QuizPage(term: term)
                         }
+                        .id(session.languageCode)
                     }
                     // Off until the term has a course, and while a recording is processed, Quiz shares the text model.
                     .disabled(term.courses.isEmpty || PipelineActivity.shared.isBusy || session.setupIncomplete)
@@ -70,6 +74,7 @@ struct TermHomeView: View {
                         NavigationStack {
                             AssistantPage()
                         }
+                        .id(session.languageCode)
                     }
                     // Off while a recording is processed, Talk and the pipeline share the text model and memory.
                     .disabled(PipelineActivity.shared.isBusy || session.setupIncomplete)
@@ -78,6 +83,7 @@ struct TermHomeView: View {
                         NavigationStack {
                             SettingsPage(openModels: $openModels)
                         }
+                        .id(session.languageCode)
                     }
                     // Off while a recording is processed, model changes must not race the pipeline.
                     .disabled(PipelineActivity.shared.isBusy)
@@ -107,6 +113,7 @@ struct TermHomeView: View {
                 NavigationStack {
                     SettingsPage(openModels: $openModels)
                 }
+                .id(session.languageCode)
             } else {
                 NavigationStack {
                     ContentUnavailableView {
@@ -131,6 +138,10 @@ struct TermHomeView: View {
         }
         .onChange(of: term?.persistentModelID) { _, _ in
             Task { await offerModelsIfNeeded() }
+        }
+        .onChange(of: session.languageCode) { _, _ in
+            // Pending reminders hold their words from the day they were set, so they are set again in the new language.
+            ReminderScheduler.resync(context: modelContext)
         }
         .onChange(of: NotificationRouter.shared.pendingCourse, initial: true) { _, token in
             prepareForNotificationTap(course: token)
@@ -531,7 +542,7 @@ struct TodayPage: View {
                         // Course color in the glass for the whole band, from the top of the screen to the gap before the course cards.
                         .background {
                             GeometryReader { geo in
-                                let name = slot.course?.name ?? String(localized: "Course")
+                                let name = slot.course?.name ?? L10n.text("Course")
                                 let tint = slot.course?.color ?? CourseStyle.color(for: name)
                                 heroBandShape
                                     .fill(.clear)
@@ -863,7 +874,7 @@ struct TodayPage: View {
 
     @ViewBuilder
     private func hero(_ slot: WeeklySlot, collapse: CGFloat) -> some View {
-        let name = slot.course?.name ?? String(localized: "Course")
+        let name = slot.course?.name ?? L10n.text("Course")
         let tint = slot.course?.color ?? CourseStyle.color(for: name)
         let lecturer = slot.course?.lecturer?.displayName ?? ""
         let nameSize = heroNameSize + (heroCollapsedSize - heroNameSize) * collapse
@@ -886,7 +897,7 @@ struct TodayPage: View {
                     Text(name)
                         .appFont(size: nameSize, weight: .semibold)
                         .lineLimit(2)
-                    iconLine(lecturer.isEmpty ? String(localized: "Lecturer") : lecturer, systemImage: "person.crop.circle")
+                    iconLine(lecturer.isEmpty ? L10n.text("Lecturer") : lecturer, systemImage: "person.crop.circle")
                         .appFont(size: heroLecturerSize)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
@@ -925,34 +936,34 @@ struct TodayPage: View {
     private func heroDuration(minutes: Int) -> String {
         let hours = minutes / 60
         let rest = minutes % 60
-        if hours == 0 { return String(format: String(localized: "%lld min"), rest) }
-        if rest == 0 { return String(format: String(localized: "%lld h"), hours) }
-        return String(format: String(localized: "%lld h %lld min"), hours, rest)
+        if hours == 0 { return String(format: L10n.text("%lld min"), rest) }
+        if rest == 0 { return String(format: L10n.text("%lld h"), hours) }
+        return String(format: L10n.text("%lld h %lld min"), hours, rest)
     }
 
     /// The large time on the hero. While the class is on, the minutes left. Before it starts today, the minutes
     /// until it starts. On another day, today, tomorrow, or the day count.
     private func heroMoment(_ slot: WeeklySlot, collapse: CGFloat) -> some View {
         let amount: String
-        let word: LocalizedStringKey?
+        let word: String?
         if let left = minutesLeft(for: slot) {
             amount = heroDuration(minutes: left)
-            word = "left"
+            word = L10n.text("left")
         } else if let until = minutesUntilStart(for: slot) {
             amount = heroDuration(minutes: until)
-            word = "later"
+            word = L10n.text("later")
         } else {
             let days = daysUntil(slot)
             switch days {
             case 0:
-                amount = String(localized: "Today")
+                amount = L10n.text("Today")
                 word = nil
             case 1:
-                amount = String(localized: "Tomorrow")
+                amount = L10n.text("Tomorrow")
                 word = nil
             default:
-                amount = String(format: String(localized: "%lld days"), days)
-                word = "later"
+                amount = String(format: L10n.text("%lld days"), days)
+                word = L10n.text("later")
             }
         }
         // Both words meet the closed course name. The number must not shrink by itself, or it
@@ -965,7 +976,7 @@ struct TodayPage: View {
                 .appFont(size: amountSize, weight: .semibold)
                 .lineLimit(1)
             if let word {
-                Text(word)
+                Text(verbatim: word)
                     .appFont(size: wordSize)
                     .lineLimit(1)
             }
@@ -991,7 +1002,7 @@ struct TodayPage: View {
                 items.append(HeroDetailItem(symbol: "calendar.badge.clock", text: exam))
             }
         } else {
-            items.append(HeroDetailItem(symbol: "waveform", text: String(localized: "No recording yet")))
+            items.append(HeroDetailItem(symbol: "waveform", text: L10n.text("No recording yet")))
         }
         return items
     }
@@ -1010,9 +1021,9 @@ struct TodayPage: View {
         let days = calendar.dateComponents([.day], from: today, to: calendar.startOfDay(for: upcoming.date)).day ?? 0
         let when: String
         switch days {
-        case 0: when = String(localized: "Today")
-        case 1: when = String(localized: "Tomorrow")
-        default: when = String(format: String(localized: "%lld days later"), days)
+        case 0: when = L10n.text("Today")
+        case 1: when = L10n.text("Tomorrow")
+        default: when = String(format: L10n.text("%lld days later"), days)
         }
         return "\(heroExamName(upcoming.sitting)) · \(when)"
     }
@@ -1022,33 +1033,33 @@ struct TodayPage: View {
         let title = sitting.title.trimmingCharacters(in: .whitespacesAndNewlines)
         if !title.isEmpty { return title }
         switch ExamKind(rawValue: sitting.kind) {
-        case .midterm: return String(localized: "Midterm")
-        case .final: return String(localized: "Final")
-        case .other, nil: return String(localized: "Exam")
+        case .midterm: return L10n.text("Midterm")
+        case .final: return L10n.text("Final")
+        case .other, nil: return L10n.text("Exam")
         }
     }
 
     /// The assignments that are not done and not cancelled, the same count as "Pending" on the course page.
     private func openAssignmentsText(for course: Course) -> String {
         let open = course.assignments.filter { !$0.done && !$0.cancelled }.count
-        return String(format: String(localized: "Pending assignments: %lld"), open)
+        return String(format: L10n.text("Pending assignments: %lld"), open)
     }
 
     /// The newest recording of the course: today, yesterday, or its date. Empty courses say there is none yet.
     private func lastRecordingText(for course: Course) -> String {
         guard let last = course.lectures.max(by: { $0.startedAt < $1.startedAt }) else {
-            return String(localized: "No recording yet")
+            return L10n.text("No recording yet")
         }
         let calendar = Calendar.current
         let when: String
         if calendar.isDateInToday(last.startedAt) {
-            when = String(localized: "Today")
+            when = L10n.text("Today")
         } else if calendar.isDateInYesterday(last.startedAt) {
-            when = String(localized: "Yesterday")
+            when = L10n.text("Yesterday")
         } else {
-            when = last.startedAt.formatted(.dateTime.day().month(.abbreviated))
+            when = last.startedAt.formatted(.dateTime.day().month(.abbreviated).locale(session.locale))
         }
-        return String(format: String(localized: "Last recording: %@"), when)
+        return String(format: L10n.text("Last recording: %@"), when)
     }
 
     private func slotDetail(_ slot: WeeklySlot) -> String {
@@ -1119,7 +1130,7 @@ struct TodayPage: View {
                             .appFont(size: UIFont.preferredFont(forTextStyle: .subheadline).pointSize * courseIdentityScale, weight: .semibold)
                             .lineLimit(1)
                             .truncationMode(.tail)
-                        Text(verbatim: lecturer.isEmpty ? String(localized: "Lecturer") : lecturer)
+                        Text(verbatim: lecturer.isEmpty ? L10n.text("Lecturer") : lecturer)
                             .appFont(size: UIFont.preferredFont(forTextStyle: .caption2).pointSize * courseIdentityScale)
                             .foregroundStyle(lecturer.isEmpty ? Color.secondary : Color.primary)
                             .lineLimit(1)
@@ -1183,7 +1194,7 @@ struct TodayPage: View {
     }
 
     private func recordedAccessLabel(_ share: RecordedShare) -> Text {
-        Text(verbatim: String(format: String(localized: "%1$lld of %2$lld recorded"), share.recorded, share.past))
+        Text(verbatim: String(format: L10n.text("%1$lld of %2$lld recorded"), share.recorded, share.past))
     }
 
     /// Past meetings of one course, and how many of them have a recording.
@@ -1336,7 +1347,7 @@ struct TodayPage: View {
 
     /// The nearest upcoming weekly slot ("Mon 09:00–10:30"). Nil when the course has none.
     private func scheduleLine(for course: Course) -> String? {
-        let symbols = Calendar.current.shortWeekdaySymbols
+        let symbols = L10n.calendar.shortWeekdaySymbols
         return term.slots
             .filter { $0.course?.token == course.token }
             .sorted { minutesUntilNextOccurrence($0) < minutesUntilNextOccurrence($1) }
@@ -1389,7 +1400,7 @@ struct TodayPage: View {
                             .appFont(.footnote, weight: .semibold, digits: true)
                             .foregroundStyle(grade.map { CourseStyle.scoreTint($0.result) } ?? Color.primary)
                             .lineLimit(1)
-                            .accessibilityLabel(Text(verbatim: String(format: String(localized: "Score %@"), score)))
+                            .accessibilityLabel(Text(verbatim: String(format: L10n.text("Score %@"), score)))
                     }
                     Text(verbatim: "\(examDay(row)) · \(examClock(row))")
                         .appFont(.footnote)
@@ -1444,20 +1455,20 @@ struct TodayPage: View {
         let title = row.title.trimmingCharacters(in: .whitespacesAndNewlines)
         if ExamKind(rawValue: row.kind) == .other, !title.isEmpty { return title }
         switch ExamKind(rawValue: row.kind) {
-        case .midterm: return String(localized: "Midterm")
-        case .final: return String(localized: "Final")
-        case .other: return String(localized: "Other")
-        case nil: return String(localized: "Exam")
+        case .midterm: return L10n.text("Midterm")
+        case .final: return L10n.text("Final")
+        case .other: return L10n.text("Other")
+        case nil: return L10n.text("Exam")
         }
     }
 
     private func examDay(_ row: ExamRow) -> String {
         row.date?.formatted(.dateTime.day().month(.abbreviated).locale(session.locale))
-            ?? String(localized: "Date not set")
+            ?? L10n.text("Date not set")
     }
 
     private func examClock(_ row: ExamRow) -> String {
-        guard let start = row.startMinutes else { return String(localized: "Time not set") }
+        guard let start = row.startMinutes else { return L10n.text("Time not set") }
         if let end = row.endMinutes, end > start {
             return "\(ReminderScheduler.clock(start))–\(ReminderScheduler.clock(end))"
         }
@@ -1466,7 +1477,7 @@ struct TodayPage: View {
 
     private func askDelete(_ course: Course) {
         guard course.lectures.allSatisfy(LectureRemoval.canDelete) else {
-            deleteNotice = String(localized: "Wait until the recordings of this course have been processed, then delete it.")
+            deleteNotice = L10n.text("Wait until the recordings of this course have been processed, then delete it.")
             return
         }
         pendingCourse = course
@@ -1495,7 +1506,7 @@ struct TodayPage: View {
     private func askDeleteTerm() {
         let lectures = term.courses.flatMap(\.lectures)
         guard lectures.allSatisfy(LectureRemoval.canDelete) else {
-            deleteNotice = String(localized: "Wait until the recordings of this term have been processed, then delete it.")
+            deleteNotice = L10n.text("Wait until the recordings of this term have been processed, then delete it.")
             return
         }
         pendingTermDelete = true
@@ -1518,7 +1529,7 @@ struct TodayPage: View {
             Logger(subsystem: "app.bellnote", category: "delete").error(
                 "Term delete failed: \(error.localizedDescription, privacy: .public)"
             )
-            deleteNotice = String(localized: "The term could not be deleted.")
+            deleteNotice = L10n.text("The term could not be deleted.")
         }
     }
 
@@ -1538,7 +1549,7 @@ struct TodayPage: View {
             Logger(subsystem: "app.bellnote", category: "delete").error(
                 "Course delete failed: \(error.localizedDescription, privacy: .public)"
             )
-            deleteNotice = String(localized: "The course could not be deleted.")
+            deleteNotice = L10n.text("The course could not be deleted.")
         }
     }
 }

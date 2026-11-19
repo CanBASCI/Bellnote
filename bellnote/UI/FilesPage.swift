@@ -108,8 +108,8 @@ private enum CabinetSegment: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .files: String(localized: "Files")
-        case .stickies: String(localized: "Stickies")
+        case .files: L10n.text("Files")
+        case .stickies: L10n.text("Stickies")
         }
     }
 }
@@ -211,7 +211,7 @@ struct CourseCabinetPage: View {
             case .success(let urls):
                 for url in urls { importFile(url) }
             case .failure(let error):
-                report(error, notice: String(localized: "The file could not be added."))
+                report(error, notice: L10n.text("The file could not be added."))
             }
         }
         .photosPicker(isPresented: $pickingPhoto, selection: $photoItem, matching: .images)
@@ -222,7 +222,7 @@ struct CourseCabinetPage: View {
         }
         .fullScreenCover(item: $openPreview) { preview in
             StoredFilePreview(url: preview.url, title: preview.title) { error in
-                report(error, notice: String(localized: "The change could not be saved."))
+                report(error, notice: L10n.text("The change could not be saved."))
             } onEdited: {
                 markFileUpdated(at: preview.url)
             } onDismiss: {
@@ -488,7 +488,7 @@ struct CourseCabinetPage: View {
         do {
             try modelContext.save()
         } catch {
-            report(error, notice: String(localized: "The change could not be saved."))
+            report(error, notice: L10n.text("The change could not be saved."))
         }
     }
 
@@ -504,19 +504,19 @@ struct CourseCabinetPage: View {
     private func fileDetail(_ file: CourseFile) -> String {
         let ext = URL(fileURLWithPath: file.displayName).pathExtension
         if !ext.isEmpty { return ext.uppercased() }
-        return String(localized: "Other")
+        return L10n.text("Other")
     }
 
     private func open(_ file: CourseFile) {
         do {
             let url = try Vault.documents().appendingPathComponent(file.relativePath)
             guard FileManager.default.fileExists(atPath: url.path) else {
-                fileNotice = String(localized: "The file could not be opened.")
+                fileNotice = L10n.text("The file could not be opened.")
                 return
             }
             openPreview = FilePreview(url: url, title: file.displayName)
         } catch {
-            report(error, notice: String(localized: "The file could not be opened."))
+            report(error, notice: L10n.text("The file could not be opened."))
         }
     }
 
@@ -535,18 +535,18 @@ struct CourseCabinetPage: View {
             course.files.append(file)
             try modelContext.save()
         } catch {
-            report(error, notice: String(localized: "The file could not be added."))
+            report(error, notice: L10n.text("The file could not be added."))
         }
     }
 
     private func importPhoto(_ item: PhotosPickerItem) async {
         do {
             guard let data = try await item.loadTransferable(type: Data.self), !data.isEmpty else {
-                fileNotice = String(localized: "The file could not be added.")
+                fileNotice = L10n.text("The file could not be added.")
                 return
             }
-            let stamp = Date.now.formatted(date: .abbreviated, time: .shortened)
-            let display = "\(String(localized: "Photo")) \(stamp)"
+            let stamp = L10n.dateString(.now, date: .abbreviated, time: .shortened)
+            let display = "\(L10n.text("Photo")) \(stamp)"
             let relative = try Vault.writeCourseData(
                 courseID: course.token,
                 data: data,
@@ -559,7 +559,7 @@ struct CourseCabinetPage: View {
             course.files.append(file)
             try modelContext.save()
         } catch {
-            report(error, notice: String(localized: "The file could not be added."))
+            report(error, notice: L10n.text("The file could not be added."))
         }
     }
 
@@ -569,7 +569,7 @@ struct CourseCabinetPage: View {
         do {
             root = try Vault.documents()
         } catch {
-            report(error, notice: String(localized: "The change could not be saved."))
+            report(error, notice: L10n.text("The change could not be saved."))
             return
         }
         let wanted = url.standardizedFileURL.path
@@ -605,7 +605,7 @@ struct CourseCabinetPage: View {
             modelContext.delete(file)
             try modelContext.save()
         } catch {
-            report(error, notice: String(localized: "The file could not be deleted."))
+            report(error, notice: L10n.text("The file could not be deleted."))
         }
     }
 
@@ -614,7 +614,7 @@ struct CourseCabinetPage: View {
         do {
             try modelContext.save()
         } catch {
-            report(error, notice: String(localized: "The change could not be saved."))
+            report(error, notice: L10n.text("The change could not be saved."))
         }
     }
 

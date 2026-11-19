@@ -451,7 +451,7 @@ struct CoursePage: View {
 
     private func askDelete(_ lecture: Lecture) {
         guard LectureRemoval.canDelete(lecture) else {
-            deleteNotice = String(localized: "Wait until this recording has been processed, then delete it.")
+            deleteNotice = L10n.text("Wait until this recording has been processed, then delete it.")
             return
         }
         pendingDelete = lecture
@@ -464,16 +464,16 @@ struct CoursePage: View {
             Logger(subsystem: "app.bellnote", category: "delete").error(
                 "Lecture delete failed: \(error.localizedDescription, privacy: .public)"
             )
-            deleteNotice = String(localized: "The recording could not be deleted.")
+            deleteNotice = L10n.text("The recording could not be deleted.")
         }
     }
 
     private var lecturerName: String {
-        guard let contact = course.lecturer else { return String(localized: "Lecturer") }
+        guard let contact = course.lecturer else { return L10n.text("Lecturer") }
         let parts = [contact.title, contact.givenName, contact.familyName]
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
-        return parts.isEmpty ? String(localized: "Lecturer") : parts.joined(separator: " ")
+        return parts.isEmpty ? L10n.text("Lecturer") : parts.joined(separator: " ")
     }
 
     private var lectures: [Lecture] {
@@ -495,14 +495,14 @@ struct CoursePage: View {
         let calendar = Calendar.current
         let now = Date()
         if let current = calendar.dateInterval(of: .weekOfYear, for: now)?.start {
-            if start == current { return String(localized: "This week") }
+            if start == current { return L10n.text("This week") }
             if let previous = calendar.date(byAdding: .weekOfYear, value: -1, to: current), start == previous {
-                return String(localized: "Last week")
+                return L10n.text("Last week")
             }
         }
         let end = calendar.date(byAdding: .day, value: 6, to: start) ?? start
-        let first = start.formatted(.dateTime.day().month(.abbreviated))
-        let last = end.formatted(.dateTime.day().month(.abbreviated))
+        let first = start.formatted(.dateTime.day().month(.abbreviated).locale(L10n.locale))
+        let last = end.formatted(.dateTime.day().month(.abbreviated).locale(L10n.locale))
         return "\(first) – \(last)"
     }
 
@@ -515,7 +515,7 @@ struct CoursePage: View {
         let recorded = lectures.filter(\.isRecordedOnly).count
         let entries: [(symbol: String, title: String, count: Int)] = [
             (LectureState.ready.symbol, LectureState.ready.title, count(.ready)),
-            ("waveform", String(localized: "Recorded"), recorded),
+            ("waveform", L10n.text("Recorded"), recorded),
             (LectureState.processing.symbol, LectureState.processing.title, count(.processing)),
             (LectureState.failed.symbol, LectureState.failed.title, count(.failed)),
             (LectureState.recording.symbol, LectureState.recording.title, count(.recording)),
@@ -539,9 +539,9 @@ struct CoursePage: View {
         let done = assignments.filter { $0.done && !$0.cancelled }.count
         let cancelled = assignments.filter(\.cancelled).count
         return [
-            StatDetail(id: "done", symbol: "checkmark.circle", label: String(localized: "Done"), value: done.formatted(.number), quiet: done == 0),
-            StatDetail(id: "cancelled", symbol: "xmark.circle", label: String(localized: "Cancelled"), value: cancelled.formatted(.number), quiet: cancelled == 0),
-            StatDetail(id: "pending", symbol: "circle", label: String(localized: "Pending"), value: pending.formatted(.number), quiet: pending == 0)
+            StatDetail(id: "done", symbol: "checkmark.circle", label: L10n.text("Done"), value: done.formatted(.number), quiet: done == 0),
+            StatDetail(id: "cancelled", symbol: "xmark.circle", label: L10n.text("Cancelled"), value: cancelled.formatted(.number), quiet: cancelled == 0),
+            StatDetail(id: "pending", symbol: "circle", label: L10n.text("Pending"), value: pending.formatted(.number), quiet: pending == 0)
         ]
     }
 
@@ -587,7 +587,7 @@ struct CoursePage: View {
 
     /// Day and month, then the start time when one is set. No year, so the kind still fits on the line.
     private func examWhen(_ sitting: ExamSitting) -> String {
-        guard let date = sitting.date else { return String(localized: "Date not set") }
+        guard let date = sitting.date else { return L10n.text("Date not set") }
         let day = date.formatted(.dateTime.day().month(.abbreviated).locale(locale))
         guard let start = sitting.startMinutes else { return day }
         return "\(day) · \(ReminderScheduler.clock(start))"
@@ -598,10 +598,10 @@ struct CoursePage: View {
         let title = sitting.title.trimmingCharacters(in: .whitespacesAndNewlines)
         if ExamKind(rawValue: sitting.kind) == .other, !title.isEmpty { return title }
         switch ExamKind(rawValue: sitting.kind) {
-        case .midterm: return String(localized: "Midterm")
-        case .final: return String(localized: "Final")
-        case .other: return String(localized: "Other")
-        case nil: return String(localized: "Exam")
+        case .midterm: return L10n.text("Midterm")
+        case .final: return L10n.text("Final")
+        case .other: return L10n.text("Other")
+        case nil: return L10n.text("Exam")
         }
     }
 
@@ -745,7 +745,7 @@ struct CoursePage: View {
                         // The cover already tells the status to VoiceOver.
                         .accessibilityHidden(true)
                     if lecture.recordedSeconds >= 60 {
-                        Text(String(format: String(localized: "%lld min"), lecture.recordedSeconds / 60))
+                        Text(String(format: L10n.text("%lld min"), lecture.recordedSeconds / 60))
                             .appFont(.subheadline)
                             .foregroundStyle(.secondary)
                     }
@@ -843,7 +843,7 @@ struct LecturerEditor: View {
                 }
             }
             // An alert, like the other confirmations of the app.
-            .alert(Text(verbatim: String(format: String(localized: "Write to %@?"), email)), isPresented: $askToMail) {
+            .alert(Text(verbatim: String(format: L10n.text("Write to %@?"), email)), isPresented: $askToMail) {
                 Button("Write email") { open(.mail) }
                 Button("Cancel", role: .cancel) {}
             }
@@ -885,10 +885,10 @@ struct LecturerEditor: View {
         switch action {
         case .call:
             url = callURL
-            failure = String(localized: "The call could not be started.")
+            failure = L10n.text("The call could not be started.")
         case .mail:
             url = mailURL
-            failure = String(localized: "The email could not be opened.")
+            failure = L10n.text("The email could not be opened.")
         }
         guard let url else {
             notice = failure

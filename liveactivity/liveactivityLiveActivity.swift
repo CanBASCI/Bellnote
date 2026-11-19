@@ -12,6 +12,8 @@ struct RecordingAttributes: ActivityAttributes {
         var elapsedSeconds: Int
         var timingAnchor: Date
         var flagCount: Int
+        var statusText: String
+        var flagText: String
     }
 }
 
@@ -46,6 +48,7 @@ struct liveactivityLiveActivity: Widget {
                     controlRow(
                         isPaused: context.state.isPaused,
                         flagCount: context.state.flagCount,
+                        flagText: context.state.flagText,
                         flexible: false
                     )
                     .padding(.top, 4)
@@ -85,6 +88,7 @@ struct liveactivityLiveActivity: Widget {
             controlRow(
                 isPaused: context.state.isPaused,
                 flagCount: context.state.flagCount,
+                flagText: context.state.flagText,
                 flexible: true
             )
         }
@@ -94,16 +98,12 @@ struct liveactivityLiveActivity: Widget {
     }
 
     private func statusLine(_ state: RecordingAttributes.ContentState) -> String {
-        state.isPaused ? String(localized: "Paused") : String(localized: "Recording")
-    }
-
-    private func flagCountLabel(_ count: Int) -> String {
-        String(localized: "\(count) flags")
+        state.statusText
     }
 
     /// Plain `Label` controls. Lock Screen spreads them; Island keeps intrinsic width with wider gaps.
     @ViewBuilder
-    private func controlRow(isPaused: Bool, flagCount: Int, flexible: Bool) -> some View {
+    private func controlRow(isPaused: Bool, flagCount: Int, flagText: String, flexible: Bool) -> some View {
         HStack(spacing: flexible ? 12 : 44) {
             if isPaused {
                 Button(intent: ResumeRecordingIntent()) {
@@ -127,7 +127,7 @@ struct liveactivityLiveActivity: Widget {
                     Label("I didn't get this", systemImage: "flag.fill")
                         .labelStyle(.iconOnly)
                     if flagCount > 0 {
-                        Text(flagCountLabel(flagCount))
+                        Text(verbatim: flagText)
                             .font(.subheadline.monospacedDigit())
                     }
                 }
@@ -168,6 +168,6 @@ struct liveactivityLiveActivity: Widget {
 #Preview("Lock screen", as: .content, using: RecordingAttributes(courseName: "Felsefe")) {
     liveactivityLiveActivity()
 } contentStates: {
-    RecordingAttributes.ContentState(isPaused: false, elapsedSeconds: 125, timingAnchor: Date().addingTimeInterval(-125), flagCount: 0)
-    RecordingAttributes.ContentState(isPaused: true, elapsedSeconds: 125, timingAnchor: Date().addingTimeInterval(-125), flagCount: 2)
+    RecordingAttributes.ContentState(isPaused: false, elapsedSeconds: 125, timingAnchor: Date().addingTimeInterval(-125), flagCount: 0, statusText: "Recording", flagText: "")
+    RecordingAttributes.ContentState(isPaused: true, elapsedSeconds: 125, timingAnchor: Date().addingTimeInterval(-125), flagCount: 2, statusText: "Paused", flagText: "2 flags")
 }

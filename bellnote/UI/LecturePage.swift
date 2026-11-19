@@ -67,7 +67,7 @@ struct LecturePage: View {
     /// The headline the model wrote from the AI correction, or the date while there is none.
     private var barTitle: String {
         lecture.title.isEmpty
-            ? lecture.startedAt.formatted(date: .abbreviated, time: .shortened)
+            ? L10n.dateString(lecture.startedAt, date: .abbreviated, time: .shortened)
             : lecture.title
     }
 
@@ -80,7 +80,7 @@ struct LecturePage: View {
 
     private var subtitle: String {
         guard lecture.recordedSeconds >= 60 else { return "" }
-        return String(format: String(localized: "%lld min"), lecture.recordedSeconds / 60)
+        return String(format: L10n.text("%lld min"), lecture.recordedSeconds / 60)
     }
 }
 
@@ -174,7 +174,7 @@ struct LectureNote: View {
             List {
                 if showsDate {
                     Section {
-                        Text(lecture.startedAt.formatted(date: .abbreviated, time: .omitted))
+                        Text(L10n.dateString(lecture.startedAt, date: .abbreviated))
                             .appFont(.title2, weight: .semibold)
                     }
                 }
@@ -553,9 +553,9 @@ struct LectureNote: View {
         let summary = lecture.summary.trimmingCharacters(in: .whitespacesAndNewlines)
         if !summary.isEmpty { return summary }
         if let failure = lecture.failureMessageKey, !failure.isEmpty {
-            return String(localized: String.LocalizationValue(failure))
+            return L10n.text(String.LocalizationValue(failure))
         }
-        return String(localized: "No AI correction yet.")
+        return L10n.text("No AI correction yet.")
     }
 
     private var chapters: [Block] {
@@ -663,7 +663,7 @@ struct LectureNote: View {
                 var line = assignment.done ? "[x] " : "[ ] "
                 line += assignment.text
                 if let due = assignment.due {
-                    line += " (\(due.formatted(date: .abbreviated, time: .omitted)))"
+                    line += " (\(L10n.dateString(due, date: .abbreviated)))"
                 }
                 return line
             }
@@ -747,7 +747,7 @@ struct LectureNote: View {
 
     private func speakerTitle(_ cluster: Int) -> String {
         if let name = lecture.speakerName(for: cluster) { return name }
-        return String(format: String(localized: "Speaker %lld"), cluster)
+        return String(format: L10n.text("Speaker %lld"), cluster)
     }
 
     /// The block that is playing now: the last one that starts at or before the current second.
@@ -922,7 +922,7 @@ private struct RawTurnEditor: View {
                 }
                 .map(\.speaker)
         )).sorted().map { MoveTarget(id: $0, title: speakerTitle($0)) }
-        return existing + [MoveTarget(id: Self.newSpeaker, title: String(localized: "New speaker"))]
+        return existing + [MoveTarget(id: Self.newSpeaker, title: L10n.text("New speaker"))]
     }
 
     private struct MoveTarget: Identifiable {
@@ -1041,7 +1041,7 @@ private struct RawTurnEditor: View {
 
     private func speakerTitle(_ cluster: Int) -> String {
         if let name = lecture.speakerName(for: cluster) { return name }
-        return String(format: String(localized: "Speaker %lld"), cluster)
+        return String(format: L10n.text("Speaker %lld"), cluster)
     }
 
     private func save() {

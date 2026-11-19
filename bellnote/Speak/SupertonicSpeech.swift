@@ -14,18 +14,19 @@ enum SupertonicVoice {
     static func title(_ speaker: Int, locale: Locale) -> String {
         let speaker = clamped(speaker)
         if speaker < 5 {
-            return String(format: String(localized: "Female %lld", locale: locale), speaker + 1)
+            // Voice labels follow the picker locale (course UI), not only the Settings app language.
+            return String(format: L10n.text("Female %lld", locale: locale), speaker + 1)
         }
-        return String(format: String(localized: "Male %lld", locale: locale), speaker - 4)
+        return String(format: L10n.text("Male %lld", locale: locale), speaker - 4)
     }
 
     /// The line spoken when a voice is tapped, so the student hears the tone and its number.
     static func greeting(_ speaker: Int, locale: Locale) -> String {
         let speaker = clamped(speaker)
         if speaker < 5 {
-            return String(format: String(localized: "Hello, I am female voice %lld.", locale: locale), speaker + 1)
+            return String(format: L10n.text("Hello, I am female voice %lld.", locale: locale), speaker + 1)
         }
-        return String(format: String(localized: "Hello, I am male voice %lld.", locale: locale), speaker - 4)
+        return String(format: L10n.text("Hello, I am male voice %lld.", locale: locale), speaker - 4)
     }
 }
 

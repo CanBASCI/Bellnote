@@ -9,11 +9,11 @@ enum LectureState: String, Codable, Sendable {
 
     var title: String {
         switch self {
-        case .recording: String(localized: "Recording")
-        case .paused: String(localized: "Paused")
-        case .processing: String(localized: "Processing")
-        case .ready: String(localized: "Ready")
-        case .failed: String(localized: "Failed")
+        case .recording: L10n.text("Recording")
+        case .paused: L10n.text("Paused")
+        case .processing: L10n.text("Processing")
+        case .ready: L10n.text("Ready")
+        case .failed: L10n.text("Failed")
         }
     }
 }
@@ -26,8 +26,8 @@ enum CaptureSource: String, Codable, Sendable, CaseIterable {
 
     var title: String {
         switch self {
-        case .iPhone: String(localized: "iPhone")
-        case .appleWatch: String(localized: "Apple Watch")
+        case .iPhone: L10n.text("iPhone")
+        case .appleWatch: L10n.text("Apple Watch")
         }
     }
 }
@@ -71,25 +71,25 @@ enum PipelineStage: String, Codable, Sendable, CaseIterable {
 
     var title: String {
         switch self {
-        case .idle, .audio: String(localized: "Reading the recording")
-        case .speakers: String(localized: "Separating speakers")
-        case .transcript: String(localized: "Writing the transcript")
-        case .tags: String(localized: "Tagging the lecture")
-        case .page: String(localized: "Writing the page")
-        case .links, .ready: String(localized: "Linking notes")
-        case .failed: String(localized: "Failed")
+        case .idle, .audio: L10n.text("Reading the recording")
+        case .speakers: L10n.text("Separating speakers")
+        case .transcript: L10n.text("Writing the transcript")
+        case .tags: L10n.text("Tagging the lecture")
+        case .page: L10n.text("Writing the page")
+        case .links, .ready: L10n.text("Linking notes")
+        case .failed: L10n.text("Failed")
         }
     }
 
     /// One or two sentences that say what the app does in this stage.
     var info: String {
         switch self {
-        case .idle, .audio: String(localized: "The app checks that the recording opens and is complete.")
-        case .speakers: String(localized: "The app finds out who speaks when. This happens on your phone.")
-        case .transcript: String(localized: "Whisper turns the speech into text. The ring follows how much of the recording it has read.")
-        case .tags: String(localized: "The model marks definitions, lists, examples and assignments in the text.")
-        case .page: String(localized: "The AI correction is written from the transcript, with correct spelling and punctuation.")
-        case .links, .ready: String(localized: "The notes are linked to earlier lectures of this course.")
+        case .idle, .audio: L10n.text("The app checks that the recording opens and is complete.")
+        case .speakers: L10n.text("The app finds out who speaks when. This happens on your phone.")
+        case .transcript: L10n.text("Whisper turns the speech into text. The ring follows how much of the recording it has read.")
+        case .tags: L10n.text("The model marks definitions, lists, examples and assignments in the text.")
+        case .page: L10n.text("The AI correction is written from the transcript, with correct spelling and punctuation.")
+        case .links, .ready: L10n.text("The notes are linked to earlier lectures of this course.")
         case .failed: ""
         }
     }
@@ -155,8 +155,8 @@ enum PlacePreset: String, CaseIterable, Identifiable, Sendable {
     static func displayName(for stored: String) -> String {
         let (preset, custom) = resolved(from: stored)
         switch preset {
-        case .school: return String(localized: "School")
-        case .home: return String(localized: "Place home")
+        case .school: return L10n.text("School")
+        case .home: return L10n.text("Place home")
         case .other: return custom
         }
     }
@@ -183,9 +183,9 @@ enum ReminderKind: String, Codable, Sendable, CaseIterable {
 
     var title: String {
         switch self {
-        case .none: String(localized: "None")
-        case .notification: String(localized: "Notification")
-        case .alert: String(localized: "Sound")
+        case .none: L10n.text("None")
+        case .notification: L10n.text("Notification")
+        case .alert: L10n.text("Sound")
         }
     }
 }
@@ -202,18 +202,18 @@ enum ExamKind: String, Codable, Sendable, CaseIterable {
 
     var title: String {
         switch self {
-        case .midterm: String(localized: "Midterm")
-        case .final: String(localized: "Final")
-        case .other: String(localized: "Other")
+        case .midterm: L10n.text("Midterm")
+        case .final: L10n.text("Final")
+        case .other: L10n.text("Other")
         }
     }
 
     /// The segment under Exams. Midterms, then finals, then any other kind.
     var groupTitle: String {
         switch self {
-        case .midterm: String(localized: "Midterms")
-        case .final: String(localized: "Finals")
-        case .other: String(localized: "Other")
+        case .midterm: L10n.text("Midterms")
+        case .final: L10n.text("Finals")
+        case .other: L10n.text("Other")
         }
     }
 }

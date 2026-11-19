@@ -66,11 +66,11 @@ struct FluidAudioGateModifier: ViewModifier {
     func body(content: Content) -> some View {
         content
             .alert(
-                String(localized: "Download FluidAudio?"),
+                L10n.text("Download FluidAudio?"),
                 isPresented: $gate.showConfirm
             ) {
-                Button(String(localized: "OK")) { gate.confirmInstall() }
-                Button(String(localized: "Cancel"), role: .cancel) { gate.cancelConfirm() }
+                Button(L10n.text("OK")) { gate.confirmInstall() }
+                Button(L10n.text("Cancel"), role: .cancel) { gate.cancelConfirm() }
             } message: {
                 Text(
                     String(
@@ -82,7 +82,7 @@ struct FluidAudioGateModifier: ViewModifier {
             .sheet(isPresented: $gate.showDownload) {
                 NavigationStack {
                     VStack(spacing: 20) {
-                        Text(String(localized: "Downloading FluidAudio…"))
+                        Text(L10n.text("Downloading FluidAudio…"))
                             .multilineTextAlignment(.center)
                         ProgressView(value: gate.downloadProgress)
                             .padding(.horizontal)
@@ -98,7 +98,7 @@ struct FluidAudioGateModifier: ViewModifier {
                             .appFont(.footnote)
                             .foregroundStyle(.secondary)
                             .multilineTextAlignment(.center)
-                            Button(String(localized: "Retry")) { gate.confirmInstall() }
+                            Button(L10n.text("Retry")) { gate.confirmInstall() }
                         }
                     }
                     .padding()
@@ -108,7 +108,7 @@ struct FluidAudioGateModifier: ViewModifier {
                     .toolbar {
                         if gate.downloadFailed {
                             ToolbarItem(placement: .cancellationAction) {
-                                Button(String(localized: "Close")) { gate.dismissDownload() }
+                                Button(L10n.text("Close")) { gate.dismissDownload() }
                             }
                         }
                     }

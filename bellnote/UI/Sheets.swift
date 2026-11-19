@@ -173,15 +173,15 @@ struct PendingSheet: View {
                     LecturePage(lecture: lecture)
                 } label: {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(lecture.course?.name ?? String(localized: "Course"))
-                        Text(lecture.startedAt.formatted(date: .abbreviated, time: .shortened))
+                        Text(lecture.course?.name ?? L10n.text("Course"))
+                        Text(L10n.dateString(lecture.startedAt, date: .abbreviated, time: .shortened))
                             .appFont(.subheadline)
                             .foregroundStyle(.secondary)
                         Text(lecture.statusTitle)
                             .appFont(.subheadline)
                             .foregroundStyle(.secondary)
                         if let failure = lecture.failureMessageKey, !failure.isEmpty {
-                            Text(String(localized: String.LocalizationValue(failure)))
+                            Text(L10n.text(String.LocalizationValue(failure)))
                                 .appFont(.footnote)
                                 .foregroundStyle(.secondary)
                         }
@@ -317,7 +317,7 @@ struct SettingsPage: View {
                 Picker(selection: $typeface) {
                     ForEach(AppTypeface.allCases, id: \.self) { face in
                         Text(verbatim: face == .sfPro
-                            ? face.menuTitle + String(localized: " (Default)")
+                            ? face.menuTitle + L10n.text(" (Default)")
                             : face.menuTitle)
                             .font(face.font(style: .body, weight: nil, digits: false))
                             .fontWidth(face.width)
@@ -511,11 +511,11 @@ struct ModelsPage: View {
                         }
                     )) {
                         ForEach(0..<5, id: \.self) { index in
-                            Text(verbatim: String(format: String(localized: "Male %lld"), index + 1))
+                            Text(verbatim: String(format: L10n.text("Male %lld"), index + 1))
                                 .tag(index + 5)
                         }
                         ForEach(0..<5, id: \.self) { index in
-                            Text(verbatim: String(format: String(localized: "Female %lld"), index + 1))
+                            Text(verbatim: String(format: L10n.text("Female %lld"), index + 1))
                                 .tag(index)
                         }
                     }
@@ -560,15 +560,15 @@ struct ModelsPage: View {
     private var deletePromptTitle: String {
         switch pendingDelete {
         case .mlx(.page):
-            String(localized: "Delete Qwen 3.5 4B?")
+            L10n.text("Delete Qwen 3.5 4B?")
         case .mlx(.whisper):
-            String(localized: "Delete Whisper?")
+            L10n.text("Delete Whisper?")
         case .mlx:
-            String(localized: "Delete Qwen 3.5 2B?")
+            L10n.text("Delete Qwen 3.5 2B?")
         case .fluidAudio:
-            String(localized: "Delete FluidAudio?")
+            L10n.text("Delete FluidAudio?")
         case .supertonic:
-            String(localized: "Delete Supertonic?")
+            L10n.text("Delete Supertonic?")
         case nil:
             ""
         }
@@ -584,10 +584,10 @@ struct ModelsPage: View {
                 rowIcon("person.2.wave.2")
                 VStack(alignment: .leading, spacing: 4) {
                     Text("FluidAudio")
-                    Text(bytes.formatted(.byteCount(style: .file)))
+                    Text(bytes.formatted(.byteCount(style: .file).locale(L10n.locale)))
                         .appFont(.caption)
                         .foregroundStyle(.secondary)
-                    Text(String(localized: "Separates speakers while processing a lecture."))
+                    Text(L10n.text("Separates speakers while processing a lecture."))
                         .appFont(.caption)
                         .foregroundStyle(.secondary)
                     if ready, !downloadingFluid {
@@ -627,11 +627,11 @@ struct ModelsPage: View {
                                     }
                                 }
                                 finished = true
-                                fluidStatus = String(localized: "Download finished.")
+                                fluidStatus = L10n.text("Download finished.")
                                 // Self.log.info("UI download ok fluidAudio")
                             } catch {
                                 let nsError = error as NSError
-                                fluidStatus = String(localized: "A model is not available.")
+                                fluidStatus = L10n.text("A model is not available.")
                                 Self.log.error("UI download failed fluidAudio domain=\(nsError.domain, privacy: .public) code=\(nsError.code) message=\(error.localizedDescription, privacy: .public)")
                             }
                             downloadingFluid = false
@@ -662,7 +662,7 @@ struct ModelsPage: View {
                 rowIcon("speaker.wave.2.fill")
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Supertonic")
-                    Text(bytes.formatted(.byteCount(style: .file)))
+                    Text(bytes.formatted(.byteCount(style: .file).locale(L10n.locale)))
                         .appFont(.caption)
                         .foregroundStyle(.secondary)
                     Text("Reads notes aloud in Turkish and English.")
@@ -709,11 +709,11 @@ struct ModelsPage: View {
                                     }
                                 }
                                 finished = true
-                                supertonicStatus = String(localized: "Download finished.")
+                                supertonicStatus = L10n.text("Download finished.")
                                 // Self.log.info("UI download ok supertonic")
                             } catch {
                                 let nsError = error as NSError
-                                supertonicStatus = String(localized: "A model is not available.")
+                                supertonicStatus = L10n.text("A model is not available.")
                                 Self.log.error("UI download failed supertonic domain=\(nsError.domain, privacy: .public) code=\(nsError.code) message=\(error.localizedDescription, privacy: .public)")
                             }
                             downloadingSupertonic = false
@@ -743,7 +743,7 @@ struct ModelsPage: View {
             // Self.log.info("UI delete ok supertonic")
         } catch {
             let nsError = error as NSError
-            supertonicStatus = String(localized: "A model is not available.")
+            supertonicStatus = L10n.text("A model is not available.")
             Self.log.error("UI delete failed supertonic domain=\(nsError.domain, privacy: .public) code=\(nsError.code) message=\(error.localizedDescription, privacy: .public)")
         }
         await refreshInstalled()
@@ -764,7 +764,7 @@ struct ModelsPage: View {
                 rowIcon(Self.symbol(role))
                 VStack(alignment: .leading, spacing: 4) {
                     Text(title)
-                    Text(bytes.formatted(.byteCount(style: .file)))
+                    Text(bytes.formatted(.byteCount(style: .file).locale(L10n.locale)))
                         .appFont(.caption)
                         .foregroundStyle(.secondary)
                     if let trait = Self.speedTrait(role) {
@@ -826,11 +826,11 @@ struct ModelsPage: View {
                                     Task { @MainActor in preparing = role }
                                 })
                                 finished = true
-                                status[role] = String(localized: "Download finished.")
+                                status[role] = L10n.text("Download finished.")
                                 // Self.log.info("UI download ok role=\(role.rawValue, privacy: .public)")
                             } catch {
                                 let nsError = error as NSError
-                                status[role] = String(localized: "A model is not available.")
+                                status[role] = L10n.text("A model is not available.")
                                 Self.log.error("UI download failed role=\(role.rawValue, privacy: .public) domain=\(nsError.domain, privacy: .public) code=\(nsError.code) message=\(error.localizedDescription, privacy: .public)")
                             }
                             downloading = nil
@@ -859,7 +859,7 @@ struct ModelsPage: View {
             // Self.log.info("UI delete ok role=\(role.rawValue, privacy: .public)")
         } catch {
             let nsError = error as NSError
-            status[role] = String(localized: "A model is not available.")
+            status[role] = L10n.text("A model is not available.")
             Self.log.error("UI delete failed role=\(role.rawValue, privacy: .public) domain=\(nsError.domain, privacy: .public) code=\(nsError.code) message=\(error.localizedDescription, privacy: .public)")
         }
         await refreshInstalled()
@@ -1019,17 +1019,17 @@ struct ModelsPage: View {
     /// What the student gets from this text model, in a few words. Whisper has no such trade-off to show.
     private static func speedTrait(_ role: ModelRole) -> String? {
         switch role {
-        case .tagger: String(localized: "Faster, lighter on memory, less thorough.")
-        case .page: String(localized: "Slower, uses more memory, more accurate.")
+        case .tagger: L10n.text("Faster, lighter on memory, less thorough.")
+        case .page: L10n.text("Slower, uses more memory, more accurate.")
         case .whisper: nil
         }
     }
 
     private static func lockedHint(_ role: ModelRole) -> String {
         switch role {
-        case .tagger: String(localized: "Needs 2 GB free.")
-        case .page: String(localized: "Needs 4 GB free and 8 GB of memory.")
-        case .whisper: String(localized: "Needs 2 GB free.")
+        case .tagger: L10n.text("Needs 2 GB free.")
+        case .page: L10n.text("Needs 4 GB free and 8 GB of memory.")
+        case .whisper: L10n.text("Needs 2 GB free.")
         }
     }
 }
@@ -1063,14 +1063,14 @@ struct CalendarPage: View {
             VStack(alignment: .leading, spacing: 20) {
                 weekdayHeader
                 monthGrid
-                Text(selected.formatted(.dateTime.weekday(.wide).day().month(.wide)))
+                Text(selected.formatted(.dateTime.weekday(.wide).day().month(.wide).locale(L10n.locale)))
                     .appFont(.headline)
                 dayList
             }
             .padding()
         }
         .background(Color(.systemGroupedBackground))
-        .navigationTitle(month.formatted(.dateTime.month(.wide).year()))
+        .navigationTitle(month.formatted(.dateTime.month(.wide).year().locale(L10n.locale)))
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
                 Button("Previous", systemImage: "chevron.left") { shiftMonth(-1) }
@@ -1082,8 +1082,9 @@ struct CalendarPage: View {
     }
 
     private var weekdayHeader: some View {
-        let symbols = Calendar.current.veryShortWeekdaySymbols
-        let start = Calendar.current.firstWeekday - 1
+        let calendar = L10n.calendar
+        let symbols = calendar.veryShortWeekdaySymbols
+        let start = calendar.firstWeekday - 1
         let ordered = Array(symbols[start...] + symbols[..<start])
         return HStack(spacing: 0) {
             ForEach(Array(ordered.enumerated()), id: \.offset) { _, symbol in
@@ -1288,12 +1289,12 @@ struct CalendarPage: View {
                     marks.append(
                         CalendarMark(
                             id: "\(slot.token.uuidString).\(calendar.startOfDay(for: date).timeIntervalSince1970)",
-                            name: slot.course?.name ?? String(localized: "Course"),
+                            name: slot.course?.name ?? L10n.text("Course"),
                             startMinutes: slot.startMinutes,
                             endMinutes: max(slot.endMinutes, slot.startMinutes + 30),
                             detail: slotDetail(slot),
                             lecture: nil,
-                            tint: slot.course?.color ?? CourseStyle.color(for: slot.course?.name ?? String(localized: "Course"))
+                            tint: slot.course?.color ?? CourseStyle.color(for: slot.course?.name ?? L10n.text("Course"))
                         )
                     )
                 }
@@ -1360,7 +1361,7 @@ struct CalendarPage: View {
     private func mark(for sitting: ExamSitting, lecture: Lecture?) -> CalendarMark {
         let start = sitting.startMinutes ?? (24 * 60)
         let end = max(sitting.endMinutes ?? start, start)
-        let name = sitting.course?.name ?? String(localized: "Course")
+        let name = sitting.course?.name ?? L10n.text("Course")
         return CalendarMark(
             id: sitting.token.uuidString,
             name: name,
@@ -1381,7 +1382,7 @@ struct CalendarPage: View {
                 parts.append(ReminderScheduler.clock(start))
             }
         } else {
-            parts.append(String(localized: "Time not set"))
+            parts.append(L10n.text("Time not set"))
         }
         let place = PlacePreset.displayName(for: sitting.place)
         if !place.isEmpty {
@@ -1395,10 +1396,10 @@ struct CalendarPage: View {
         let title = sitting.title.trimmingCharacters(in: .whitespacesAndNewlines)
         if ExamKind(rawValue: sitting.kind) == .other, !title.isEmpty { return title }
         switch ExamKind(rawValue: sitting.kind) {
-        case .midterm: return String(localized: "Midterm")
-        case .final: return String(localized: "Final")
-        case .other: return String(localized: "Other")
-        case nil: return String(localized: "Exam")
+        case .midterm: return L10n.text("Midterm")
+        case .final: return L10n.text("Final")
+        case .other: return L10n.text("Other")
+        case nil: return L10n.text("Exam")
         }
     }
 
@@ -1409,7 +1410,7 @@ struct CalendarPage: View {
         let state: String? = lecture.statusTitle
         var partsDetail: [String] = [clock]
         if lecture.recordedSeconds >= 60 {
-            partsDetail.append(String(format: String(localized: "%lld min"), lecture.recordedSeconds / 60))
+            partsDetail.append(String(format: L10n.text("%lld min"), lecture.recordedSeconds / 60))
         }
         if let state {
             partsDetail.append(state)
@@ -1419,12 +1420,12 @@ struct CalendarPage: View {
         }
         return CalendarMark(
             id: "\(lecture.course?.token.uuidString ?? "lecture").\(lecture.startedAt.timeIntervalSince1970)",
-            name: lecture.course?.name ?? String(localized: "Course"),
+            name: lecture.course?.name ?? L10n.text("Course"),
             startMinutes: start,
             endMinutes: start + max(30, lecture.recordedSeconds / 60),
             detail: partsDetail.joined(separator: " · "),
             lecture: lecture,
-            tint: lecture.course?.color ?? CourseStyle.color(for: lecture.course?.name ?? String(localized: "Course"))
+            tint: lecture.course?.color ?? CourseStyle.color(for: lecture.course?.name ?? L10n.text("Course"))
         )
     }
 
@@ -1494,7 +1495,7 @@ struct ProgramPage: View {
         .scrollContentBackground(.hidden)
         .background(Color(.systemGroupedBackground))
         .navigationTitle(weekdayName(day))
-        .navigationSubtitle(date(for: day).formatted(date: .abbreviated, time: .omitted))
+        .navigationSubtitle(date(for: day).formatted(.dateTime.day().month(.abbreviated).locale(L10n.locale)))
         .navigationDestination(isPresented: $showCalendar) {
             CalendarPage(term: term)
         }
@@ -1602,7 +1603,7 @@ struct ProgramPage: View {
     }
 
     private func slotBlock(_ slot: WeeklySlot, startHour: Int) -> some View {
-        let name = slot.course?.name ?? String(localized: "Course")
+        let name = slot.course?.name ?? L10n.text("Course")
         let detail = slotDetail(slot)
         // A short slot is a short block. It does not have room for two lines, so the name and the
         // time share one line.
@@ -1709,13 +1710,13 @@ struct ProgramPage: View {
     }
 
     private func weekdayName(_ day: Int) -> String {
-        let symbols = Calendar.current.weekdaySymbols
+        let symbols = L10n.calendar.weekdaySymbols
         guard symbols.indices.contains(day - 1) else { return "" }
         return symbols[day - 1]
     }
 
     private func shortName(_ day: Int) -> String {
-        let symbols = Calendar.current.shortWeekdaySymbols
+        let symbols = L10n.calendar.shortWeekdaySymbols
         guard symbols.indices.contains(day - 1) else { return "" }
         return symbols[day - 1]
     }
@@ -1852,7 +1853,7 @@ struct SlotEditor: View {
                 if remind {
                     Picker("Remind me", selection: $leadMinutes) {
                         ForEach(leadChoices, id: \.self) { value in
-                            Text(String(format: String(localized: "%lld minutes before"), value)).tag(value)
+                            Text(String(format: L10n.text("%lld minutes before"), value)).tag(value)
                         }
                     }
                     .pickerStyle(.menu)
@@ -1987,7 +1988,7 @@ struct SlotEditor: View {
     }
 
     private func weekdayName(_ value: Int) -> String {
-        let symbols = Calendar.current.weekdaySymbols
+        let symbols = L10n.calendar.weekdaySymbols
         guard symbols.indices.contains(value - 1) else { return "" }
         return symbols[value - 1]
     }
@@ -2012,8 +2013,8 @@ struct StudySheet: View {
 
     private var suggestions: [String] {
         [
-            String(localized: "What are the assignments?"),
-            String(localized: "What is on the exam?"),
+            L10n.text("What are the assignments?"),
+            L10n.text("What is on the exam?"),
         ]
     }
 
@@ -2144,7 +2145,7 @@ struct StudySheet: View {
         // }
         guard !pick.blocks.isEmpty else {
             // Self.log.info("Study no blocks selected")
-            answer = String(localized: "The lectures do not contain that.")
+            answer = L10n.text("The lectures do not contain that.")
             return
         }
         let tags = pick.blocks.map {
@@ -2166,11 +2167,11 @@ struct StudySheet: View {
             )
             let missing = reply.contains("NOT_IN_NOTES") || reply.isEmpty
             // Self.log.info("Study answer shown notInNotes=\(missing) characters=\(reply.count) sourceSecond=\(pick.source?.second ?? -1)")
-            answer = missing ? String(localized: "The lectures do not contain that.") : reply
+            answer = missing ? L10n.text("The lectures do not contain that.") : reply
             sourceBlock = missing ? nil : pick.source
         } catch {
             Self.log.error("Study answer failed: \(error.localizedDescription, privacy: .public)")
-            answer = String(localized: "A model is not available.")
+            answer = L10n.text("A model is not available.")
             sourceBlock = nil
         }
     }

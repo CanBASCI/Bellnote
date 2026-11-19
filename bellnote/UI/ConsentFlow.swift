@@ -114,7 +114,7 @@ private struct ConsentFlow: ViewModifier {
             Self.log.error(
                 "Recording import failed: \(String(describing: error), privacy: .public) [\(ns.domain, privacy: .public) \(ns.code)] \(ns.localizedDescription, privacy: .public)"
             )
-            importNotice = String(localized: "The recording could not be added.")
+            importNotice = L10n.text("The recording could not be added.")
         case .success(let url):
             do {
                 try LectureStarter.importAudio(
@@ -128,7 +128,7 @@ private struct ConsentFlow: ViewModifier {
                 Self.log.error(
                     "Recording import failed: \(String(describing: error), privacy: .public) [\(ns.domain, privacy: .public) \(ns.code)] \(ns.localizedDescription, privacy: .public)"
                 )
-                importNotice = String(localized: "The recording could not be added.")
+                importNotice = L10n.text("The recording could not be added.")
             }
         }
     }
@@ -152,7 +152,7 @@ private struct ConsentFlow: ViewModifier {
                 }
             }
             .alert(
-                String(format: String(localized: "Record this class for %@?"), course?.name ?? ""),
+                String(format: L10n.text("Record this class for %@?"), course?.name ?? ""),
                 isPresented: alertBinding
             ) {
                 Button("Cancel", role: .cancel) {}
@@ -167,7 +167,7 @@ private struct ConsentFlow: ViewModifier {
             .popover(isPresented: popoverBinding) {
                 if let course {
                     VStack(spacing: 14) {
-                        Text(String(format: String(localized: "Record this class for %@?"), course.name))
+                        Text(String(format: L10n.text("Record this class for %@?"), course.name))
                             .multilineTextAlignment(.center)
                         Button {
                             start(course, faceID: false)

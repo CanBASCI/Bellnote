@@ -93,18 +93,6 @@ struct QuizPage: View {
                     }
                 }
             }
-            #if DEBUG
-            if quiz.phase == .pickCourse || quiz.phase == .setup {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button {
-                        quiz.loadDummyResults()
-                    } label: {
-                        Image(systemName: "eye")
-                    }
-                    .accessibilityLabel(Text(verbatim: "Dummy results"))
-                }
-            }
-            #endif
             if quiz.phase == .setup, let course = quiz.course {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Prepare") {
@@ -137,7 +125,7 @@ struct QuizPage: View {
         .fullScreenCover(item: $filePreview) { preview in
             CourseFilePreview(url: preview.url, title: preview.title) { error in
                 Self.log.error("Quiz preview save failed \(error.localizedDescription, privacy: .public)")
-                fileNotice = String(localized: "The change could not be saved.")
+                fileNotice = L10n.text("The change could not be saved.")
             } onEdited: {
                 markFileUpdated(courseID: preview.courseID, fileID: preview.fileID)
             } onDismiss: {
@@ -176,9 +164,9 @@ struct QuizPage: View {
               !name.isEmpty,
               quiz.phase != .pickCourse
         else {
-            return String(localized: "Quiz")
+            return L10n.text("Quiz")
         }
-        return String(format: String(localized: "%@ - %@"), String(localized: "Quiz"), name)
+        return String(format: L10n.text("%@ - %@"), L10n.text("Quiz"), name)
     }
 
     /// Same grid and tile size as Files, but each tile is a quiz sheet icon, not a folder.
@@ -231,7 +219,7 @@ struct QuizPage: View {
         .contentShape(.rect)
         .accessibilityLabel(
             Text(
-                "\(course.name), \(String(format: String(localized: "%lld documents"), documentCount))"
+                "\(course.name), \(String(format: L10n.text("%lld documents"), documentCount))"
             )
         )
     }
@@ -333,12 +321,12 @@ struct QuizPage: View {
                         } label: {
                             HStack(alignment: .center, spacing: 12) {
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text(verbatim: lecture.startedAt.formatted(date: .abbreviated, time: .omitted))
+                                    Text(verbatim: L10n.dateString(lecture.startedAt, date: .abbreviated))
                                         .appFont(.subheadline, weight: .medium)
                                         .foregroundStyle(.secondary)
                                         .lineLimit(1)
                                     Text(verbatim: lecture.title.isEmpty
-                                        ? lecture.startedAt.formatted(date: .abbreviated, time: .shortened)
+                                        ? L10n.dateString(lecture.startedAt, date: .abbreviated, time: .shortened)
                                         : lecture.title)
                                         .appFont(.subheadline)
                                         .foregroundStyle(.primary)
@@ -447,7 +435,7 @@ struct QuizPage: View {
     private func setupFileDetail(_ file: CourseFile) -> String {
         let ext = URL(fileURLWithPath: file.displayName).pathExtension
         if !ext.isEmpty { return ext.uppercased() }
-        return String(localized: "Other")
+        return L10n.text("Other")
     }
 
     private var preparingView: some View {
@@ -458,8 +446,8 @@ struct QuizPage: View {
     }
 
     private var courseTint: Color {
-        // With no course (the debug dummy results) a palette color stands in. The app tint is the primary color,
-        // white in dark mode, and a white button with a white label cannot be read.
+        // With no course a palette color stands in. The app tint is the primary color, white in dark mode,
+        // and a white button with a white label cannot be read.
         quiz.course?.color ?? CourseStyle.color(at: 0, fallbackName: "")
     }
 
@@ -471,7 +459,7 @@ struct QuizPage: View {
                     VStack(alignment: .leading, spacing: 24) {
                         VStack(alignment: .leading, spacing: 10) {
                             Text(verbatim: String(
-                                format: String(localized: "Question %1$lld of %2$lld"),
+                                format: L10n.text("Question %1$lld of %2$lld"),
                                 quiz.index + 1,
                                 quiz.questions.count
                             ))
@@ -537,7 +525,7 @@ struct QuizPage: View {
     private var resultsView: some View {
         let total = max(quiz.questions.count, 1)
         let ratio = Double(quiz.correctCount) / Double(total)
-        let ofText = String(format: String(localized: "of %lld"), quiz.questions.count)
+        let ofText = String(format: L10n.text("of %lld"), quiz.questions.count)
         return GeometryReader { proxy in
             ScrollView {
                 VStack(spacing: 28) {
@@ -568,25 +556,25 @@ struct QuizPage: View {
                         resultTile(
                             symbol: "checkmark.circle.fill",
                             tint: courseTint,
-                            title: String(localized: "Correct"),
+                            title: L10n.text("Correct"),
                             value: quiz.correctCount.formatted(.number)
                         )
                         resultTile(
                             symbol: "xmark.circle.fill",
                             tint: quizWrongTint,
-                            title: String(localized: "Wrong"),
+                            title: L10n.text("Wrong"),
                             value: quiz.wrongCount.formatted(.number)
                         )
                         resultTile(
                             symbol: "clock.fill",
                             tint: courseTint,
-                            title: String(localized: "Total time"),
+                            title: L10n.text("Total time"),
                             value: formatDuration(quiz.totalSeconds)
                         )
                         resultTile(
                             symbol: "speedometer",
                             tint: courseTint,
-                            title: String(localized: "Average per question"),
+                            title: L10n.text("Average per question"),
                             value: formatDuration(quiz.averageSeconds)
                         )
                     }
@@ -671,7 +659,7 @@ struct QuizPage: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(
                         verbatim: String(
-                            format: String(localized: "Wrong %1$lld of %2$lld"),
+                            format: L10n.text("Wrong %1$lld of %2$lld"),
                             place + 1,
                             count
                         )
@@ -777,10 +765,10 @@ struct QuizPage: View {
 
     private func reviewAccessibility(choice: QuizChoice, text: String, answer: QuizAnswerRecord) -> String {
         if choice == answer.question.correct {
-            return String(format: String(localized: "%@, correct answer"), "\(choice.rawValue). \(text)")
+            return String(format: L10n.text("%@, correct answer"), "\(choice.rawValue). \(text)")
         }
         if choice == answer.picked {
-            return String(format: String(localized: "%@, your answer"), "\(choice.rawValue). \(text)")
+            return String(format: L10n.text("%@, your answer"), "\(choice.rawValue). \(text)")
         }
         return "\(choice.rawValue). \(text)"
     }
@@ -821,9 +809,9 @@ struct QuizPage: View {
         let minutes = total / 60
         let rem = total % 60
         if minutes > 0 {
-            return String(format: String(localized: "%1$lld min %2$lld sec"), minutes, rem)
+            return String(format: L10n.text("%1$lld min %2$lld sec"), minutes, rem)
         }
-        return String(format: String(localized: "%lld sec"), rem)
+        return String(format: L10n.text("%lld sec"), rem)
     }
 
     private func openSource(_ question: QuizQuestion) {
@@ -853,13 +841,13 @@ struct QuizPage: View {
             guard let fileID = question.fileID,
                   let file = course.files.first(where: { $0.persistentModelID == fileID })
             else {
-                fileNotice = String(localized: "The file could not be opened.")
+                fileNotice = L10n.text("The file could not be opened.")
                 return
             }
             do {
                 let url = try Vault.documents().appendingPathComponent(file.relativePath)
                 guard FileManager.default.fileExists(atPath: url.path) else {
-                    fileNotice = String(localized: "The file could not be opened.")
+                    fileNotice = L10n.text("The file could not be opened.")
                     return
                 }
                 let kind = CourseFileKind(rawValue: file.kind) ?? .other
@@ -882,7 +870,7 @@ struct QuizPage: View {
                     )
                 }
             } catch {
-                fileNotice = String(localized: "The file could not be opened.")
+                fileNotice = L10n.text("The file could not be opened.")
             }
         case .sticky:
             guard let token = question.stickyToken else { return }

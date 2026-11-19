@@ -42,7 +42,7 @@ struct ProcessingCircle: View {
                         .frame(width: 180, height: 180)
                     // Keep the label block in the clear middle of the ring, short lines, not edge-to-edge.
                     VStack(spacing: 6) {
-                        Text(isStopping ? String(localized: "Cancelling…") : step.title)
+                        Text(isStopping ? L10n.text("Cancelling…") : step.title)
                             .appFont(.footnote, weight: .semibold)
                             .multilineTextAlignment(.center)
                             .lineSpacing(2)
@@ -61,7 +61,7 @@ struct ProcessingCircle: View {
             Color.clear
                 .overlay(alignment: .top) {
                     let info = isStopping
-                        ? String(localized: "The step that is running has to end first. Then the work stops.")
+                        ? L10n.text("The step that is running has to end first. Then the work stops.")
                         : step.info
                     if !info.isEmpty {
                         Text(info)

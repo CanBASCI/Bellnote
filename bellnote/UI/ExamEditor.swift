@@ -109,7 +109,7 @@ struct ExamEditor: View {
                 }
                 if reminder != .none {
                     Stepper(value: $leadDays, in: 0...60) {
-                        Text(String(format: String(localized: "%lld days before"), leadDays))
+                        Text(String(format: L10n.text("%lld days before"), leadDays))
                     }
                 }
                 LabeledContent("Score") {
