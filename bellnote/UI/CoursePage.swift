@@ -793,8 +793,8 @@ struct LecturerEditor: View {
     @Bindable var contact: LecturerContact
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
-    /// What the student asked for with an icon. The system call or mail opens only after the confirmation.
-    @State private var pending: ContactAction?
+    /// The mail icon asks first. The call icon does not, because the system shows its own "Call" prompt.
+    @State private var askToMail = false
     @State private var notice: String?
 
     private enum ContactAction {
@@ -816,7 +816,7 @@ struct LecturerEditor: View {
                         .keyboardType(.phonePad)
                         .textContentType(.telephoneNumber)
                     if !phone.isEmpty {
-                        Button("Call", systemImage: "phone.fill") { pending = .call }
+                        Button("Call", systemImage: "phone.fill") { open(.call) }
                             .labelStyle(.iconOnly)
                             .buttonStyle(.borderless)
                     }
@@ -828,7 +828,7 @@ struct LecturerEditor: View {
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                     if !email.isEmpty {
-                        Button("Write email", systemImage: "envelope.fill") { pending = .mail }
+                        Button("Write email", systemImage: "envelope.fill") { askToMail = true }
                             .labelStyle(.iconOnly)
                             .buttonStyle(.borderless)
                     }
@@ -843,21 +843,8 @@ struct LecturerEditor: View {
                 }
             }
             // An alert, like the other confirmations of the app.
-            .alert(
-                confirmationTitle,
-                isPresented: Binding(
-                    get: { pending != nil },
-                    set: { if !$0 { pending = nil } }
-                )
-            ) {
-                switch pending {
-                case .call:
-                    Button("Call") { open(.call) }
-                case .mail:
-                    Button("Write email") { open(.mail) }
-                case nil:
-                    EmptyView()
-                }
+            .alert(Text(verbatim: String(format: String(localized: "Write to %@?"), email)), isPresented: $askToMail) {
+                Button("Write email") { open(.mail) }
                 Button("Cancel", role: .cancel) {}
             }
             .alert(
@@ -871,14 +858,6 @@ struct LecturerEditor: View {
             }
         }
         .presentationDetents([.medium, .large])
-    }
-
-    private var confirmationTitle: Text {
-        switch pending {
-        case .call: Text(verbatim: String(format: String(localized: "Call %@?"), phone))
-        case .mail: Text(verbatim: String(format: String(localized: "Write to %@?"), email))
-        case nil: Text(verbatim: "")
-        }
     }
 
     /// `tel:` takes digits, a leading plus, and the dial characters. Spaces, dashes and brackets are dropped.

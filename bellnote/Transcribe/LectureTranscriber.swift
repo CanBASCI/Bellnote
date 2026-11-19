@@ -466,7 +466,6 @@ enum LectureTranscriber {
         do {
             let lastSample = try await feed(analyzer, file: analysisFile, modules: [module])
             if let lastSample {
-                let seconds = lastSample.seconds
                 // log.info("Finalize through seconds=\(seconds)")
                 try await analyzer.finalizeAndFinish(through: lastSample)
             } else {
@@ -722,12 +721,9 @@ enum LectureTranscriber {
     ) async throws -> [TranscriptLine] where S.Element: SpeechModuleResult {
         var finals: [TranscriptLine] = []
         var volatileBySecond: [Int: String] = [:]
-        var index = 0
         for try await result in results {
-            index += 1
             let value = text(result).trimmingCharacters(in: .whitespacesAndNewlines)
             let start = result.range.start.seconds
-            let duration = result.range.duration.seconds
             // log.info(
                 // "Transcript result index=\(index) final=\(result.isFinal) start=\(start) duration=\(duration) characters=\(value.count) head=\(String(value.prefix(60)), privacy: .public) tail=\(String(value.suffix(60)), privacy: .public)"
             // )

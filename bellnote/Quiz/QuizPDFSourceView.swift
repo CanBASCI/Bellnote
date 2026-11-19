@@ -84,12 +84,9 @@ private struct QuizPDFKitView: UIViewRepresentable {
         let queries = Self.findQueries(from: excerpt)
         for query in queries {
             let hits = document.findString(query, withOptions: [.caseInsensitive])
-            if let first = hits.first {
-                view.currentSelection = first
-                view.go(to: first)
-                // Self.log.info(
-                    // "Quiz PDF jump find queryChars=\(query.count) page=\(self.pageIndex ?? -1)"
-                // )
+            if let hit = preferredHit(in: hits, document: document) {
+                view.currentSelection = hit
+                show(hit, in: view, document: document)
                 return true
             }
         }
@@ -108,6 +105,32 @@ private struct QuizPDFKitView: UIViewRepresentable {
             // "Quiz PDF jump missed page=\(self.pageIndex ?? -1) excerptChars=\(self.excerpt.count)"
         // )
         return false
+    }
+
+    /// A window starts on `pageIndex` and may run on to the next pages, so the passage is never above it.
+    /// The first match at or after that page wins; a match above it is a repeated phrase.
+    private func preferredHit(in hits: [PDFSelection], document: PDFDocument) -> PDFSelection? {
+        guard let pageIndex else { return hits.first }
+        let later = hits.first { hit in
+            guard let page = hit.pages.first else { return false }
+            return document.index(for: page) >= pageIndex
+        }
+        return later ?? hits.first
+    }
+
+    /// Opens the page that holds the passage, from its top, so the highlight is on screen with the text around it.
+    /// `go(to:)` with the selection scrolls the passage to the top edge, and when it sits low on the page the
+    /// student lands on the start of the next page. A page taller than the view is scrolled to just above the passage.
+    private func show(_ hit: PDFSelection, in view: PDFView, document: PDFDocument) {
+        guard let page = hit.pages.first else {
+            view.go(to: hit)
+            return
+        }
+        let box = page.bounds(for: view.displayBox)
+        let passage = hit.bounds(for: page)
+        let pageFits = box.height * view.scaleFactor <= view.bounds.height
+        let top = pageFits ? box.maxY : min(box.maxY, passage.maxY + 60)
+        view.go(to: PDFDestination(page: page, at: CGPoint(x: box.minX, y: top)))
     }
 
     /// Queries that usually still match a PDF text layer after OCR/spacing quirks.

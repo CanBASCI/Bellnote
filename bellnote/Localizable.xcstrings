@@ -1041,22 +1041,6 @@
         }
       }
     },
-    "Call %@?" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Call %@?"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ aransın mı?"
-          }
-        }
-      }
-    },
     "Cancel" : {
       "localizations" : {
         "en" : {
@@ -1149,22 +1133,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Model kontrol ediliyor"
-          }
-        }
-      }
-    },
-    "Choices" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Choices"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Şıklar"
           }
         }
       }
@@ -4583,22 +4551,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Fotoğraf"
-          }
-        }
-      }
-    },
-    "Pick one letter to continue." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Pick one letter to continue."
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Devam etmek için bir harf seç."
           }
         }
       }

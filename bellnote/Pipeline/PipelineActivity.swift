@@ -80,7 +80,7 @@ final class PipelineActivity {
     /// stops right after it.
     func stop(_ lecture: Lecture) {
         let id = lecture.persistentModelID
-        guard let stage = stages[id] else {
+        guard stages[id] != nil else {
             // Self.log.info("Stop ignored: the lecture is not running")
             return
         }

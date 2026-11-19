@@ -481,9 +481,6 @@ final class QuizSession {
             // Self.log.info(
                 // "Quiz ready count=\(built.count) difficulty=\(self.difficulty.rawValue, privacy: .public) ms=\(Int(Date().timeIntervalSince(prepareStarted) * 1000))"
             // )
-            #if DEBUG
-            logQuestions(built)
-            #endif
         } catch LocalModelError.notInstalled {
             phase = .needsModel
             statusLine = String(localized: "Download a text model in Settings.")
@@ -502,18 +499,6 @@ final class QuizSession {
     }
 
     #if DEBUG
-    /// Debug builds only: writes every question with its choices and key so the log shows what the student sees.
-    private func logQuestions(_ questions: [QuizQuestion]) {
-        for (offset, question) in questions.enumerated() {
-            // let choices = question.choiceLines
-                // .map { "\($0.0.rawValue): \($0.1)" }
-                // .joined(separator: " | ")
-            // Self.log.info(
-                // "Quiz q\(offset + 1)/\(questions.count) key=\(question.correct.rawValue, privacy: .public) source=\(question.sourceTitle, privacy: .public) :: \(question.prompt, privacy: .public) | \(choices, privacy: .public)"
-            // )
-        }
-    }
-
     /// Debug builds only: fills the session with made-up answers and opens the results page for layout work.
     func loadDummyResults() {
         let samples: [(prompt: String, key: QuizChoice, choices: [QuizChoice: String], picked: QuizChoice, seconds: TimeInterval)] = [
@@ -677,7 +662,7 @@ final class QuizSession {
                 return nil
             }
             return item
-        case .failure(let reason):
+        case .failure:
             // Self.log.warning(
                 // "Quiz item rejected id=\(material.id, privacy: .public) reason=\(reason.rawValue, privacy: .public) ms=\(elapsedMs)"
             // )

@@ -463,37 +463,44 @@ struct QuizPage: View {
         quiz.course?.color ?? CourseStyle.color(at: 0, fallbackName: "")
     }
 
+    /// One question at a time: a progress bar under the counter, the question in large type, then one card per choice.
     private var takingView: some View {
         Group {
             if let question = quiz.current {
-                List {
-                    Section {
-                        Text(verbatim: question.prompt)
-                            .appFont(.body, weight: .semibold)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .listRowBackground(Color.clear)
-                            .listRowInsets(.vertical, 8)
-                    } header: {
-                        sectionTitle(
-                            verbatim: String(
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 24) {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text(verbatim: String(
                                 format: String(localized: "Question %1$lld of %2$lld"),
                                 quiz.index + 1,
                                 quiz.questions.count
-                            ),
-                            detail: String(localized: "Pick one letter to continue.")
-                        )
-                    }
-
-                    Section {
-                        ForEach(question.choiceLines, id: \.0) { choice, text in
-                            takingChoiceRow(choice: choice, text: text)
+                            ))
+                            .appFont(.subheadline, weight: .semibold, digits: true)
+                            .foregroundStyle(.secondary)
+                            ProgressView(value: Double(quiz.index + 1), total: Double(max(quiz.questions.count, 1)))
+                                .tint(courseTint)
+                                .accessibilityHidden(true)
                         }
-                    } header: {
-                        sectionTitle("Choices")
+
+                        Text(verbatim: question.prompt)
+                            .appFont(.title3, weight: .semibold)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        VStack(spacing: 12) {
+                            ForEach(question.choiceLines, id: \.0) { choice, text in
+                                takingChoiceRow(choice: choice, text: text)
+                            }
+                        }
                     }
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 24)
+                    .id(quiz.index)
+                    .transition(.opacity)
                 }
-                .listStyle(.plain)
-                .contentMargins(.top, 16, for: .scrollContent)
+                .scrollBounceBehavior(.basedOnSize)
+                .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: quiz.index)
+                .sensoryFeedback(.selection, trigger: quiz.index)
             } else {
                 ContentUnavailableView("No questions", systemImage: "questionmark.circle")
             }
@@ -504,12 +511,12 @@ struct QuizPage: View {
     private var quizCorrectTint: Color { CourseStyle.scoreTint(.passed) }
     private var quizWrongTint: Color { CourseStyle.scoreTint(.notPassed) }
 
-    /// Letter badge + row tap. No trailing checkbox, the row itself selects.
+    /// One card per choice: the letter badge in the course color, the text, and the whole card is the hit target.
     private func takingChoiceRow(choice: QuizChoice, text: String) -> some View {
         Button {
             quiz.pick(choice)
         } label: {
-            HStack(alignment: .center, spacing: 12) {
+            HStack(alignment: .center, spacing: 14) {
                 choiceLetterBadge(choice.rawValue, fill: courseTint)
                 Text(verbatim: text)
                     .appFont(.body)
@@ -517,11 +524,13 @@ struct QuizPage: View {
                     .multilineTextAlignment(.leading)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .contentShape(.rect)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color(.secondarySystemGroupedBackground), in: .rect(cornerRadius: 20))
+            .contentShape(.rect(cornerRadius: 20))
         }
-        .buttonStyle(.plain)
-        .listRowBackground(Color.clear)
-        .listRowInsets(EdgeInsets(top: 14, leading: 16, bottom: 14, trailing: 16))
+        .buttonStyle(ChoiceCardStyle())
     }
 
     /// A ring with the score in the middle, four small tiles under it, and one Review button.
@@ -929,4 +938,11 @@ private struct QuizPDFSourceItem: Identifiable {
     var title: String
     var pageIndex: Int?
     var excerpt: String
+}
+
+/// A card that dims a little while it is pressed.
+private struct ChoiceCardStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label.opacity(configuration.isPressed ? 0.6 : 1)
+    }
 }

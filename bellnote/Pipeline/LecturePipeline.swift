@@ -494,7 +494,7 @@ enum LecturePipeline {
         let chunks = CorrectionText.chunks(source.map(\.text))
         // let stageStarted = Date()
         // log.info("Correction begin chunks=\(chunks.count) characters=\(chunks.reduce(0) { $0 + $1.count }) \(MemoryProbe.summary())")
-        for (index, chunk) in chunks.enumerated() {
+        for chunk in chunks {
             try Task.checkCancellation()
             if PipelineActivity.shared.isStopping(lecture) { throw CancellationError() }
             // let chunkStarted = Date()
